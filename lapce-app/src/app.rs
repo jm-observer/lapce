@@ -1,3 +1,4 @@
+#![allow(unused_imports, dead_code)]
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 use std::{
@@ -149,7 +150,6 @@ pub struct AppData {
     /// The latest release information
     pub latest_release: RwSignal<Arc<Option<ReleaseInfo>>>,
     pub watcher: Arc<notify::RecommendedWatcher>,
-    pub tracing_handle: Handle<Targets>,
     pub config: RwSignal<Arc<LapceConfig>>,
     /// Paths to extra plugins to load
     pub plugin_paths: Arc<Vec<PathBuf>>,
@@ -3379,58 +3379,7 @@ fn window(window_data: WindowData) -> impl View {
     .style(|s| s.size_full())
 }
 
-#[inline(always)]
-fn logging() -> (Handle<Targets>, Option<WorkerGuard>) {
-    use tracing_subscriber::{filter, fmt, prelude::*, reload};
-
-    let (log_file, guard) = match Directory::logs_directory()
-        .and_then(|dir| {
-            tracing_appender::rolling::Builder::new()
-                .max_log_files(10)
-                .rotation(tracing_appender::rolling::Rotation::DAILY)
-                .filename_prefix("lapce")
-                .filename_suffix("log")
-                .build(dir)
-                .ok()
-        })
-        .map(tracing_appender::non_blocking)
-    {
-        Some((log_file, guard)) => (Some(log_file), Some(guard)),
-        None => (None, None),
-    };
-
-    let log_file_filter_targets = filter::Targets::new()
-        .with_target("lapce_app", LevelFilter::DEBUG)
-        .with_target("lapce_proxy", LevelFilter::DEBUG);
-    let (log_file_filter, reload_handle) =
-        reload::Subscriber::new(log_file_filter_targets);
-
-    let console_filter_targets = std::env::var("LAPCE_LOG")
-        .unwrap_or_default()
-        .parse::<filter::Targets>()
-        .unwrap_or_default();
-
-    let registry = tracing_subscriber::registry();
-    if let Some(log_file) = log_file {
-        let file_layer = tracing_subscriber::fmt::subscriber()
-            .with_ansi(false)
-            .with_writer(log_file)
-            .with_filter(log_file_filter);
-        registry
-            .with(file_layer)
-            .with(fmt::Subscriber::default().with_filter(console_filter_targets))
-            .init();
-    } else {
-        registry
-            .with(fmt::Subscriber::default().with_filter(console_filter_targets))
-            .init();
-    };
-
-    (reload_handle, guard)
-}
-
 pub fn launch() {
-    let (reload_handle, _guard) = logging();
     tracing::info!("Starting up Lapce..");
 
     panic_hook();
@@ -3528,7 +3477,6 @@ pub fn launch() {
         watcher: Arc::new(watcher),
         latest_release,
         app_command,
-        tracing_handle: reload_handle,
         config,
         plugin_paths,
     };
@@ -3932,4 +3880,139 @@ fn fetch_grammars() -> Result<()> {
     }
 
     Err(anyhow!("can't find support grammars"))
+}
+
+#[inline(always)]
+fn logging_fit() {
+    use tracing_subscriber::prelude::*;
+    let log_file = Directory::logs_directory()
+        .and_then(|dir| {
+            tracing_appender::rolling::Builder::new()
+                .max_log_files(10)
+                .rotation(tracing_appender::rolling::Rotation::DAILY)
+                .filename_prefix("lapce")
+                .filename_suffix("log")
+                .build(dir)
+                .ok()
+        })
+        .unwrap();
+    let sub = tracing_subscriber::fmt()
+        .with_writer(log_file)
+        .with_ansi(false)
+        // .with_max_level(tracing::Level::DEBUG)
+        .with_env_filter("warn,lapce_app=debug,lapce_core=debug,lapce_rpc=debug,lapce_proxy=debug")
+        .with_line_number(true)
+        .finish();
+    sub.init();
+}
+
+pub fn launch_fit() {
+    logging_fit();
+    // if PWD is not set, then we are not being launched via a terminal
+    let cli = Cli::parse();
+
+    std::thread::spawn(move || {
+        if let Err(e) = fetch_grammars() {
+            error!("failed to fetch grammars: {e}");
+        }
+    });
+
+    let _ = lapce_proxy::register_lapce_path();
+    let db = match LapceDb::new() {
+        Ok(db) => Arc::new(db),
+        Err(e) => {
+            #[cfg(windows)]
+            error_modal("Error", &format!("Failed to create LapceDb: {e}"));
+            #[cfg(not(windows))]
+            error!("Failed to create LapceDb: {e}");
+            std::process::exit(1);
+        }
+    };
+    let scope = Scope::new();
+    provide_context(db.clone());
+
+    let window_scale = scope.create_rw_signal(1.0);
+    let latest_release = scope.create_rw_signal(Arc::new(None));
+    let app_command = Listener::new_empty(scope);
+
+    let (tx, rx) = crossbeam_channel::bounded(1);
+    let mut watcher = notify::recommended_watcher(ConfigWatcher::new(tx)).unwrap();
+    if let Some(path) = LapceConfig::settings_file() {
+        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
+    }
+    if let Some(path) = Directory::themes_directory() {
+        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
+    }
+    if let Some(path) = LapceConfig::keymaps_file() {
+        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
+    }
+    if let Some(path) = Directory::plugins_directory() {
+        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
+    }
+
+    let windows = scope.create_rw_signal(im::HashMap::new());
+    let plugin_paths = Arc::new(cli.plugin_path);
+    let config = LapceConfig::load(&LapceWorkspace::default(), &[], &plugin_paths);
+    let config = scope.create_rw_signal(Arc::new(config));
+    let app_data = AppData {
+        windows,
+        active_window: scope.create_rw_signal(WindowId::from(0)),
+        window_scale,
+        app_terminated: scope.create_rw_signal(false),
+        watcher: Arc::new(watcher),
+        latest_release,
+        app_command,
+        config,
+        plugin_paths,
+    };
+
+    let app = app_data.create_windows(db.clone(), cli.paths);
+
+    {
+        let app_data = app_data.clone();
+        let notification = create_signal_from_channel(rx);
+        create_effect(move |_| {
+            if notification.get().is_some() {
+                app_data.reload_config();
+            }
+        });
+    }
+
+    {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        let notification = create_signal_from_channel(rx);
+        let app_data = app_data.clone();
+        create_effect(move |_| {
+            if let Some(CoreNotification::OpenPaths { paths }) = notification.get() {
+                if let Some(window_tab) = app_data.active_window_tab() {
+                    window_tab.open_paths(&paths);
+                }
+            }
+        });
+        std::thread::spawn(move || {
+            let _ = listen_local_socket(tx);
+        });
+    }
+
+    {
+        let app_data = app_data.clone();
+        app_data.app_command.listen(move |command| {
+            app_data.run_app_command(command);
+        });
+    }
+
+    app.on_event(move |event| match event {
+        floem::AppEvent::WillTerminate => {
+            app_data.app_terminated.set(true);
+            let _ = db.insert_app(app_data.clone());
+        }
+        floem::AppEvent::Reopen {
+            has_visible_windows,
+        } => {
+            if !has_visible_windows {
+                app_data.new_window();
+            }
+        }
+    })
+    .run();
 }

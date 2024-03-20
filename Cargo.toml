@@ -83,18 +83,16 @@ floem-editor-core = { git = "https://github.com/lapce/floem", rev = "40ab0df2ba8
 lsp-types = { git = "https://github.com/lapce/lsp-types", rev = "3031a76c4452f46ed265eb0154d6bb1d10ddb9f6" }
 
 [workspace.dependencies.tracing]
-git = "https://github.com/tokio-rs/tracing"
-rev = "c14525e1610db88986f849d46bd3e9795878b012"
+version = "0.1.40"
 package = "tracing"
 
 [workspace.dependencies.tracing-subscriber]
-git = "https://github.com/tokio-rs/tracing"
-rev = "c14525e1610db88986f849d46bd3e9795878b012"
+version = "0.3.18"
 package = "tracing-subscriber"
+features = ["env-filter"]
 
 [workspace.dependencies.tracing-appender]
-git = "https://github.com/tokio-rs/tracing"
-rev = "c14525e1610db88986f849d46bd3e9795878b012"
+version = "0.2.3"
 package = "tracing-appender"
 
 [workspace.dependencies.alacritty_terminal]
