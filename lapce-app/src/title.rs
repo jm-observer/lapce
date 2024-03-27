@@ -57,6 +57,7 @@ fn left(
             || false,
             || "Menu",
             config,
+            false,
         )
         .popout_menu(move || window_menu(lapce_command, workbench_command))
         .style(move |s| {
@@ -85,6 +86,18 @@ fn left(
                     workbench_command.send(LapceWorkbenchCommand::ConnectSshHost);
                 }),
             );
+            if !is_local
+                && proxy_status.get().is_some_and(|p| {
+                    matches!(p, ProxyStatus::Connecting | ProxyStatus::Connected)
+                })
+            {
+                menu = menu.entry(MenuItem::new("Disconnect remote").action(
+                    move || {
+                        workbench_command
+                            .send(LapceWorkbenchCommand::DisconnectRemote);
+                    },
+                ));
+            }
             #[cfg(windows)]
             {
                 menu = menu.entry(MenuItem::new("Connect to WSL Host").action(
@@ -164,6 +177,7 @@ fn middle(
             move || !can_jump_backward.get(),
             || "Jump Backward",
             config,
+            true,
         )
         .style(move |s| s.margin_horiz(6.0))
     };
@@ -177,6 +191,7 @@ fn middle(
             move || !can_jump_forward.get(),
             || "Jump Forward",
             config,
+            true,
         )
         .style(move |s| s.margin_right(6.0))
     };
@@ -189,6 +204,7 @@ fn middle(
             || false,
             || "Open Folder / Recent Workspace",
             config,
+            true,
         )
         .popout_menu(move || {
             Menu::new("")
@@ -267,6 +283,7 @@ fn middle(
                 || false,
                 || "Run and Debug",
                 config,
+                true,
             )
             .style(move |s| s.margin_horiz(6.0)),
             drag_window_area(empty())
@@ -321,6 +338,7 @@ fn right(
                 || false,
                 || "Settings",
                 config,
+                true,
             )
             .popout_menu(move || {
                 Menu::new("")
@@ -469,6 +487,7 @@ pub fn window_controls_view(
             || false,
             || "Minimize",
             config,
+            true,
         )
         .style(|s| s.margin_right(16.0).margin_left(10.0)),
         clickable_icon(
@@ -488,6 +507,7 @@ pub fn window_controls_view(
             || false,
             || "Maximize",
             config,
+            true,
         )
         .style(|s| s.margin_right(16.0)),
         clickable_icon(
@@ -499,6 +519,7 @@ pub fn window_controls_view(
             || false,
             || "Close Window",
             config,
+            true,
         )
         .style(|s| s.margin_right(6.0)),
     ))
