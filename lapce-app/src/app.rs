@@ -3938,7 +3938,7 @@ fn logging_fit() {
         .with_writer(log_file)
         .with_ansi(false)
         // .with_max_level(tracing::Level::DEBUG)
-        .with_env_filter("warn,lapce_app=debug,lapce_core=debug,lapce_rpc=debug,lapce_proxy=debug")
+        .with_env_filter("warn,lapce_app::keypress=info,lapce_app=debug,lapce_core=debug,lapce_rpc=debug,lapce_proxy=debug")
         .with_line_number(true)
         .finish();
     sub.init();

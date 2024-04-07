@@ -29,6 +29,7 @@ use lsp_types::{
 use parking_lot::Mutex;
 use psp_types::{Notification, Request};
 use serde_json::Value;
+use tracing::debug;
 use wasi_experimental_http_wasmtime::{HttpCtx, HttpState};
 use wasmtime_wasi::WasiCtxBuilder;
 
@@ -492,6 +493,7 @@ pub fn start_volt(
     let local_stdin = stdin.clone();
     linker.func_wrap("lapce", "host_handle_rpc", move || {
         if let Ok(msg) = wasi_read_string(&stdout) {
+            debug!("read wasi's stdout: {}", msg);
             if let Some(resp) = handle_plugin_server_message(&local_rpc, &msg) {
                 if let Ok(msg) = serde_json::to_string(&resp) {
                     let _ = writeln!(local_stdin.write().unwrap(), "{msg}");
@@ -527,6 +529,7 @@ pub fn start_volt(
                     break;
                 }
                 if let Ok(msg) = serde_json::to_string(&msg) {
+                    debug!("write to wasi's stdin: {}", msg);
                     let _ = writeln!(stdin.write().unwrap(), "{msg}");
                 }
                 let _ = handle_rpc.call(&mut store, ());
