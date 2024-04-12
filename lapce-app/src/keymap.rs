@@ -9,8 +9,8 @@ use floem::{
     style::CursorStyle,
     view::View,
     views::{
-        container, dyn_stack, editor::id::EditorId, label, scroll, stack, text,
-        virtual_stack, Decorators, VirtualDirection, VirtualItemSize,
+        container, dyn_stack, label, scroll, stack, text, virtual_stack, Decorators,
+        VirtualDirection, VirtualItemSize,
     },
 };
 use lapce_core::mode::Modes;
@@ -18,9 +18,12 @@ use lapce_core::mode::Modes;
 use crate::{
     command::LapceCommand,
     config::{color::LapceColor, LapceConfig},
-    editor::EditorData,
-    keypress::{keymap::KeyMap, KeyPress, KeyPressData},
-    text_input::text_input,
+    keypress::{
+        keymap::{KeyMap, KeyMapPress},
+        KeyPressData,
+    },
+    main_split::Editors,
+    text_input::TextInputBuilder,
     window_tab::CommonData,
 };
 
@@ -28,13 +31,10 @@ use crate::{
 pub struct KeymapPicker {
     cmd: RwSignal<Option<LapceCommand>>,
     keymap: RwSignal<Option<KeyMap>>,
-    keys: RwSignal<Vec<(KeyPress, bool)>>,
+    keys: RwSignal<Vec<(KeyMapPress, bool)>>,
 }
 
-pub fn keymap_view(
-    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
-    common: Rc<CommonData>,
-) -> impl View {
+pub fn keymap_view(editors: Editors, common: Rc<CommonData>) -> impl View {
     let config = common.config;
     let keypress = common.keypress;
     let ui_line_height_memo = common.ui_line_height;
@@ -47,8 +47,8 @@ pub fn keymap_view(
     };
 
     let cx = Scope::current();
-    let editor = EditorData::new_local(cx, editors, common.clone());
-    let doc = editor.doc_signal();
+    let text_input_view = TextInputBuilder::new().build(cx, editors, common.clone());
+    let doc = text_input_view.doc_signal();
 
     let items = move || {
         let doc = doc.get();
@@ -145,7 +145,7 @@ pub fn keymap_view(
                                     keymap
                                         .key
                                         .iter()
-                                        .map(|key| key.label().trim().to_string())
+                                        .map(|key| key.label())
                                         .filter(|l| !l.is_empty())
                                         .collect::<Vec<String>>()
                                 })
@@ -281,7 +281,7 @@ pub fn keymap_view(
 
     stack((
         container(
-            text_input(editor, || false)
+            text_input_view
                 .placeholder(|| "Search Key Bindings".to_string())
                 .keyboard_navigatable()
                 .style(move |s| {
@@ -398,7 +398,7 @@ fn keyboard_picker_view(
                         .keys
                         .get()
                         .iter()
-                        .map(|(key, _)| key.label().trim().to_string())
+                        .map(|(key, _)| key.label())
                         .filter(|l| !l.is_empty())
                         .enumerate()
                         .collect::<Vec<(usize, String)>>()
@@ -461,7 +461,7 @@ fn keyboard_picker_view(
                                 &keys
                                     .iter()
                                     .map(|(key, _)| key.clone())
-                                    .collect::<Vec<KeyPress>>(),
+                                    .collect::<Vec<KeyMapPress>>(),
                             );
                         }
                     }),
@@ -516,6 +516,7 @@ fn keyboard_picker_view(
     .on_event_stop(EventListener::KeyDown, move |event| {
         if let Event::KeyDown(key_event) = event {
             if let Some(keypress) = KeyPressData::keypress(key_event) {
+                let keypress = keypress.keymap_press();
                 picker.keys.update(|keys| {
                     if let Some((last_key, last_key_confirmed)) = keys.last() {
                         if !*last_key_confirmed && last_key.is_modifiers() {

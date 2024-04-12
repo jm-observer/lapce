@@ -7,7 +7,7 @@ use floem::{
     view::View,
     views::{
         container, dyn_stack, empty, label,
-        scroll::{scroll, Thickness},
+        scroll::{scroll, Thickness, VerticalScrollAsHorizontal},
         stack, svg, tab, Decorators,
     },
     EventPropagation,
@@ -138,7 +138,6 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                                 || false,
                                 || "Close",
                                 config,
-                                true,
                             )
                             .style(|s| s.margin_horiz(6.0)),
                             empty().style(move |s| {
@@ -196,7 +195,6 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                 )
             },
         ))
-        .vertical_scroll_as_horizontal(|| true)
         .on_resize(move |rect| {
             if rect.size() != scroll_size.get_untracked() {
                 scroll_size.set(rect.size());
@@ -205,7 +203,8 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
         .style(move |s| {
             let header_width = header_width.get();
             let icon_width = icon_width.get();
-            s.absolute()
+            s.set(VerticalScrollAsHorizontal, true)
+                .absolute()
                 .max_width(header_width - icon_width)
                 .set(Thickness, 3)
         }),
@@ -222,7 +221,6 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
             || false,
             || "New Terminal",
             config,
-            true,
         ))
         .on_resize(move |rect| {
             let width = rect.size().width;

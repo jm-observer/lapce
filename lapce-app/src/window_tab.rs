@@ -13,7 +13,7 @@ use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
     ext_event::{create_ext_action, create_signal_from_channel},
     file::FileDialogOptions,
-    keyboard::ModifiersState,
+    keyboard::Modifiers,
     kurbo::Size,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal},
@@ -190,7 +190,7 @@ impl KeyPressFocus for WindowTabData {
         &self,
         command: &LapceCommand,
         _count: Option<usize>,
-        _mods: ModifiersState,
+        _mods: Modifiers,
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(cmd) => {
@@ -599,12 +599,11 @@ impl WindowTabData {
             | CommandKind::Edit(_)
             | CommandKind::Move(_) => {
                 if self.palette.status.get_untracked() != PaletteStatus::Inactive {
-                    self.palette
-                        .run_command(&cmd, None, ModifiersState::empty());
+                    self.palette.run_command(&cmd, None, Modifiers::empty());
                 } else if let Some(editor_data) =
                     self.main_split.active_editor.get_untracked()
                 {
-                    editor_data.run_command(&cmd, None, ModifiersState::empty());
+                    editor_data.run_command(&cmd, None, Modifiers::empty());
                 } else {
                     // TODO: dispatch to current focused view?
                 }
@@ -707,7 +706,7 @@ impl WindowTabData {
             }
 
             SaveAll => {
-                self.main_split.editors.with_untracked(|editors| {
+                self.main_split.editors.with_editors_untracked(|editors| {
                     let mut paths = HashSet::new();
                     for (_, editor_data) in editors.iter() {
                         let doc = editor_data.doc();
@@ -1373,7 +1372,7 @@ impl WindowTabData {
                             // file the renamed directory is an ancestor of is open to use the
                             // file's new path.
                             let renamed_editors_content: Vec<_> = editors
-                                .with_untracked(|editors| {
+                                .with_editors_untracked(|editors| {
                                     editors
                                         .values()
                                         .map(|editor| editor.doc().content)
@@ -1726,11 +1725,9 @@ impl WindowTabData {
                 });
 
                 let completion = self.common.completion.get_untracked();
-                let editor_data = completion.latest_editor_id.and_then(|id| {
-                    self.main_split
-                        .editors
-                        .with_untracked(|tabs| tabs.get(&id).cloned())
-                });
+                let editor_data = completion
+                    .latest_editor_id
+                    .and_then(|id| self.main_split.editors.editor_untracked(id));
                 if let Some(editor_data) = editor_data {
                     let cursor_offset =
                         editor_data.cursor().with_untracked(|c| c.offset());
@@ -1986,10 +1983,7 @@ impl WindowTabData {
         }
 
         let editor_id = self.common.hover.editor_id.get_untracked();
-        let editor_data = self
-            .main_split
-            .editors
-            .with(|editors| editors.get(&editor_id).cloned())?;
+        let editor_data = self.main_split.editors.editor(editor_id)?;
 
         let (window_origin, viewport, editor) = (
             editor_data.window_origin(),

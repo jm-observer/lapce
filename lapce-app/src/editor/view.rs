@@ -2,10 +2,10 @@ use std::{cmp, path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
-    context::PaintCx,
+    context::{PaintCx, StyleCx},
     event::{Event, EventListener},
     id::Id,
-    keyboard::ModifiersState,
+    keyboard::Modifiers,
     peniko::{
         kurbo::{Line, Point, Rect, Size},
         Color,
@@ -13,39 +13,46 @@ use floem::{
     reactive::{
         create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
     },
-    style::{CursorStyle, Style},
+    style::{CursorColor, CursorStyle, Style, TextColor},
     taffy::prelude::NodeId,
     view::{AnyWidget, View, ViewData, Widget},
     views::{
         clip, container, dyn_stack,
         editor::{
+            text::WrapMethod,
             view::{
                 cursor_caret, DiffSectionKind, EditorView as FloemEditorView,
-                LineRegion, ScreenLines,
+                EditorViewClass, LineRegion, ScreenLines,
             },
             visual_line::{RVLine, VLine},
-            Editor,
+            CurrentLineColor, CursorSurroundingLines, Editor, EditorStyle,
+            IndentGuideColor, IndentStyleProp, Modal, ModalRelativeLine,
+            PhantomColor, PlaceholderColor, PreeditUnderlineColor,
+            RenderWhitespaceProp, ScrollBeyondLastLine, SelectionColor,
+            ShowIndentGuide, SmartTab, VisibleWhitespaceColor, WrapProp,
         },
-        empty, label, scroll, stack, svg, Decorators,
+        empty, label,
+        scroll::{scroll, HideBar},
+        stack, svg, Decorators,
     },
     EventPropagation, Renderer,
 };
 use itertools::Itertools;
 use lapce_core::{
-    buffer::{diff::DiffLines, rope_text::RopeText},
+    buffer::{diff::DiffLines, rope_text::RopeText, Buffer},
     cursor::{CursorAffinity, CursorMode},
 };
 use lapce_rpc::dap_types::{DapId, SourceBreakpoint};
 use lapce_xi_rope::find::CaseMatching;
 
-use super::{gutter::editor_gutter_view, EditorData};
+use super::{gutter::editor_gutter_view, DocSignal, EditorData};
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
-    config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    config::{color::LapceColor, editor::WrapStyle, icon::LapceIcons, LapceConfig},
     debug::LapceBreakpoint,
     doc::DocContent,
-    text_input::text_input,
+    text_input::TextInputBuilder,
     window_tab::{Focus, WindowTabData},
     workspace::LapceWorkspace,
 };
@@ -56,9 +63,72 @@ struct StickyHeaderInfo {
     y_diff: f64,
 }
 
+fn editor_wrap(config: &LapceConfig) -> WrapMethod {
+    /// Minimum width that we'll allow the view to be wrapped at.
+    const MIN_WRAPPED_WIDTH: f32 = 100.0;
+
+    match config.editor.wrap_style {
+        WrapStyle::None => WrapMethod::None,
+        WrapStyle::EditorWidth => WrapMethod::EditorWidth,
+        WrapStyle::WrapWidth => WrapMethod::WrapWidth {
+            width: (config.editor.wrap_width as f32).max(MIN_WRAPPED_WIDTH),
+        },
+    }
+}
+
+pub fn editor_style(
+    config: ReadSignal<Arc<LapceConfig>>,
+    doc: DocSignal,
+    s: Style,
+) -> Style {
+    let config = config.get();
+    let doc = doc.get();
+
+    s.set(
+        IndentStyleProp,
+        doc.buffer.with_untracked(Buffer::indent_style),
+    )
+    .set(CursorColor, config.color(LapceColor::EDITOR_CARET))
+    .set(SelectionColor, config.color(LapceColor::EDITOR_SELECTION))
+    .set(
+        CurrentLineColor,
+        config.color(LapceColor::EDITOR_CURRENT_LINE),
+    )
+    .set(
+        VisibleWhitespaceColor,
+        config.color(LapceColor::EDITOR_VISIBLE_WHITESPACE),
+    )
+    .set(
+        IndentGuideColor,
+        config.color(LapceColor::EDITOR_INDENT_GUIDE),
+    )
+    .set(ScrollBeyondLastLine, config.editor.scroll_beyond_last_line)
+    .color(config.color(LapceColor::EDITOR_FOREGROUND))
+    .set(TextColor, config.color(LapceColor::EDITOR_FOREGROUND))
+    .set(PhantomColor, config.color(LapceColor::EDITOR_DIM))
+    .set(PlaceholderColor, config.color(LapceColor::EDITOR_DIM))
+    .set(
+        PreeditUnderlineColor,
+        config.color(LapceColor::EDITOR_FOREGROUND),
+    )
+    .set(ShowIndentGuide, config.editor.show_indent_guide)
+    .set(Modal, config.core.modal)
+    .set(
+        ModalRelativeLine,
+        config.editor.modal_mode_relative_line_numbers,
+    )
+    .set(SmartTab, config.editor.smart_tab)
+    .set(WrapProp, editor_wrap(&config))
+    .set(
+        CursorSurroundingLines,
+        config.editor.cursor_surrounding_lines,
+    )
+    .set(RenderWhitespaceProp, config.editor.render_whitespace)
+}
+
 pub struct EditorView {
     data: ViewData,
-    editor: Rc<EditorData>,
+    editor: EditorData,
     is_active: Memo<bool>,
     inner_node: Option<NodeId>,
     viewport: RwSignal<Rect>,
@@ -67,7 +137,7 @@ pub struct EditorView {
 }
 
 pub fn editor_view(
-    e_data: Rc<EditorData>,
+    e_data: EditorData,
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> EditorView {
@@ -174,6 +244,7 @@ pub fn editor_view(
         }
     });
 
+    let doc = e_data.doc_signal();
     EditorView {
         data: ViewData::new(id),
         editor: e_data,
@@ -213,6 +284,8 @@ pub fn editor_view(
         }
         EventPropagation::Stop
     })
+    .class(EditorViewClass)
+    .style(move |s| editor_style(config, doc, s))
 }
 
 impl EditorView {
@@ -342,7 +415,7 @@ impl EditorView {
         let is_active =
             self.is_active.get_untracked() && !find_focus.get_untracked();
 
-        let current_line_color = config.color(LapceColor::EDITOR_CURRENT_LINE);
+        let current_line_color = ed.es.with_untracked(EditorStyle::current_line);
 
         let breakline = self.debug_breakline.get_untracked().and_then(
             |(breakline, breakline_path)| {
@@ -380,22 +453,24 @@ impl EditorView {
                 CursorMode::Visual { .. } => false,
             };
 
-            // Highlight the current line
-            if !is_local && highlight_current_line {
-                for (_, end) in cursor.regions_iter() {
-                    // TODO: unsure if this is correct for wrapping lines
-                    let rvline = ed.rvline_of_offset(end, cursor.affinity);
+            if let Some(current_line_color) = current_line_color {
+                // Highlight the current line
+                if !is_local && highlight_current_line {
+                    for (_, end) in cursor.regions_iter() {
+                        // TODO: unsure if this is correct for wrapping lines
+                        let rvline = ed.rvline_of_offset(end, cursor.affinity);
 
-                    if let Some(info) = screen_lines
-                        .info(rvline)
-                        .filter(|_| Some(rvline.line) != breakline)
-                    {
-                        let rect = Rect::from_origin_size(
-                            (viewport.x0, info.vline_y),
-                            (viewport.width(), line_height),
-                        );
+                        if let Some(info) = screen_lines
+                            .info(rvline)
+                            .filter(|_| Some(rvline.line) != breakline)
+                        {
+                            let rect = Rect::from_origin_size(
+                                (viewport.x0, info.vline_y),
+                                (viewport.width(), line_height),
+                            );
 
-                        cx.fill(&rect, current_line_color, 0.0);
+                            cx.fill(&rect, current_line_color, 0.0);
+                        }
                     }
                 }
             }
@@ -629,7 +704,17 @@ impl EditorView {
             return;
         }
 
-        FloemEditorView::paint_scroll_bar(cx, &self.editor.editor, viewport);
+        cx.fill(
+            &Rect::ZERO
+                .with_size(Size::new(1.0, viewport.height()))
+                .with_origin(Point::new(
+                    viewport.x0 + viewport.width() - BAR_WIDTH,
+                    viewport.y0,
+                ))
+                .inflate(0.0, 10.0),
+            config.color(LapceColor::LAPCE_SCROLL_BAR),
+            0.0,
+        );
 
         if !self.editor.kind.get_untracked().is_normal() {
             return;
@@ -929,6 +1014,18 @@ impl Widget for EditorView {
         &mut self.data
     }
 
+    fn style(&mut self, cx: &mut StyleCx<'_>) {
+        let editor = &self.editor.editor;
+        if editor.es.try_update(|s| s.read(cx)).unwrap() {
+            editor.floem_style_id.update(|val| *val += 1);
+            cx.app_state_mut().request_paint(self.id());
+        }
+    }
+
+    fn debug_name(&self) -> std::borrow::Cow<'static, str> {
+        "Editor View".into()
+    }
+
     fn update(
         &mut self,
         cx: &mut floem::context::UpdateCx,
@@ -950,10 +1047,14 @@ impl Widget for EditorView {
             }
 
             let e_data = &self.editor;
+            let editor = &e_data.editor;
+
+            let parent_size = editor.parent_size.get_untracked();
+
             let screen_lines = e_data.screen_lines().get_untracked();
             for (line, _) in screen_lines.iter_lines_y() {
                 // fill in text layout cache so that max width is correct.
-                e_data.editor.text_layout(line);
+                editor.text_layout(line);
             }
 
             let inner_node = self.inner_node.unwrap();
@@ -961,10 +1062,25 @@ impl Widget for EditorView {
             let config = self.editor.common.config.get_untracked();
             let line_height = config.editor.line_height() as f64;
 
-            let width = e_data.editor.max_line_width() + 20.0;
-            let height = line_height * e_data.editor.last_vline().get() as f64;
+            let width = editor.max_line_width().max(parent_size.width());
+            let last_line_height =
+                line_height * (editor.last_vline().get() + 1) as f64;
+            let height = last_line_height.max(parent_size.height());
 
-            let style = Style::new().width(width).height(height).to_taffy_style();
+            let margin_bottom = if editor
+                .es
+                .with_untracked(EditorStyle::scroll_beyond_last_line)
+            {
+                parent_size.height().min(last_line_height) - line_height
+            } else {
+                0.0
+            };
+
+            let style = Style::new()
+                .width(width)
+                .height(height)
+                .margin_bottom(margin_bottom)
+                .to_taffy_style();
             cx.set_style(inner_node, style);
 
             vec![inner_node]
@@ -975,9 +1091,16 @@ impl Widget for EditorView {
         &mut self,
         cx: &mut floem::context::ComputeLayoutCx,
     ) -> Option<Rect> {
+        let editor = &self.editor.editor;
         let viewport = cx.current_viewport();
         if self.viewport.with_untracked(|v| v != &viewport) {
             self.viewport.set(viewport);
+        }
+        let parent_size = cx
+            .app_state_mut()
+            .get_layout_rect(self.id().parent().unwrap());
+        if editor.parent_size.with_untracked(|ps| ps != &parent_size) {
+            editor.parent_size.set(parent_size);
         }
         None
     }
@@ -1131,7 +1254,7 @@ pub fn editor_container_view(
     window_tab_data: Rc<WindowTabData>,
     workspace: Arc<LapceWorkspace>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
-    editor: RwSignal<Rc<EditorData>>,
+    editor: RwSignal<EditorData>,
 ) -> impl View {
     let (editor_id, find_focus, sticky_header_height, editor_view, config) = editor
         .with_untracked(|editor| {
@@ -1152,8 +1275,6 @@ pub fn editor_container_view(
     let replace_active = main_split.common.find.replace_active;
     let replace_focus = main_split.common.find.replace_focus;
     let debug_breakline = window_tab_data.terminal.breakline;
-
-    let editor_rect = create_rw_signal(Rect::ZERO);
 
     stack((
         editor_breadcrumbs(workspace, editor.get_untracked(), config),
@@ -1189,15 +1310,12 @@ pub fn editor_container_view(
                     is_active,
                 ),
             ))
-            .on_resize(move |rect| {
-                editor_rect.set(rect);
-            })
-            .style(|s| s.absolute().size_pct(100.0, 100.0)),
+            .style(|s| s.absolute().size_full()),
         )
-        .style(|s| s.size_pct(100.0, 100.0)),
+        .style(|s| s.width_full().flex_basis(0).flex_grow(1.0)),
     ))
     .on_cleanup(move || {
-        if editors.with_untracked(|editors| editors.contains_key(&editor_id)) {
+        if editors.contains_untracked(editor_id) {
             // editor still exist, so it might be moved to a different editor tab
             return;
         }
@@ -1219,12 +1337,12 @@ pub fn editor_container_view(
             }
         }
     })
-    .style(|s| s.flex_col().size_pct(100.0, 100.0))
+    .style(|s| s.flex_col().absolute().size_pct(100.0, 100.0))
 }
 
 fn editor_gutter(
     window_tab_data: Rc<WindowTabData>,
-    e_data: RwSignal<Rc<EditorData>>,
+    e_data: RwSignal<EditorData>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> impl View {
     let breakpoints = window_tab_data.terminal.debug.breakpoints;
@@ -1526,7 +1644,7 @@ fn editor_gutter(
 
 fn editor_breadcrumbs(
     workspace: Arc<LapceWorkspace>,
-    e_data: Rc<EditorData>,
+    e_data: EditorData,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let doc = e_data.doc_signal();
@@ -1618,9 +1736,9 @@ fn editor_breadcrumbs(
             doc.track();
             Some(Point::new(3000.0, 0.0))
         })
-        .hide_bar(|| true)
         .style(move |s| {
-            s.absolute()
+            s.set(HideBar, true)
+                .absolute()
                 .size_pct(100.0, 100.0)
                 .border_bottom(1.0)
                 .border_color(config.get().color(LapceColor::LAPCE_BORDER))
@@ -1638,7 +1756,7 @@ fn editor_breadcrumbs(
 }
 
 fn editor_content(
-    e_data: RwSignal<Rc<EditorData>>,
+    e_data: RwSignal<EditorData>,
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> impl View {
@@ -1650,6 +1768,7 @@ fn editor_content(
         viewport,
         sticky_header_height,
         config,
+        editor,
     ) = e_data.with_untracked(|editor| {
         (
             editor.cursor().read_only(),
@@ -1659,28 +1778,26 @@ fn editor_content(
             editor.viewport(),
             editor.sticky_header_height,
             editor.common.config,
+            editor.editor.clone(),
         )
     });
 
     scroll({
         let editor_content_view =
-            editor_view(e_data.get_untracked(), debug_breakline, is_active).style(
-                move |s| {
-                    let config = config.get();
-                    let padding_bottom = if config.editor.scroll_beyond_last_line {
-                        viewport.get().height() as f32
-                            - config.editor.line_height() as f32
-                    } else {
-                        0.0
-                    };
-                    s.absolute()
-                        .padding_bottom(padding_bottom)
-                        .cursor(CursorStyle::Text)
-                        .min_size_pct(100.0, 100.0)
-                },
-            );
+            editor_view(e_data.get_untracked(), debug_breakline, is_active)
+                .style(move |s| s.absolute().cursor(CursorStyle::Text));
+
         let id = editor_content_view.id();
+        editor.editor_view_id.set(Some(id));
+
+        let editor2 = editor.clone();
         editor_content_view
+            .on_event_cont(EventListener::FocusGained, move |_| {
+                editor.editor_view_focused.notify();
+            })
+            .on_event_cont(EventListener::FocusLost, move |_| {
+                editor2.editor_view_focus_lost.notify();
+            })
             .on_event_cont(EventListener::PointerDown, move |event| {
                 if let Event::PointerDown(pointer_event) = event {
                     id.request_active();
@@ -1748,10 +1865,12 @@ fn editor_content(
         if jump_to_middle {
             rect.inflate(0.0, viewport.height() / 2.0)
         } else {
+            let cursor_surrounding_lines =
+                e_data.editor.es.with(|s| s.cursor_surrounding_lines());
             let mut rect = rect;
-            rect.y0 -= (config.editor.cursor_surrounding_lines * line_height) as f64
+            rect.y0 -= (cursor_surrounding_lines * line_height) as f64
                 + sticky_header_height.get_untracked();
-            rect.y1 += (config.editor.cursor_surrounding_lines * line_height) as f64;
+            rect.y1 += (cursor_surrounding_lines * line_height) as f64;
             rect
         }
     })
@@ -1772,17 +1891,19 @@ fn search_editor_view(
     let visual = find_editor.common.find.visual;
 
     stack((
-        text_input(find_editor, move || {
-            is_active(true)
-                && visual.get()
-                && find_focus.get()
-                && !replace_focus.get()
-        })
-        .on_event_cont(EventListener::PointerDown, move |_| {
-            find_focus.set(true);
-            replace_focus.set(false);
-        })
-        .style(|s| s.width_pct(100.0)),
+        TextInputBuilder::new()
+            .is_focused(move || {
+                is_active(true)
+                    && visual.get()
+                    && find_focus.get()
+                    && !replace_focus.get()
+            })
+            .build_editor(find_editor)
+            .on_event_cont(EventListener::PointerDown, move |_| {
+                find_focus.set(true);
+                replace_focus.set(false);
+            })
+            .style(|s| s.width_pct(100.0)),
         clickable_icon(
             || LapceIcons::SEARCH_CASE_SENSITIVE,
             move || {
@@ -1796,7 +1917,6 @@ fn search_editor_view(
             || false,
             || "Case Sensitive",
             config,
-            true,
         )
         .style(|s| s.padding_vert(4.0)),
         clickable_icon(
@@ -1810,7 +1930,6 @@ fn search_editor_view(
             || false,
             || "Whole Word",
             config,
-            true,
         )
         .style(|s| s.padding_left(6.0)),
         clickable_icon(
@@ -1824,7 +1943,6 @@ fn search_editor_view(
             || false,
             || "Use Regex",
             config,
-            true,
         )
         .style(|s| s.padding_horiz(6.0)),
     ))
@@ -1850,18 +1968,20 @@ fn replace_editor_view(
     let visual = replace_editor.common.find.visual;
 
     stack((
-        text_input(replace_editor, move || {
-            is_active(true)
-                && visual.get()
-                && find_focus.get()
-                && replace_active.get()
-                && replace_focus.get()
-        })
-        .on_event_cont(EventListener::PointerDown, move |_| {
-            find_focus.set(true);
-            replace_focus.set(true);
-        })
-        .style(|s| s.width_pct(100.0)),
+        TextInputBuilder::new()
+            .is_focused(move || {
+                is_active(true)
+                    && visual.get()
+                    && find_focus.get()
+                    && replace_active.get()
+                    && replace_focus.get()
+            })
+            .build_editor(replace_editor)
+            .on_event_cont(EventListener::PointerDown, move |_| {
+                find_focus.set(true);
+                replace_focus.set(true);
+            })
+            .style(|s| s.width_pct(100.0)),
         empty().style(move |s| {
             let config = config.get();
             let size = config.ui.icon_size() as f32 + 10.0;
@@ -1880,7 +2000,7 @@ fn replace_editor_view(
 }
 
 fn find_view(
-    editor: RwSignal<Rc<EditorData>>,
+    editor: RwSignal<EditorData>,
     find_editor: EditorData,
     find_focus: RwSignal<bool>,
     replace_editor: EditorData,
@@ -1931,7 +2051,6 @@ fn find_view(
                     || false,
                     || "Toggle Replace",
                     config,
-                    true,
                 )
                 .style(|s| s.padding_horiz(6.0)),
                 search_editor_view(
@@ -1952,29 +2071,23 @@ fn find_view(
                 clickable_icon(
                     || LapceIcons::SEARCH_BACKWARD,
                     move || {
-                        editor
-                            .get_untracked()
-                            .search_backward(ModifiersState::empty());
+                        editor.get_untracked().search_backward(Modifiers::empty());
                     },
                     move || false,
                     || false,
                     || "Previous Match",
                     config,
-                    true,
                 )
                 .style(|s| s.padding_left(6.0)),
                 clickable_icon(
                     || LapceIcons::SEARCH_FORWARD,
                     move || {
-                        editor
-                            .get_untracked()
-                            .search_forward(ModifiersState::empty());
+                        editor.get_untracked().search_forward(Modifiers::empty());
                     },
                     move || false,
                     || false,
                     || "Next Match",
                     config,
-                    true,
                 )
                 .style(|s| s.padding_left(6.0)),
                 clickable_icon(
@@ -1986,7 +2099,6 @@ fn find_view(
                     || false,
                     || "Close",
                     config,
-                    true,
                 )
                 .style(|s| s.padding_horiz(6.0)),
             ))
@@ -2017,7 +2129,6 @@ fn find_view(
                     || false,
                     || "Replace Next",
                     config,
-                    true,
                 )
                 .style(|s| s.padding_left(6.0)),
                 clickable_icon(
@@ -2033,7 +2144,6 @@ fn find_view(
                     || false,
                     || "Replace All",
                     config,
-                    true,
                 )
                 .style(|s| s.padding_left(6.0)),
             ))

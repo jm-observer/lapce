@@ -9,7 +9,7 @@ use std::{
 use floem::{
     action::{exec_after, show_context_menu, TimerToken},
     ext_event::create_ext_action,
-    keyboard::ModifiersState,
+    keyboard::Modifiers,
     kurbo::{Point, Rect, Vec2},
     menu::{Menu, MenuItem},
     pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
@@ -22,7 +22,7 @@ use floem::{
         view::{
             DiffSection, DiffSectionKind, LineInfo, ScreenLines, ScreenLinesBase,
         },
-        visual_line::{Lines, TextLayoutProvider, VLine, VLineInfo},
+        visual_line::{ConfigId, Lines, TextLayoutProvider, VLine, VLineInfo},
         Editor,
     },
 };
@@ -60,7 +60,7 @@ use crate::{
     id::{DiffEditorId, EditorTabId},
     inline_completion::{InlineCompletionItem, InlineCompletionStatus},
     keypress::{condition::Condition, KeyPressFocus},
-    main_split::{MainSplitData, SplitDirection, SplitMoveDirection},
+    main_split::{Editors, MainSplitData, SplitDirection, SplitMoveDirection},
     markdown::{
         from_marked_string, from_plaintext, parse_markdown, MarkdownContent,
     },
@@ -98,19 +98,21 @@ impl EditorInfo {
         &self,
         data: MainSplitData,
         editor_tab_id: EditorTabId,
-    ) -> Rc<EditorData> {
-        let editor_data = match &self.content {
+    ) -> EditorId {
+        let editors = &data.editors;
+        let common = data.common.clone();
+        match &self.content {
             DocContent::File { path, .. } => {
                 let (doc, new_doc) = data.get_doc(path.clone());
-                let editor_data = EditorData::new_doc(
+                let editor = editors.make_from_doc(
                     data.scope,
                     doc,
                     Some(editor_tab_id),
                     None,
                     None,
-                    data.common,
+                    common,
                 );
-                editor_data.go_to_location(
+                editor.go_to_location(
                     EditorLocation {
                         path: path.clone(),
                         position: Some(EditorPosition::Offset(self.offset)),
@@ -124,14 +126,11 @@ impl EditorInfo {
                     new_doc,
                     None,
                 );
-                editor_data
+
+                editor.id()
             }
-            DocContent::Local => {
-                EditorData::new_local(data.scope, data.editors, data.common)
-            }
-            DocContent::History(_) => {
-                EditorData::new_local(data.scope, data.editors, data.common)
-            }
+            DocContent::Local => editors.new_local(data.scope, common),
+            DocContent::History(_) => editors.new_local(data.scope, common),
             DocContent::Scratch { name, .. } => {
                 let doc = data
                     .scratch_docs
@@ -155,21 +154,16 @@ impl EditorInfo {
                     })
                     .unwrap();
 
-                EditorData::new_doc(
+                editors.new_from_doc(
                     data.scope,
                     doc,
                     Some(editor_tab_id),
                     None,
                     None,
-                    data.common,
+                    common,
                 )
             }
-        };
-        let editor_data = Rc::new(editor_data);
-        data.editors.update(|editors| {
-            editors.insert(editor_data.id(), editor_data.clone());
-        });
-        editor_data
+        }
     }
 }
 
@@ -187,6 +181,7 @@ impl EditorViewKind {
 
 pub type SnippetIndex = Vec<(usize, (usize, usize))>;
 
+/// Shares data between cloned instances as long as the signals aren't swapped out.
 #[derive(Clone)]
 pub struct EditorData {
     pub scope: Scope,
@@ -235,26 +230,30 @@ impl EditorData {
         }
     }
 
-    pub fn new_local(
-        cx: Scope,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
-        common: Rc<CommonData>,
-    ) -> Self {
+    /// Create a new local editor.  
+    /// You should prefer calling [`Editors::make_local`] / [`Editors::new_local`] instead to
+    /// register the editor.
+    pub fn new_local(cx: Scope, editors: Editors, common: Rc<CommonData>) -> Self {
         Self::new_local_id(cx, EditorId::next(), editors, common)
     }
 
+    /// Create a new local editor with the given id.  
+    /// You should prefer calling [`Editors::make_local`] / [`Editors::new_local`] instead to
+    /// register the editor.
     pub fn new_local_id(
         cx: Scope,
         editor_id: EditorId,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+        editors: Editors,
         common: Rc<CommonData>,
     ) -> Self {
         let cx = cx.create_child();
         let doc = Rc::new(Doc::new_local(cx, editors, common.clone()));
-        let editor = doc.create_editor(cx, editor_id);
+        let editor = doc.create_editor(cx, editor_id, true);
         Self::new(cx, editor, None, None, None, common)
     }
 
+    /// Create a new editor with a specific doc.  
+    /// You should prefer calling [`Editors::new_editor_doc`] / [`Editors::make_from_doc`] instead.
     pub fn new_doc(
         cx: Scope,
         doc: Rc<Doc>,
@@ -263,7 +262,7 @@ impl EditorData {
         confirmed: Option<RwSignal<bool>>,
         common: Rc<CommonData>,
     ) -> Self {
-        let editor = doc.create_editor(cx, EditorId::next());
+        let editor = doc.create_editor(cx, EditorId::next(), false);
         Self::new(cx, editor, editor_tab_id, diff_editor_id, confirmed, common)
     }
 
@@ -273,6 +272,7 @@ impl EditorData {
         self.editor.update_doc(doc, Some(style));
     }
 
+    /// Create a new editor using the same underlying [`Doc`]  
     pub fn copy(
         &self,
         cx: Scope,
@@ -378,11 +378,8 @@ impl EditorData {
     fn run_edit_command(&self, cmd: &EditCommand) -> CommandExecuted {
         let doc = self.doc();
         let text = self.editor.rope_text();
-        let modal = self
-            .common
-            .config
-            .with_untracked(|config| config.core.modal)
-            && !doc.content.with_untracked(|content| content.is_local());
+        let is_local = doc.content.with_untracked(|content| content.is_local());
+        let modal = self.editor.es.with_untracked(|s| s.modal()) && !is_local;
         let smart_tab = self
             .common
             .config
@@ -613,7 +610,7 @@ impl EditorData {
         &self,
         movement: &lapce_core::movement::Movement,
         count: Option<usize>,
-        mods: ModifiersState,
+        mods: Modifiers,
     ) -> CommandExecuted {
         if movement.is_jump()
             && movement != &self.editor.last_movement.get_untracked()
@@ -645,7 +642,7 @@ impl EditorData {
                 &mut cursor,
                 movement,
                 count.unwrap_or(1),
-                mods.shift_key(),
+                mods.shift(),
                 register,
             )
         });
@@ -675,7 +672,7 @@ impl EditorData {
         &self,
         cmd: &ScrollCommand,
         count: Option<usize>,
-        mods: ModifiersState,
+        mods: Modifiers,
     ) -> CommandExecuted {
         let prev_completion_index = self
             .common
@@ -720,7 +717,7 @@ impl EditorData {
         &self,
         cmd: &FocusCommand,
         _count: Option<usize>,
-        mods: ModifiersState,
+        mods: Modifiers,
     ) -> CommandExecuted {
         // TODO(minor): Evaluate whether we should split this into subenums,
         // such as actions specific to the actual editor pane, movement, and list movement.
@@ -1103,7 +1100,7 @@ impl EditorData {
                     new_index + line_start_offset,
                 ),
                 None,
-                ModifiersState::empty(),
+                Modifiers::empty(),
             );
         }
     }
@@ -1247,7 +1244,7 @@ impl EditorData {
         );
     }
 
-    fn scroll(&self, down: bool, count: usize, mods: ModifiersState) {
+    fn scroll(&self, down: bool, count: usize, mods: Modifiers) {
         self.editor.scroll(
             self.sticky_header_height.get_untracked(),
             down,
@@ -2105,7 +2102,7 @@ impl EditorData {
         }
     }
 
-    fn search_whole_word_forward(&self, mods: ModifiersState) {
+    fn search_whole_word_forward(&self, mods: Modifiers) {
         let offset = self.cursor().with_untracked(|c| c.offset());
         let (word, buffer) = self.doc().buffer.with_untracked(|buffer| {
             let (start, end) = buffer.select_word(offset);
@@ -2125,7 +2122,7 @@ impl EditorData {
         }
     }
 
-    fn search_forward(&self, mods: ModifiersState) {
+    fn search_forward(&self, mods: Modifiers) {
         let offset = self.cursor().with_untracked(|c| c.offset());
         let text = self
             .doc()
@@ -2142,7 +2139,7 @@ impl EditorData {
         }
     }
 
-    fn search_backward(&self, mods: ModifiersState) {
+    fn search_backward(&self, mods: Modifiers) {
         let offset = self.cursor().with_untracked(|c| c.offset());
         let text = self
             .doc()
@@ -2410,7 +2407,7 @@ impl EditorData {
             && self.cursor().with_untracked(|c| c.offset()) != offset
         {
             self.cursor().update(|cursor| {
-                cursor.set_offset(offset, true, pointer_event.modifiers.alt_key())
+                cursor.set_offset(offset, true, pointer_event.modifiers.alt())
             });
         }
         if self.common.hover.active.get_untracked() {
@@ -2611,7 +2608,7 @@ impl KeyPressFocus for EditorData {
         &self,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
-        mods: ModifiersState,
+        mods: Modifiers,
     ) -> CommandExecuted {
         if self.common.find.visual.get_untracked() && self.find_focus.get_untracked()
         {
@@ -2833,6 +2830,7 @@ pub(crate) fn compute_screen_lines(
     doc: &Doc,
     lines: &Lines,
     text_prov: impl TextLayoutProvider + Clone,
+    config_id: ConfigId,
 ) -> ScreenLines {
     // TODO: this should probably be a get since we need to depend on line-height
     let config = config.get();
@@ -2885,7 +2883,7 @@ pub(crate) fn compute_screen_lines(
                 .iter_rvlines_init(
                     text_prov,
                     cache_rev,
-                    config.id,
+                    config_id,
                     min_info.rvline,
                     false,
                 )
@@ -3083,7 +3081,7 @@ pub(crate) fn compute_screen_lines(
                             .iter_rvlines_init(
                                 &text_prov,
                                 cache_rev,
-                                config.id,
+                                config_id,
                                 start_rvline,
                                 false,
                             )
@@ -3149,20 +3147,16 @@ fn parse_hover_resp(
                 config,
             ),
         },
-        HoverContents::Array(array) => {
-            let entries = array
-                .into_iter()
-                .map(|t| from_marked_string(t, config))
-                .rev();
-
-            // TODO: It'd be nice to avoid this vec
-            itertools::Itertools::intersperse(
-                entries,
-                vec![MarkdownContent::Separator],
-            )
-            .flatten()
-            .collect()
-        }
+        HoverContents::Array(array) => array
+            .into_iter()
+            .map(|t| from_marked_string(t, config))
+            .rev()
+            .reduce(|mut contents, more| {
+                contents.push(MarkdownContent::Separator);
+                contents.extend(more);
+                contents
+            })
+            .unwrap_or_default(),
         HoverContents::Markup(content) => match content.kind {
             MarkupKind::PlainText => from_plaintext(&content.value, 1.5, config),
             MarkupKind::Markdown => parse_markdown(&content.value, 1.5, config),

@@ -2,10 +2,9 @@ use std::{path::PathBuf, rc::Rc};
 
 use floem::{
     ext_event::create_ext_action,
-    keyboard::ModifiersState,
+    keyboard::Modifiers,
     peniko::kurbo::Rect,
     reactive::{RwSignal, Scope},
-    views::editor::id::EditorId,
 };
 use lapce_core::{command::FocusCommand, mode::Mode, selection::Selection};
 use lapce_rpc::proxy::ProxyResponse;
@@ -16,6 +15,7 @@ use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand, LapceCommand},
     editor::EditorData,
     keypress::{condition::Condition, KeyPressFocus},
+    main_split::Editors,
     window_tab::{CommonData, Focus},
 };
 
@@ -43,7 +43,7 @@ impl KeyPressFocus for RenameData {
         &self,
         command: &LapceCommand,
         count: Option<usize>,
-        mods: ModifiersState,
+        mods: Modifiers,
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(_) => {}
@@ -67,17 +67,13 @@ impl KeyPressFocus for RenameData {
 }
 
 impl RenameData {
-    pub fn new(
-        cx: Scope,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
-        common: Rc<CommonData>,
-    ) -> Self {
+    pub fn new(cx: Scope, editors: Editors, common: Rc<CommonData>) -> Self {
         let active = cx.create_rw_signal(false);
         let start = cx.create_rw_signal(0);
         let position = cx.create_rw_signal(Position::default());
         let layout_rect = cx.create_rw_signal(Rect::ZERO);
         let path = cx.create_rw_signal(PathBuf::new());
-        let editor = EditorData::new_local(cx, editors, common.clone());
+        let editor = editors.make_local(cx, common.clone());
         Self {
             active,
             editor,

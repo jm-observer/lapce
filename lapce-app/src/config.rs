@@ -51,7 +51,16 @@ static DEFAULT_CONFIG: Lazy<config::Config> = Lazy::new(LapceConfig::default_con
 static DEFAULT_LAPCE_CONFIG: Lazy<LapceConfig> =
     Lazy::new(LapceConfig::default_lapce_config);
 
-// static DEFAULT_DARK_THEME_CONFIG = Lazy
+static DEFAULT_DARK_THEME_CONFIG: Lazy<config::Config> = Lazy::new(|| {
+    config::Config::builder()
+        .add_source(config::File::from_str(
+            DEFAULT_DARK_THEME,
+            config::FileFormat::Toml,
+        ))
+        .build()
+        .unwrap()
+});
+
 /// The default theme is the dark theme.
 static DEFAULT_DARK_THEME_COLOR_CONFIG: Lazy<ColorThemeConfig> = Lazy::new(|| {
     let (_, theme) =
@@ -74,7 +83,7 @@ pub struct DropdownInfo {
     pub items: im::Vector<String>,
 }
 
-#[derive(Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct LapceConfig {
     #[serde(skip)]
@@ -166,9 +175,13 @@ impl LapceConfig {
         icon_theme_config: Option<config::Config>,
     ) -> config::Config {
         let mut config = DEFAULT_CONFIG.clone();
+
         if let Some(theme) = color_theme_config {
+            // TODO: use different color theme basis if the theme declares its color preference
+            // differently
             config = config::Config::builder()
                 .add_source(config.clone())
+                .add_source(DEFAULT_DARK_THEME_CONFIG.clone())
                 .add_source(theme)
                 .build()
                 .unwrap_or_else(|_| config.clone());
@@ -238,21 +251,7 @@ impl LapceConfig {
     }
 
     fn resolve_theme(&mut self, workspace: &LapceWorkspace) {
-        let mut default_lapce_config = DEFAULT_LAPCE_CONFIG.clone();
-        if let Some((_, color_theme_config)) = self
-            .available_color_themes
-            .get(&self.core.color_theme.to_lowercase())
-        {
-            if let Ok(mut theme_lapce_config) = config::Config::builder()
-                .add_source(DEFAULT_CONFIG.clone())
-                .add_source(color_theme_config.clone())
-                .build()
-                .and_then(|theme| theme.try_deserialize::<LapceConfig>())
-            {
-                theme_lapce_config.resolve_colors(Some(&default_lapce_config));
-                default_lapce_config = theme_lapce_config;
-            }
-        }
+        let default_lapce_config = DEFAULT_LAPCE_CONFIG.clone();
 
         let color_theme_config = self
             .available_color_themes
@@ -346,11 +345,13 @@ impl LapceConfig {
     /// If the color was not able to be found in either theme, which may be indicative that
     /// it is misspelled or needs to be added to the base-theme.
     pub fn color(&self, name: &str) -> Color {
-        *self
-            .color
-            .ui
-            .get(name)
-            .unwrap_or_else(|| panic!("Key not found: {name}"))
+        match self.color.ui.get(name) {
+            Some(c) => *c,
+            None => {
+                error!("Failed to find key: {name}");
+                Color::HOT_PINK
+            }
+        }
     }
 
     /// Retrieve a color value whose key starts with "style."
@@ -932,6 +933,16 @@ impl LapceConfig {
         key: &str,
         value: toml_edit::Value,
     ) -> Option<()> {
+        // TODO: This is a hack to fix the fact that terminal default profile is saved in a
+        // different manner than other fields. As it is per-operating-system.
+        // Thus we have to instead set the terminal.default-profile.{OS}
+        // It would be better to not need a special hack.
+        let (parent, key) = if parent == "terminal" && key == "default-profile" {
+            ("terminal.default-profile", std::env::consts::OS)
+        } else {
+            (parent, key)
+        };
+
         let mut main_table = Self::get_file_table().unwrap_or_default();
 
         // Find the container table

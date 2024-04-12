@@ -7,8 +7,10 @@ use floem::{
     style::CursorStyle,
     view::View,
     views::{
-        container, dyn_container, img, label, scroll, stack, svg, virtual_stack,
-        Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
+        container, dyn_container, img, label,
+        scroll::{scroll, HideBar},
+        stack, svg, virtual_stack, Decorators, VirtualDirection, VirtualItemSize,
+        VirtualVector,
     },
 };
 use indexmap::IndexMap;
@@ -16,11 +18,11 @@ use lapce_rpc::plugin::{VoltID, VoltInfo};
 
 use super::{kind::PanelKind, position::PanelPosition, view::PanelBuilder};
 use crate::{
-    app::clickable_icon,
+    app::not_clickable_icon,
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons},
     plugin::{AvailableVoltData, InstalledVoltData, PluginData, VoltIcon},
-    text_input::text_input,
+    text_input::TextInputBuilder,
     window_tab::{Focus, WindowTabData},
 };
 
@@ -136,14 +138,12 @@ fn installed_view(plugin: PluginData) -> impl View {
                             .flex_basis(0.0)
                             .min_width(0.0)
                     }),
-                    clickable_icon(
+                    not_clickable_icon(
                         || LapceIcons::SETTINGS,
-                        || {},
                         || false,
                         || false,
                         || "Options",
                         config,
-                        true,
                     )
                     .style(|s| s.padding_left(6.0))
                     .popout_menu(move || {
@@ -319,7 +319,9 @@ fn available_view(plugin: PluginData) -> impl View {
     stack((
         container({
             scroll(
-                text_input(editor, is_focused)
+                TextInputBuilder::new()
+                    .is_focused(is_focused)
+                    .build_editor(editor.clone())
                     .on_cursor_pos(move |point| {
                         cursor_x.set(point.x);
                     })
@@ -327,7 +329,6 @@ fn available_view(plugin: PluginData) -> impl View {
                         s.padding_vert(4.0).padding_horiz(10.0).min_width_pct(100.0)
                     }),
             )
-            .hide_bar(|| true)
             .ensure_visible(move || {
                 Size::new(20.0, 0.0)
                     .to_rect()
@@ -338,7 +339,8 @@ fn available_view(plugin: PluginData) -> impl View {
             })
             .style(move |s| {
                 let config = config.get();
-                s.width_pct(100.0)
+                s.set(HideBar, true)
+                    .width_pct(100.0)
                     .cursor(CursorStyle::Text)
                     .items_center()
                     .background(config.color(LapceColor::EDITOR_BACKGROUND))

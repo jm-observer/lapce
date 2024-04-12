@@ -244,7 +244,6 @@ pub fn status(
                     || false,
                     || "Toggle Left Panel",
                     config,
-                    false,
                 )
             },
             {
@@ -272,7 +271,6 @@ pub fn status(
                     || false,
                     || "Toggle Bottom Panel",
                     config,
-                    false,
                 )
             },
             {
@@ -298,7 +296,6 @@ pub fn status(
                     || false,
                     || "Toggle Right Panel",
                     config,
-                    false,
                 )
             },
         ))
@@ -420,7 +417,7 @@ fn progress_view(
 
 fn status_text<S: std::fmt::Display + 'static>(
     config: ReadSignal<Arc<LapceConfig>>,
-    editor: Memo<Option<Rc<EditorData>>>,
+    editor: Memo<Option<EditorData>>,
     text: impl Fn() -> S + 'static,
 ) -> impl View {
     label(text).style(move |s| {

@@ -13,22 +13,18 @@ use floem::{
     action::exec_after,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     ext_event::create_ext_action,
-    keyboard::ModifiersState,
+    keyboard::Modifiers,
     peniko::Color,
     reactive::{batch, ReadSignal, RwSignal, Scope},
     views::editor::{
         actions::CommonAction,
-        color::EditorColor,
         command::{Command, CommandExecuted},
         id::EditorId,
         layout::{LineExtraStyle, TextLayoutLine},
         phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
-        text::{
-            Document, DocumentPhantom, PreeditData, RenderWhitespace, Styling,
-            SystemClipboard, WrapMethod,
-        },
+        text::{Document, DocumentPhantom, PreeditData, Styling, SystemClipboard},
         view::{ScreenLines, ScreenLinesBase},
-        CursorInfo, Editor,
+        CursorInfo, Editor, EditorStyle,
     },
 };
 use itertools::Itertools;
@@ -71,11 +67,12 @@ use smallvec::SmallVec;
 
 use crate::{
     command::{CommandKind, LapceCommand},
-    config::{color::LapceColor, editor::WrapStyle, LapceConfig},
+    config::{color::LapceColor, LapceConfig},
     editor::{compute_screen_lines, EditorData},
     find::{Find, FindProgress, FindResult},
     history::DocumentHistory,
     keypress::KeyPressFocus,
+    main_split::Editors,
     panel::kind::PanelKind,
     window_tab::{CommonData, Focus},
     workspace::LapceWorkspace,
@@ -195,7 +192,7 @@ pub struct Doc {
     /// The diagnostics for the document
     pub diagnostics: DiagnosticData,
 
-    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+    editors: Editors,
     pub common: Rc<CommonData>,
 }
 impl Doc {
@@ -203,7 +200,7 @@ impl Doc {
         cx: Scope,
         path: PathBuf,
         diagnostics: DiagnosticData,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+        editors: Editors,
         common: Rc<CommonData>,
     ) -> Self {
         let syntax = Syntax::init(&path);
@@ -243,18 +240,14 @@ impl Doc {
         }
     }
 
-    pub fn new_local(
-        cx: Scope,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
-        common: Rc<CommonData>,
-    ) -> Doc {
+    pub fn new_local(cx: Scope, editors: Editors, common: Rc<CommonData>) -> Doc {
         Self::new_content(cx, DocContent::Local, editors, common)
     }
 
     pub fn new_content(
         cx: Scope,
         content: DocContent,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+        editors: Editors,
         common: Rc<CommonData>,
     ) -> Doc {
         let cx = cx.create_child();
@@ -297,7 +290,7 @@ impl Doc {
     pub fn new_history(
         cx: Scope,
         content: DocContent,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+        editors: Editors,
         common: Rc<CommonData>,
     ) -> Doc {
         let config = common.config.get_untracked();
@@ -351,78 +344,39 @@ impl Doc {
 
     /// Create an [`Editor`] instance from this [`Doc`]. Note that this needs to be registered
     /// appropriately to create the [`EditorData`] and such.
-    pub fn create_editor(self: &Rc<Doc>, cx: Scope, id: EditorId) -> Editor {
+    pub fn create_editor(
+        self: &Rc<Doc>,
+        cx: Scope,
+        id: EditorId,
+        is_local: bool,
+    ) -> Editor {
         let common = &self.common;
-        let config = common.config;
+        let config = common.config.get_untracked();
+        let modal = config.core.modal && !is_local;
 
         let register = common.register;
         // TODO: we could have these Rcs created once and stored somewhere, maybe on
         // common, to avoid recreating them everytime.
         let cursor_info = CursorInfo {
-            blink_interval: Rc::new(move || {
-                config.get_untracked().editor.blink_interval()
-            }),
+            blink_interval: Rc::new(move || config.editor.blink_interval()),
             blink_timer: common.window_common.cursor_blink_timer,
             hidden: common.window_common.hide_cursor,
             should_blink: Rc::new(should_blink(common.focus, common.keyboard_focus)),
         };
-        let mut editor = Editor::new_direct(cx, id, self.clone(), self.styling());
+        let mut editor =
+            Editor::new_direct(cx, id, self.clone(), self.styling(), modal);
 
         editor.register = register;
         editor.cursor_info = cursor_info;
         editor.ime_allowed = common.window_common.ime_allowed;
-
-        // Updating editor fields based on config
-        let ed = editor.clone();
-        cx.create_effect(move |_| {
-            let config = config.get();
-
-            batch(|| {
-                if ed.scroll_beyond_last_line.get_untracked()
-                    != config.editor.scroll_beyond_last_line
-                {
-                    ed.scroll_beyond_last_line
-                        .set(config.editor.scroll_beyond_last_line);
-                }
-
-                if ed.cursor_surrounding_lines.get_untracked()
-                    != config.editor.cursor_surrounding_lines
-                {
-                    ed.cursor_surrounding_lines
-                        .set(config.editor.cursor_surrounding_lines);
-                }
-
-                if ed.show_indent_guide.get_untracked()
-                    != config.editor.show_indent_guide
-                {
-                    ed.show_indent_guide.set(config.editor.show_indent_guide);
-                }
-
-                if ed.modal_relative_line_numbers.get_untracked()
-                    != config.editor.modal_mode_relative_line_numbers
-                {
-                    ed.modal_relative_line_numbers
-                        .set(config.editor.modal_mode_relative_line_numbers);
-                }
-
-                if ed.smart_tab.get_untracked() != config.editor.smart_tab {
-                    ed.smart_tab.set(config.editor.smart_tab);
-                }
-
-                if ed.modal.get_untracked() != config.core.modal {
-                    ed.modal.set(config.core.modal);
-                }
-            });
-        });
 
         editor.recreate_view_effects();
 
         editor
     }
 
-    fn editor_data(&self, id: EditorId) -> Option<Rc<EditorData>> {
-        self.editors
-            .with_untracked(|editors| editors.get(&id).cloned())
+    fn editor_data(&self, id: EditorId) -> Option<EditorData> {
+        self.editors.editor_untracked(id)
     }
 
     pub fn syntax(&self) -> ReadSignal<Syntax> {
@@ -1462,6 +1416,7 @@ impl Document for Doc {
             &editor_data.doc_signal().get(),
             editor.lines(),
             editor.text_prov(),
+            editor.config_id(),
         )
     }
 
@@ -1470,7 +1425,7 @@ impl Document for Doc {
         ed: &Editor,
         cmd: &Command,
         count: Option<usize>,
-        modifiers: ModifiersState,
+        modifiers: Modifiers,
     ) -> CommandExecuted {
         let Some(editor_data) = self.editor_data(ed.id()) else {
             return CommandExecuted::No;
@@ -1508,7 +1463,7 @@ impl DocumentPhantom for Doc {
     fn phantom_text(
         &self,
         _: EditorId,
-        _: &dyn Styling,
+        _: &EditorStyle,
         line: usize,
     ) -> PhantomTextLine {
         let config = &self.common.config.get_untracked();
@@ -1678,7 +1633,7 @@ impl DocumentPhantom for Doc {
         PhantomTextLine { text }
     }
 
-    fn has_multiline_phantom(&self, _: EditorId, _: &dyn Styling) -> bool {
+    fn has_multiline_phantom(&self, _: EditorId, _: &EditorStyle) -> bool {
         // TODO: actually check
         true
     }
@@ -1723,9 +1678,6 @@ impl CommonAction for Doc {
     }
 }
 
-/// Minimum width that we'll allow the view to be wrapped at.
-const MIN_WRAPPED_WIDTH: f32 = 100.0;
-
 #[derive(Clone)]
 pub struct DocStyling {
     config: ReadSignal<Arc<LapceConfig>>,
@@ -1735,12 +1687,13 @@ impl DocStyling {
     fn apply_colorization(
         &self,
         edid: EditorId,
+        style: &EditorStyle,
         line: usize,
         attrs: &Attrs,
         attrs_list: &mut AttrsList,
     ) {
         let config = self.config.get_untracked();
-        let phantom_text = self.doc.phantom_text(edid, self, line);
+        let phantom_text = self.doc.phantom_text(edid, style, line);
         if let Some(bracket_styles) = self.doc.parser.borrow().bracket_pos.get(&line)
         {
             for bracket_style in bracket_styles.iter() {
@@ -1793,10 +1746,6 @@ impl Styling for DocStyling {
         floem::cosmic_text::Stretch::Normal
     }
 
-    fn indent_style(&self) -> IndentStyle {
-        self.doc.buffer.with_untracked(|b| b.indent_style())
-    }
-
     fn indent_line(&self, _: EditorId, line: usize, line_content: &str) -> usize {
         if line_content.trim().is_empty() {
             let text = self.doc.rope_text();
@@ -1823,15 +1772,16 @@ impl Styling for DocStyling {
     fn apply_attr_styles(
         &self,
         edid: EditorId,
+        style: &EditorStyle,
         line: usize,
         default: Attrs,
         attrs_list: &mut AttrsList,
     ) {
         let config = self.doc.common.config.get_untracked();
 
-        self.apply_colorization(edid, line, &default, attrs_list);
+        self.apply_colorization(edid, style, line, &default, attrs_list);
 
-        let phantom_text = self.doc.phantom_text(edid, self, line);
+        let phantom_text = self.doc.phantom_text(edid, style, line);
         for line_style in self.doc.line_style(line).iter() {
             if let Some(fg_color) = line_style.style.fg_color.as_ref() {
                 if let Some(fg_color) = config.style_color(fg_color) {
@@ -1843,30 +1793,10 @@ impl Styling for DocStyling {
         }
     }
 
-    fn wrap(&self, _: EditorId) -> WrapMethod {
-        let wrap_style = self
-            .config
-            .with_untracked(|config| config.editor.wrap_style);
-        match wrap_style {
-            WrapStyle::None => WrapMethod::None,
-            WrapStyle::EditorWidth => WrapMethod::EditorWidth,
-            WrapStyle::WrapWidth => WrapMethod::WrapWidth {
-                width: self
-                    .config
-                    .with_untracked(|config| config.editor.wrap_width as f32)
-                    .max(MIN_WRAPPED_WIDTH),
-            },
-        }
-    }
-
-    fn render_whitespace(&self, _: EditorId) -> RenderWhitespace {
-        self.config
-            .with_untracked(|config| config.editor.render_whitespace)
-    }
-
     fn apply_layout_styles(
         &self,
         edid: EditorId,
+        style: &EditorStyle,
         line: usize,
         layout_line: &mut TextLayoutLine,
     ) {
@@ -1876,7 +1806,7 @@ impl Styling for DocStyling {
         layout_line.extra_style.clear();
         let layout = &layout_line.text;
 
-        let phantom_text = doc.phantom_text(edid, self, line);
+        let phantom_text = doc.phantom_text(edid, style, line);
 
         let phantom_styles = phantom_text
             .offset_size_iter()
@@ -1980,17 +1910,6 @@ impl Styling for DocStyling {
                 }
             })
         });
-    }
-
-    fn color(&self, _: EditorId, color: EditorColor) -> Color {
-        let name = match color {
-            EditorColor::Scrollbar => LapceColor::LAPCE_SCROLL_BAR,
-            EditorColor::DropdownShadow => LapceColor::LAPCE_DROPDOWN_SHADOW,
-            EditorColor::PreeditUnderline => LapceColor::EDITOR_FOREGROUND,
-            _ => color.into(),
-        };
-
-        self.config.with_untracked(|config| config.color(name))
     }
 
     fn paint_caret(&self, edid: EditorId, _line: usize) -> bool {

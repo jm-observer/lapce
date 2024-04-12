@@ -34,8 +34,10 @@ use floem::{
     view::{View, Widget},
     views::{
         clip, container, drag_resize_window_area, drag_window_area, dyn_stack,
-        empty, label, rich_text, scroll::scroll, stack, svg, tab, text, tooltip,
-        virtual_stack, Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
+        empty, label, rich_text,
+        scroll::{scroll, HideBar, VerticalScrollAsHorizontal},
+        stack, svg, tab, text, tooltip, virtual_stack, Decorators, VirtualDirection,
+        VirtualItemSize, VirtualVector,
     },
     window::{ResizeDirection, WindowConfig, WindowId},
     EventPropagation,
@@ -90,7 +92,7 @@ use crate::{
     plugin::{plugin_info_view, PluginData},
     settings::{settings_view, theme_color_settings_view},
     status::status,
-    text_input::text_input,
+    text_input::TextInputBuilder,
     title::{title, window_controls_view},
     update::ReleaseInfo,
     window::{TabsInfo, WindowData, WindowInfo},
@@ -678,7 +680,6 @@ fn editor_tab_header(
                 || false,
                 || "Close",
                 config,
-                true,
             )
             .on_event_stop(EventListener::PointerDown, |_| {})
             .on_event_stop(EventListener::PointerEnter, move |_| {
@@ -712,11 +713,9 @@ fn editor_tab_header(
         };
 
         let confirmed = match local_child {
-            EditorTabChild::Editor(editor_id) => editors.with_untracked(|editors| {
-                editors
-                    .get(&editor_id)
-                    .map(|editor_data| editor_data.confirmed)
-            }),
+            EditorTabChild::Editor(editor_id) => {
+                editors.editor_untracked(editor_id).map(|e| e.confirmed)
+            }
             EditorTabChild::DiffEditor(diff_editor_id) => diff_editors
                 .with_untracked(|diff_editors| {
                     diff_editors
@@ -900,7 +899,6 @@ fn editor_tab_header(
                         || false,
                         || "Previous Tab",
                         config,
-                        true,
                     )
                     .style(|s| s.margin_horiz(6.0).margin_vert(7.0)),
                     clickable_icon(
@@ -913,7 +911,6 @@ fn editor_tab_header(
                         || false,
                         || "Next Tab",
                         config,
-                        true,
                     )
                     .style(|s| s.margin_right(6.0)),
                 ))
@@ -943,10 +940,10 @@ fn editor_tab_header(
                     .with_untracked(|editor_tab| editor_tab.children[active].1)
                     .get_untracked()
             })
-            .hide_bar(|| true)
-            .vertical_scroll_as_horizontal(|| true)
             .style(|s| {
-                s.position(Position::Absolute)
+                s.set(HideBar, true)
+                    .set(VerticalScrollAsHorizontal, true)
+                    .position(Position::Absolute)
                     .height_full()
                     .max_width_full()
             })
@@ -995,7 +992,6 @@ fn editor_tab_header(
                         || false,
                         || "Split Horizontally",
                         config,
-                        true,
                     )
                     .style(|s| s.margin_left(6.0)),
                     clickable_icon(
@@ -1011,7 +1007,6 @@ fn editor_tab_header(
                         || false,
                         || "Close All",
                         config,
-                        true,
                     )
                     .style(|s| s.margin_horiz(6.0)),
                 ))
@@ -1057,9 +1052,7 @@ fn editor_tab_content(
         let common = common.clone();
         let child = match child {
             EditorTabChild::Editor(editor_id) => {
-                let editor_data = editors
-                    .with_untracked(|editors| editors.get(&editor_id).cloned());
-                if let Some(editor_data) = editor_data {
+                if let Some(editor_data) = editors.editor_untracked(editor_id) {
                     let editor_scope = editor_data.scope;
                     let editor_tab_id = editor_data.editor_tab_id;
                     let is_active = move |tracked: bool| {
@@ -1195,11 +1188,11 @@ fn editor_tab_content(
                                 s.height_full().flex_grow(1.0).flex_basis(0.0)
                             }),
                             diff_show_more_section_view(
-                                diff_editor_data.left.clone(),
-                                diff_editor_data.right.clone(),
+                                &diff_editor_data.left,
+                                &diff_editor_data.right,
                             ),
                         ))
-                        .style(|s| s.size_full()),
+                        .style(|s: Style| s.size_full()),
                     )
                     .on_cleanup(move || {
                         diff_editor_scope.dispose();
@@ -1837,6 +1830,26 @@ fn main_split(window_tab_data: Rc<WindowTabData>) -> impl View {
     })
 }
 
+pub fn not_clickable_icon<S: std::fmt::Display + 'static>(
+    icon: impl Fn() -> &'static str + 'static,
+    active_fn: impl Fn() -> bool + 'static,
+    disabled_fn: impl Fn() -> bool + 'static + Copy,
+    tooltip_: impl Fn() -> S + 'static + Clone,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    tooltip_label(
+        config,
+        clickable_icon_base(
+            icon,
+            None::<Box<dyn Fn()>>,
+            active_fn,
+            disabled_fn,
+            config,
+        ),
+        tooltip_,
+    )
+}
+
 pub fn clickable_icon<S: std::fmt::Display + 'static>(
     icon: impl Fn() -> &'static str + 'static,
     on_click: impl Fn() + 'static,
@@ -1844,32 +1857,22 @@ pub fn clickable_icon<S: std::fmt::Display + 'static>(
     disabled_fn: impl Fn() -> bool + 'static + Copy,
     tooltip_: impl Fn() -> S + 'static + Clone,
     config: ReadSignal<Arc<LapceConfig>>,
-    event_propagation: bool,
 ) -> impl View {
     tooltip_label(
         config,
-        clickable_icon_base(
-            icon,
-            on_click,
-            active_fn,
-            disabled_fn,
-            config,
-            event_propagation,
-        ),
+        clickable_icon_base(icon, Some(on_click), active_fn, disabled_fn, config),
         tooltip_,
     )
 }
 
 pub fn clickable_icon_base(
     icon: impl Fn() -> &'static str + 'static,
-    on_click: impl Fn() + 'static,
+    on_click: Option<impl Fn() + 'static>,
     active_fn: impl Fn() -> bool + 'static,
     disabled_fn: impl Fn() -> bool + 'static + Copy,
     config: ReadSignal<Arc<LapceConfig>>,
-    event_propagation: bool,
 ) -> impl View {
-    let pointer_down = create_rw_signal(false);
-    container(
+    let view = container(
         container(
             svg(move || config.get().ui_svg(icon()))
                 .style(move |s| {
@@ -1884,21 +1887,6 @@ pub fn clickable_icon_base(
                 })
                 .disabled(disabled_fn),
         )
-        .on_event(EventListener::PointerDown, move |_| {
-            pointer_down.set(true);
-            EventPropagation::Continue
-        })
-        .on_event(EventListener::PointerUp, move |_| {
-            if pointer_down.get() {
-                on_click();
-            }
-            pointer_down.set(false);
-            if event_propagation {
-                EventPropagation::Continue
-            } else {
-                EventPropagation::Stop
-            }
-        })
         .disabled(disabled_fn)
         .style(move |s| {
             let config = config.get();
@@ -1920,7 +1908,15 @@ pub fn clickable_icon_base(
                     )
                 })
         }),
-    )
+    );
+
+    if let Some(on_click) = on_click {
+        view.on_click_stop(move |_| {
+            on_click();
+        })
+    } else {
+        view
+    }
 }
 
 /// A tooltip with a label inside.  
@@ -2387,7 +2383,9 @@ fn palette_input(window_tab_data: Rc<WindowTabData>) -> impl View {
     let focus = window_tab_data.common.focus;
     let is_focused = move || focus.get() == Focus::Palette;
 
-    let input = text_input(editor, is_focused)
+    let input = TextInputBuilder::new()
+        .is_focused(is_focused)
+        .build_editor(editor)
         .placeholder(move || window_tab_data.palette.placeholder_text().to_owned())
         .style(|s| s.width_full());
 
@@ -2655,7 +2653,6 @@ fn window_message_view(
                     || false,
                     || "Close",
                     config,
-                    true,
                 )
                 .style(|s| s.margin_left(6.0)),
             ))
@@ -2974,7 +2971,10 @@ fn rename(window_tab_data: Rc<WindowTabData>) -> impl View {
 
     container(
         container(
-            text_input(editor, move || active.get()).style(|s| s.width(150.0)),
+            TextInputBuilder::new()
+                .is_focused(move || active.get())
+                .build_editor(editor)
+                .style(|s| s.width(150.0)),
         )
         .style(move |s| {
             let config = config.get();
@@ -3146,7 +3146,6 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                                 || false,
                                 || "Close",
                                 config.read_only(),
-                                true,
                             )
                             .style(|s| s.margin_horiz(6.0))
                         },
@@ -3304,7 +3303,6 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
             || false,
             || "New Workspace Tab",
             config.read_only(),
-            true,
         ))
         .on_resize(move |rect| {
             let current = add_icon_width.get_untracked();

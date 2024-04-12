@@ -2,7 +2,7 @@ use std::{ops::Range, path::PathBuf, rc::Rc};
 
 use floem::{
     ext_event::create_ext_action,
-    keyboard::ModifiersState,
+    keyboard::Modifiers,
     reactive::{Memo, RwSignal, Scope},
     views::VirtualVector,
 };
@@ -59,7 +59,7 @@ impl KeyPressFocus for GlobalSearchData {
         &self,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
-        mods: ModifiersState,
+        mods: Modifiers,
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(_) => {}
@@ -107,7 +107,7 @@ impl VirtualVector<(PathBuf, SearchMatchData)> for GlobalSearchData {
 impl GlobalSearchData {
     pub fn new(cx: Scope, main_split: MainSplitData) -> Self {
         let common = main_split.common.clone();
-        let editor = EditorData::new_local(cx, main_split.editors, common.clone());
+        let editor = main_split.editors.make_local(cx, common.clone());
         let search_result = cx.create_rw_signal(IndexMap::new());
 
         let global_search = Self {
