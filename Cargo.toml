@@ -35,7 +35,7 @@ anyhow            = { version = "1.0" }
 backtrace         = { version = "0.3" }
 chrono            = { version = "0.4" }
 clap              = { version = "4.5.0", default-features = false, features = ["std", "help", "usage", "derive"] }
-crossbeam-channel = { version = "0.5.11" }
+crossbeam-channel = { version = "0.5.12" }
 directories       = { version = "4.0.1" }
 flate2            = { version = "1.0" }
 globset           = { version = "0.4.14" }
@@ -49,7 +49,7 @@ notify            = { version = "5.2.0", features = ["serde"] }
 once_cell         = { version = "1.19" }
 parking_lot       = { version = "0.12.0" }
 rayon             = { version = "1.10.0" }
-regex             = { version = "1.10.2" }
+regex             = { version = "1.10.4" }
 reqwest           = { version = "0.11", features = ["blocking", "json", "socks"] }
 serde             = { version = "1.0" }
 serde_json        = { version = "1.0" }
@@ -71,7 +71,7 @@ lapce-core  = { path = "./lapce-core" }
 lapce-rpc   = { path = "./lapce-rpc" }
 lapce-proxy = { path = "./lapce-proxy" }
 
-floem-editor-core = { git = "https://github.com/lapce/floem", rev = "690e98a084e175e0ad56b696c8e5df6c99e179e2", features = ["serde"] }
+floem-editor-core = { git = "https://github.com/lapce/floem", rev = "13d67ad63ec235e3411a35902eb26ec6934162d2", features = ["serde"] }
 # floem-editor-core = { path = "../workspaces/floem/editor-core/", features = ["serde"] }
 
 [patch.crates-io]
