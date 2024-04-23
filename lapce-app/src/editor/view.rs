@@ -537,8 +537,6 @@ impl EditorView {
                     break;
                 }
 
-                let phantom_text = ed.phantom_text(line);
-
                 let left_col = if rvline == start_rvline { start_col } else { 0 };
                 let (right_col, _vline_end) = if rvline == end_rvline {
                     let max_col = ed.last_col(rvline_info, true);
@@ -546,10 +544,6 @@ impl EditorView {
                 } else {
                     (ed.last_col(rvline_info, true), true)
                 };
-
-                // Shift it by the phantom text
-                let left_col = phantom_text.col_after(left_col, false);
-                let right_col = phantom_text.col_after(right_col, false);
 
                 // TODO(minor): sel region should have the affinity of the start/end
                 let x0 = ed
@@ -758,9 +752,6 @@ impl EditorView {
         col: usize,
         affinity: CursorAffinity,
     ) -> f64 {
-        let before_cursor = affinity == CursorAffinity::Backward;
-        let phantom_text = ed.phantom_text(line);
-        let col = phantom_text.col_after(col, before_cursor);
         ed.line_point_of_line_col(line, col, affinity).x
     }
 
@@ -782,13 +773,13 @@ impl EditorView {
                     editor,
                     rvline.line,
                     col,
-                    CursorAffinity::Backward,
+                    CursorAffinity::Forward,
                 );
                 let x1 = Self::calculate_col_x(
                     editor,
                     rvline.line,
                     col + 1,
-                    CursorAffinity::Forward,
+                    CursorAffinity::Backward,
                 );
 
                 let y0 = line_info.vline_y;
@@ -1062,14 +1053,27 @@ impl Widget for EditorView {
             let config = self.editor.common.config.get_untracked();
             let line_height = config.editor.line_height() as f64;
 
-            let width = editor.max_line_width().max(viewport_size.width);
+            let is_local = e_data.doc().content.with_untracked(|c| c.is_local());
+
+            let width = editor.max_line_width() + 10.0;
+            let width = if !is_local {
+                width.max(viewport_size.width)
+            } else {
+                width
+            };
             let last_line_height =
                 line_height * (editor.last_vline().get() + 1) as f64;
-            let height = last_line_height.max(viewport_size.height);
+            let height = last_line_height.max(line_height);
+            let height = if !is_local {
+                height.max(viewport_size.height)
+            } else {
+                height
+            };
 
-            let margin_bottom = if editor
-                .es
-                .with_untracked(EditorStyle::scroll_beyond_last_line)
+            let margin_bottom = if !is_local
+                && editor
+                    .es
+                    .with_untracked(EditorStyle::scroll_beyond_last_line)
             {
                 viewport_size.height.min(last_line_height) - line_height
             } else {
