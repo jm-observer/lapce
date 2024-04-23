@@ -70,6 +70,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
 use tar::Archive;
 use tracing::error;
+use tracing::log::debug;
 
 use self::{
     catalog::PluginCatalog,
@@ -255,6 +256,7 @@ impl PluginCatalogRpcHandler {
                     check,
                     f,
                 } => {
+                    debug!("PluginCatalogRpc::ServerRequest {}", method);
                     plugin.handle_server_request(
                         plugin_id,
                         request_sent,
@@ -274,6 +276,7 @@ impl PluginCatalogRpcHandler {
                     path,
                     check,
                 } => {
+                    debug!("PluginCatalogRpc::ServerNotification {}", method);
                     plugin.handle_server_notification(
                         plugin_id,
                         method,
@@ -292,9 +295,11 @@ impl PluginCatalogRpcHandler {
                     text,
                     f,
                 } => {
+                    debug!("PluginCatalogRpc::FormatSemanticTokens");
                     plugin.format_semantic_tokens(plugin_id, tokens, text, f);
                 }
                 PluginCatalogRpc::DidOpenTextDocument { document } => {
+                    debug!("PluginCatalogRpc::DidOpenTextDocument");
                     plugin.handle_did_open_text_document(document);
                 }
                 PluginCatalogRpc::DidSaveTextDocument {
@@ -303,6 +308,7 @@ impl PluginCatalogRpcHandler {
                     text_document,
                     text,
                 } => {
+                    debug!("PluginCatalogRpc::DidSaveTextDocument");
                     plugin.handle_did_save_text_document(
                         language_id,
                         path,
@@ -317,6 +323,7 @@ impl PluginCatalogRpcHandler {
                     text,
                     new_text,
                 } => {
+                    debug!("PluginCatalogRpc::DidChangeTextDocument");
                     plugin.handle_did_change_text_document(
                         language_id,
                         document,
@@ -330,6 +337,7 @@ impl PluginCatalogRpcHandler {
                     reference,
                     f,
                 } => {
+                    debug!("PluginCatalogRpc::DapVariable");
                     plugin.dap_variable(dap_id, reference, f);
                 }
                 PluginCatalogRpc::DapGetScopes {
@@ -337,12 +345,14 @@ impl PluginCatalogRpcHandler {
                     frame_id,
                     f,
                 } => {
+                    debug!("PluginCatalogRpc::DapGetScopes");
                     plugin.dap_get_scopes(dap_id, frame_id, f);
                 }
                 PluginCatalogRpc::Shutdown => {
                     return;
                 }
                 PluginCatalogRpc::RemoveVolt { volt, f } => {
+                    debug!("PluginCatalogRpc::RemoveVolt");
                     plugin.shutdown_volt(volt, f);
                 }
             }

@@ -19,6 +19,7 @@ use lsp_types::{
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 use super::plugin::VoltID;
 use crate::{
@@ -478,9 +479,11 @@ impl ProxyRpcHandler {
         for msg in &self.rx {
             match msg {
                 Request(id, request) => {
+                    debug!("{:?}", request);
                     handler.handle_request(id, request);
                 }
                 Notification(notification) => {
+                    debug!("{:?}", notification);
                     handler.handle_notification(notification);
                 }
                 Shutdown => {

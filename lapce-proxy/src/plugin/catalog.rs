@@ -26,6 +26,7 @@ use lsp_types::{
 use parking_lot::Mutex;
 use psp_types::Notification;
 use serde_json::Value;
+use tracing::debug;
 
 use super::{
     dap::{DapClient, DapRpcHandler, DebuggerData},
@@ -462,6 +463,7 @@ impl PluginCatalog {
         use PluginCatalogNotification::*;
         match notification {
             UnactivatedVolts(volts) => {
+                debug!("UnactivatedVolts");
                 for volt in volts {
                     let id = volt.id();
                     self.unactivated_volts.insert(id, volt);
@@ -469,9 +471,11 @@ impl PluginCatalog {
                 self.check_unactivated_volts();
             }
             UpdatePluginConfigs(configs) => {
+                debug!("UpdatePluginConfigs");
                 self.plugin_configurations = configs;
             }
             PluginServerLoaded(plugin) => {
+                debug!("PluginServerLoaded");
                 // TODO: check if the server has did open registered
                 if let Ok(ProxyResponse::GetOpenFilesContentResponse { items }) =
                     self.plugin_rpc.proxy_rpc.get_open_files_content()
@@ -507,6 +511,7 @@ impl PluginCatalog {
                 }
             }
             InstallVolt(volt) => {
+                debug!("InstallVolt");
                 let workspace = self.workspace.clone();
                 let configurations =
                     self.plugin_configurations.get(&volt.name).cloned();
@@ -518,6 +523,7 @@ impl PluginCatalog {
                 });
             }
             ReloadVolt(volt) => {
+                debug!("ReloadVolt");
                 let volt_id = volt.id();
                 let ids: Vec<PluginId> = self.plugins.keys().cloned().collect();
                 for id in ids {
@@ -529,6 +535,7 @@ impl PluginCatalog {
                 let _ = self.plugin_rpc.unactivated_volts(vec![volt]);
             }
             StopVolt(volt) => {
+                debug!("StopVolt");
                 let volt_id = volt.id();
                 let ids: Vec<PluginId> = self.plugins.keys().cloned().collect();
                 for id in ids {
@@ -539,6 +546,7 @@ impl PluginCatalog {
                 }
             }
             EnableVolt(volt) => {
+                debug!("EnableVolt");
                 let volt_id = volt.id();
                 for (_, volt) in self.plugins.iter() {
                     if volt.volt_id == volt_id {
@@ -551,15 +559,18 @@ impl PluginCatalog {
                 });
             }
             DapLoaded(dap_rpc) => {
+                debug!("DapLoaded");
                 self.daps.insert(dap_rpc.dap_id, dap_rpc);
             }
             DapDisconnected(dap_id) => {
+                debug!("DapDisconnected");
                 self.daps.remove(&dap_id);
             }
             DapStart {
                 config,
                 breakpoints,
             } => {
+                debug!("DapStart");
                 let workspace = self.workspace.clone();
                 let plugin_rpc = self.plugin_rpc.clone();
                 if let Some(debugger) = config
@@ -590,11 +601,13 @@ impl PluginCatalog {
                 process_id,
                 term_id,
             } => {
+                debug!("DapProcessId");
                 if let Some(dap) = self.daps.get(&dap_id) {
                     let _ = dap.termain_process_tx.send((term_id, process_id));
                 }
             }
             DapContinue { dap_id, thread_id } => {
+                debug!("DapContinue");
                 if let Some(dap) = self.daps.get(&dap_id).cloned() {
                     let plugin_rpc = self.plugin_rpc.clone();
                     thread::spawn(move || {
@@ -605,6 +618,7 @@ impl PluginCatalog {
                 }
             }
             DapPause { dap_id, thread_id } => {
+                debug!("DapPause");
                 if let Some(dap) = self.daps.get(&dap_id).cloned() {
                     thread::spawn(move || {
                         let _ = dap.pause_thread(thread_id);
@@ -612,26 +626,31 @@ impl PluginCatalog {
                 }
             }
             DapStepOver { dap_id, thread_id } => {
+                debug!("DapStepOver");
                 if let Some(dap) = self.daps.get(&dap_id).cloned() {
                     dap.next(thread_id);
                 }
             }
             DapStepInto { dap_id, thread_id } => {
+                debug!("DapStepInto");
                 if let Some(dap) = self.daps.get(&dap_id).cloned() {
                     dap.step_in(thread_id);
                 }
             }
             DapStepOut { dap_id, thread_id } => {
+                debug!("DapStepOut");
                 if let Some(dap) = self.daps.get(&dap_id).cloned() {
                     dap.step_out(thread_id);
                 }
             }
             DapStop { dap_id } => {
+                debug!("DapStop");
                 if let Some(dap) = self.daps.get(&dap_id) {
                     dap.stop();
                 }
             }
             DapDisconnect { dap_id } => {
+                debug!("DapDisconnect");
                 if let Some(dap) = self.daps.get(&dap_id).cloned() {
                     thread::spawn(move || {
                         let _ = dap.disconnect();
@@ -642,6 +661,7 @@ impl PluginCatalog {
                 dap_id,
                 breakpoints,
             } => {
+                debug!("DapRestart");
                 if let Some(dap) = self.daps.get(&dap_id) {
                     dap.restart(breakpoints);
                 }
@@ -651,6 +671,7 @@ impl PluginCatalog {
                 path,
                 breakpoints,
             } => {
+                debug!("DapSetBreakpoints");
                 if let Some(dap) = self.daps.get(&dap_id) {
                     let core_rpc = self.plugin_rpc.core_rpc.clone();
                     dap.set_breakpoints_async(
@@ -673,6 +694,7 @@ impl PluginCatalog {
                 program,
                 args,
             } => {
+                debug!("RegisterDebuggerType");
                 self.debuggers.insert(
                     debugger_type.clone(),
                     DebuggerData {
@@ -683,6 +705,7 @@ impl PluginCatalog {
                 );
             }
             Shutdown => {
+                debug!("Shutdown");
                 for (_, plugin) in self.plugins.iter() {
                     plugin.shutdown();
                 }

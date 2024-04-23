@@ -29,7 +29,7 @@ use lsp_types::{
     DocumentChanges, OneOf, Position, TextEdit, Url, WorkspaceEdit,
 };
 use serde::{Deserialize, Serialize};
-use tracing::warn;
+use tracing::{debug, warn};
 
 use crate::{
     alert::AlertButton,
@@ -2083,6 +2083,7 @@ impl MainSplitData {
         match action {
             CodeActionOrCommand::Command(_) => {}
             CodeActionOrCommand::CodeAction(action) => {
+                debug!("run_code_action {:?}", action);
                 if let Some(edit) = action.edit.as_ref() {
                     self.apply_workspace_edit(edit);
                 } else {

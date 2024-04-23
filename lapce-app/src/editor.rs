@@ -49,6 +49,7 @@ use lsp_types::{
     InlineCompletionTriggerKind, Location, MarkedString, MarkupKind, TextEdit,
 };
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand},
@@ -1968,8 +1969,10 @@ impl EditorData {
         });
 
         let send = create_ext_action(self.scope, move |resp| {
+            debug!("create_ext_action: code_actions {:?}", resp);
             if doc.rev() == rev {
                 doc.code_actions().update(|c| {
+                    debug!("c.insert {:?}", resp);
                     c.insert(offset, Arc::new(resp));
                 });
             }
@@ -1997,6 +2000,7 @@ impl EditorData {
         let code_actions = doc
             .code_actions()
             .with_untracked(|c| c.get(&offset).cloned());
+        debug!("show_code_actions");
         if let Some(code_actions) = code_actions {
             if !code_actions.1.is_empty() {
                 self.common.internal_command.send(
