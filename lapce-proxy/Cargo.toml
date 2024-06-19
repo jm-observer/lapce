@@ -17,17 +17,13 @@ globset            = { workspace = true }
 indexmap           = { workspace = true }
 interprocess       = { workspace = true }
 notify             = { workspace = true }
-once_cell          = { workspace = true }
 parking_lot        = { workspace = true }
 regex              = { workspace = true }
 reqwest            = { workspace = true }
 serde              = { workspace = true }
 serde_json         = { workspace = true }
-strum              = { workspace = true }
-strum_macros       = { workspace = true }
 tar                = { workspace = true }
 toml               = { workspace = true }
-toml_edit          = { workspace = true }
 tracing            = { workspace = true }
 tracing-log        = { workspace = true }
 url                = { workspace = true }
@@ -57,10 +53,10 @@ git2 = { version = "0.18.2", features = ["vendored-openssl"] }
 trash = "3.0.6"
 
 # search
-ignore        = "0.4.18"
-grep-searcher = "0.1.11"
-grep-matcher  = "0.1.6"
-grep-regex    = "0.1.11"
+ignore        = "0.4"
+grep-searcher = "0.1"
+grep-matcher  = "0.1"
+grep-regex    = "0.1"
 
 # wasm
 wasmtime      = "14.0.0"
@@ -72,6 +68,4 @@ git = "https://github.com/lapce/wasi-experimental-http"
 # path = "../../wasi-experimental-http/crates/wasi-experimental-http-wasmtime"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-cocoa = "0.25"
-objc  = "0.2"
-libc  = "0.2"
+libc = "0.2"

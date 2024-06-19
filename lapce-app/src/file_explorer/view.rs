@@ -6,11 +6,11 @@ use floem::{
     peniko::Color,
     reactive::{create_rw_signal, ReadSignal, RwSignal},
     style::{AlignItems, CursorStyle, Position, Style},
-    view::View,
     views::{
         container, dyn_stack, label, scroll, stack, svg, virtual_stack, Container,
         Decorators, VirtualDirection, VirtualItemSize,
     },
+    View,
 };
 use lapce_core::selection::Selection;
 use lapce_rpc::{
@@ -82,7 +82,7 @@ pub fn file_explorer_panel(
             container(open_editors_view(window_tab_data.clone()))
                 .style(|s| s.size_full()),
             window_tab_data.panel.section_open(PanelSection::OpenEditor),
-            move |s| s.apply_if(!config.get().ui.open_editors_visible, Style::hide),
+            move |s| s.apply_if(!config.get().ui.open_editors_visible, |s| s.hide()),
         )
         .add(
             "File Explorer",
@@ -95,6 +95,7 @@ pub fn file_explorer_panel(
                 .section_open(PanelSection::FileExplorer),
         )
         .build()
+        .debug_name("File Explorer Panel")
 }
 
 /// Initialize the file explorer's naming (renaming, creating, etc.) editor with the given path.
@@ -180,13 +181,14 @@ fn file_node_text_view(
                     .unwrap_or_default()
             })
             .style(move |s| {
-                s.flex_grow(1.0).height(ui_line_height.get()).color(
-                    file_node_text_color(
+                s.flex_grow(1.0)
+                    .height(ui_line_height.get())
+                    .color(file_node_text_color(
                         config,
                         node.clone(),
                         source_control.clone(),
-                    ),
-                )
+                    ))
+                    .selectable(false)
             }),
         ),
         FileNodeViewKind::Renaming { path, err } => {
@@ -550,5 +552,6 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
         )
         .style(|s| s.flex_col().width_pct(100.0)),
     )
-    .style(|s| s.absolute().size_pct(100.0, 100.0).line_height(1.6))
+    .style(|s| s.absolute().size_full().line_height(1.6))
+    .debug_name("Open Editors")
 }

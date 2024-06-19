@@ -8,8 +8,8 @@ use floem::{
     event::EventListener,
     reactive::{ReadSignal, RwSignal, Scope},
     style::CursorStyle,
-    view::View,
     views::{container, dyn_stack, label, stack, svg, Decorators},
+    View,
 };
 
 use crate::{
@@ -170,4 +170,5 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                     .with_alpha_factor(0.5),
             )
     })
+    .debug_name("Alert Box")
 }

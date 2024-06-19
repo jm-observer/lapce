@@ -3,8 +3,7 @@ use std::{cmp, path::PathBuf, rc::Rc, sync::Arc};
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
     context::{PaintCx, StyleCx},
-    event::{Event, EventListener},
-    id::Id,
+    event::{Event, EventListener, EventPropagation},
     keyboard::Modifiers,
     peniko::{
         kurbo::{Line, Point, Rect, Size},
@@ -15,7 +14,6 @@ use floem::{
     },
     style::{CursorColor, CursorStyle, Style, TextColor},
     taffy::prelude::NodeId,
-    view::{AnyWidget, View, ViewData, Widget},
     views::{
         clip, container, dyn_stack,
         editor::{
@@ -32,10 +30,10 @@ use floem::{
             ShowIndentGuide, SmartTab, VisibleWhitespaceColor, WrapProp,
         },
         empty, label,
-        scroll::{scroll, HideBar},
+        scroll::{scroll, HideBar, PropagatePointerWheel},
         stack, svg, Decorators,
     },
-    EventPropagation, Renderer,
+    Renderer, View, ViewId,
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -127,7 +125,7 @@ pub fn editor_style(
 }
 
 pub struct EditorView {
-    data: ViewData,
+    id: ViewId,
     editor: EditorData,
     is_active: Memo<bool>,
     inner_node: Option<NodeId>,
@@ -141,7 +139,7 @@ pub fn editor_view(
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> EditorView {
-    let id = Id::next();
+    let id = ViewId::new();
     let is_active = create_memo(move |_| is_active(true));
 
     let viewport = e_data.viewport();
@@ -246,7 +244,7 @@ pub fn editor_view(
 
     let doc = e_data.doc_signal();
     EditorView {
-        data: ViewData::new(id),
+        id,
         editor: e_data,
         is_active,
         inner_node: None,
@@ -397,7 +395,7 @@ impl EditorView {
         }
     }
 
-    fn paint_cursor(
+    fn paint_current_line(
         &self,
         cx: &mut PaintCx,
         is_local: bool,
@@ -406,14 +404,11 @@ impl EditorView {
         let e_data = self.editor.clone();
         let ed = e_data.editor.clone();
         let cursor = self.editor.cursor();
-        let find_focus = self.editor.find_focus;
         let config = self.editor.common.config;
 
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
         let viewport = self.viewport.get_untracked();
-        let is_active =
-            self.is_active.get_untracked() && !find_focus.get_untracked();
 
         let current_line_color = ed.es.with_untracked(EditorStyle::current_line);
 
@@ -474,10 +469,6 @@ impl EditorView {
                     }
                 }
             }
-
-            FloemEditorView::paint_selection(cx, &ed, screen_lines);
-
-            FloemEditorView::paint_cursor_caret(cx, &ed, is_active, screen_lines);
         });
     }
 
@@ -547,13 +538,19 @@ impl EditorView {
 
                 // TODO(minor): sel region should have the affinity of the start/end
                 let x0 = ed
-                    .line_point_of_line_col(line, left_col, CursorAffinity::Forward)
+                    .line_point_of_line_col(
+                        line,
+                        left_col,
+                        CursorAffinity::Forward,
+                        true,
+                    )
                     .x;
                 let x1 = ed
                     .line_point_of_line_col(
                         line,
                         right_col,
                         CursorAffinity::Backward,
+                        true,
                     )
                     .x;
 
@@ -742,19 +739,6 @@ impl EditorView {
         }
     }
 
-    /// Calculate the `x` coordinate of the left edge of the given column on the given line.
-    /// If `before_cursor` is `true`, the calculated position will be to the right of any inlay
-    /// hints before and adjacent to the given column. Else, the calculated position will be to the
-    /// left of any such inlay hints.
-    fn calculate_col_x(
-        ed: &Editor,
-        line: usize,
-        col: usize,
-        affinity: CursorAffinity,
-    ) -> f64 {
-        ed.line_point_of_line_col(line, col, affinity).x
-    }
-
     /// Paint a highlight around the characters at the given positions.
     fn paint_char_highlights(
         &self,
@@ -769,18 +753,22 @@ impl EditorView {
         for (rvline, col) in highlight_line_cols {
             // Is the given line on screen?
             if let Some(line_info) = screen_lines.info(rvline) {
-                let x0 = Self::calculate_col_x(
-                    editor,
-                    rvline.line,
-                    col,
-                    CursorAffinity::Forward,
-                );
-                let x1 = Self::calculate_col_x(
-                    editor,
-                    rvline.line,
-                    col + 1,
-                    CursorAffinity::Backward,
-                );
+                let x0 = editor
+                    .line_point_of_line_col(
+                        rvline.line,
+                        col,
+                        CursorAffinity::Forward,
+                        true,
+                    )
+                    .x;
+                let x1 = editor
+                    .line_point_of_line_col(
+                        rvline.line,
+                        col + 1,
+                        CursorAffinity::Backward,
+                        true,
+                    )
+                    .x;
 
                 let y0 = line_info.vline_y;
                 let y1 = y0 + line_height;
@@ -811,18 +799,22 @@ impl EditorView {
         if start == end {
             if let Some(line_info) = screen_lines.info(start) {
                 // TODO: Due to line wrapping the y positions of these two spots could be different, do we need to change it?
-                let x0 = Self::calculate_col_x(
-                    editor,
-                    start.line,
-                    start_col + 1,
-                    CursorAffinity::Forward,
-                );
-                let x1 = Self::calculate_col_x(
-                    editor,
-                    end.line,
-                    end_col,
-                    CursorAffinity::Backward,
-                );
+                let x0 = editor
+                    .line_point_of_line_col(
+                        start.line,
+                        start_col + 1,
+                        CursorAffinity::Forward,
+                        true,
+                    )
+                    .x;
+                let x1 = editor
+                    .line_point_of_line_col(
+                        end.line,
+                        end_col,
+                        CursorAffinity::Backward,
+                        true,
+                    )
+                    .x;
 
                 if x0 < x1 {
                     let y = line_info.vline_y + line_height;
@@ -861,18 +853,22 @@ impl EditorView {
             });
 
             if let [Some(y0), Some(y1)] = [y0, y1] {
-                let start_x = Self::calculate_col_x(
-                    editor,
-                    start.line,
-                    start_col + 1,
-                    CursorAffinity::Forward,
-                );
-                let end_x = Self::calculate_col_x(
-                    editor,
-                    end.line,
-                    end_col,
-                    CursorAffinity::Backward,
-                );
+                let start_x = editor
+                    .line_point_of_line_col(
+                        start.line,
+                        start_col + 1,
+                        CursorAffinity::Forward,
+                        true,
+                    )
+                    .x;
+                let end_x = editor
+                    .line_point_of_line_col(
+                        end.line,
+                        end_col,
+                        CursorAffinity::Backward,
+                        true,
+                    )
+                    .x;
 
                 // TODO(minor): is this correct with line wrapping?
                 // The vertical line should be drawn to the left of any non-whitespace characters
@@ -886,12 +882,14 @@ impl EditorView {
                             let (_, col) =
                                 editor.offset_to_line_col(non_blank_offset);
 
-                            Self::calculate_col_x(
-                                editor,
-                                line,
-                                col,
-                                CursorAffinity::Backward,
-                            )
+                            editor
+                                .line_point_of_line_col(
+                                    line,
+                                    col,
+                                    CursorAffinity::Backward,
+                                    true,
+                                )
+                                .x
                         })
                         .min_by(f64::total_cmp)
                 });
@@ -983,29 +981,11 @@ impl EditorView {
 }
 
 impl View for EditorView {
-    fn view_data(&self) -> &ViewData {
-        &self.data
+    fn id(&self) -> ViewId {
+        self.id
     }
 
-    fn view_data_mut(&mut self) -> &mut ViewData {
-        &mut self.data
-    }
-
-    fn build(self) -> AnyWidget {
-        Box::new(self)
-    }
-}
-
-impl Widget for EditorView {
-    fn view_data(&self) -> &ViewData {
-        &self.data
-    }
-
-    fn view_data_mut(&mut self) -> &mut ViewData {
-        &mut self.data
-    }
-
-    fn style(&mut self, cx: &mut StyleCx<'_>) {
+    fn style_pass(&mut self, cx: &mut StyleCx<'_>) {
         let editor = &self.editor.editor;
         if editor.es.try_update(|s| s.read(cx)).unwrap() {
             editor.floem_style_id.update(|val| *val += 1);
@@ -1019,12 +999,12 @@ impl Widget for EditorView {
 
     fn update(
         &mut self,
-        cx: &mut floem::context::UpdateCx,
+        _cx: &mut floem::context::UpdateCx,
         state: Box<dyn std::any::Any>,
     ) {
         if let Ok(state) = state.downcast() {
             self.sticky_header_info = *state;
-            cx.request_layout(self.data.id());
+            self.id.request_layout();
         }
     }
 
@@ -1032,9 +1012,9 @@ impl Widget for EditorView {
         &mut self,
         cx: &mut floem::context::LayoutCx,
     ) -> floem::taffy::prelude::NodeId {
-        cx.layout_node(self.data.id(), true, |cx| {
+        cx.layout_node(self.id, true, |_cx| {
             if self.inner_node.is_none() {
-                self.inner_node = Some(cx.new_node());
+                self.inner_node = Some(self.id.new_taffy_node());
             }
 
             let e_data = &self.editor;
@@ -1061,8 +1041,9 @@ impl Widget for EditorView {
             } else {
                 width
             };
-            let last_line_height =
-                line_height * (editor.last_vline().get() + 1) as f64;
+            let last_vline = editor.last_vline().get();
+            let last_vline = e_data.visual_line(last_vline);
+            let last_line_height = line_height * (last_vline + 1) as f64;
             let height = last_line_height.max(line_height);
             let height = if !is_local {
                 height.max(viewport_size.height)
@@ -1085,7 +1066,7 @@ impl Widget for EditorView {
                 .height(height)
                 .margin_bottom(margin_bottom)
                 .to_taffy_style();
-            cx.set_style(inner_node, style);
+            self.id.set_taffy_style(inner_node, style);
 
             vec![inner_node]
         })
@@ -1109,6 +1090,9 @@ impl Widget for EditorView {
         let config = e_data.common.config.get_untracked();
         let doc = e_data.doc();
         let is_local = doc.content.with_untracked(|content| content.is_local());
+        let find_focus = self.editor.find_focus;
+        let is_active =
+            self.is_active.get_untracked() && !find_focus.get_untracked();
 
         // We repeatedly get the screen lines because we don't currently carefully manage the
         // paint functions to avoid potentially needing to recompute them, which could *maybe*
@@ -1119,7 +1103,8 @@ impl Widget for EditorView {
         // I expect that most/all of the paint functions could restrict themselves to only what is
         // within the active screen lines without issue.
         let screen_lines = ed.screen_lines.get_untracked();
-        self.paint_cursor(cx, is_local, &screen_lines);
+        self.paint_current_line(cx, is_local, &screen_lines);
+        FloemEditorView::paint_selection(cx, ed, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_diff_sections(cx, viewport, &screen_lines, &config);
         let screen_lines = ed.screen_lines.get_untracked();
@@ -1127,7 +1112,7 @@ impl Widget for EditorView {
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_bracket_highlights_scope_lines(cx, viewport, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
-        FloemEditorView::paint_text(cx, ed, viewport, &screen_lines);
+        FloemEditorView::paint_text(cx, ed, viewport, is_active, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_sticky_headers(cx, viewport, &screen_lines);
         self.paint_scroll_bar(cx, viewport, is_local, config);
@@ -1275,48 +1260,46 @@ pub fn editor_container_view(
 
     stack((
         editor_breadcrumbs(workspace, editor.get_untracked(), config),
-        container(
-            stack((
-                editor_gutter(window_tab_data.clone(), editor, is_active),
-                container(editor_content(editor, debug_breakline, is_active))
-                    .style(move |s| s.size_pct(100.0, 100.0)),
-                empty().style(move |s| {
-                    let config = config.get();
-                    s.absolute()
-                        .width_pct(100.0)
-                        .height(sticky_header_height.get() as f32)
-                        // .box_shadow_blur(5.0)
-                        // .border_bottom(1.0)
-                        // .border_color(
-                        //     config.get_color(LapceColor::LAPCE_BORDER),
-                        // )
-                        .apply_if(
-                            !config.editor.sticky_header
-                                || sticky_header_height.get() == 0.0
-                                || !editor_view.get().is_normal(),
-                            |s| s.hide(),
-                        )
-                }),
-                find_view(
-                    editor,
-                    find_editor,
-                    find_focus,
-                    replace_editor,
-                    replace_active,
-                    replace_focus,
-                    is_active,
-                ),
-            ))
-            .style(|s| s.absolute().size_full()),
-        )
+        stack((
+            editor_gutter(window_tab_data.clone(), editor, is_active),
+            editor_content(editor, debug_breakline, is_active),
+            empty().style(move |s| {
+                let config = config.get();
+                s.absolute()
+                    .width_pct(100.0)
+                    .height(sticky_header_height.get() as f32)
+                    // .box_shadow_blur(5.0)
+                    // .border_bottom(1.0)
+                    // .border_color(
+                    //     config.get_color(LapceColor::LAPCE_BORDER),
+                    // )
+                    .apply_if(
+                        !config.editor.sticky_header
+                            || sticky_header_height.get() == 0.0
+                            || !editor_view.get().is_normal(),
+                        |s| s.hide(),
+                    )
+            }),
+            find_view(
+                editor,
+                find_editor,
+                find_focus,
+                replace_editor,
+                replace_active,
+                replace_focus,
+                is_active,
+            ),
+        ))
         .style(|s| s.width_full().flex_basis(0).flex_grow(1.0)),
     ))
     .on_cleanup(move || {
+        let editor = editor.get_untracked();
+        editor.cancel_completion();
+        editor.cancel_inline_completion();
         if editors.contains_untracked(editor_id) {
             // editor still exist, so it might be moved to a different editor tab
             return;
         }
-        let editor = editor.get_untracked();
         let doc = editor.doc();
         editor.scope.dispose();
 
@@ -1335,6 +1318,7 @@ pub fn editor_container_view(
         }
     })
     .style(|s| s.flex_col().absolute().size_pct(100.0, 100.0))
+    .debug_name("Editor Container")
 }
 
 fn editor_gutter(
@@ -1491,6 +1475,7 @@ fn editor_gutter(
             }),
             empty().style(move |s| s.width(padding_right)),
         ))
+        .debug_name("Centered Last Line Count")
         .style(|s| s.height_pct(100.0)),
         clip(
             stack((
@@ -1508,7 +1493,8 @@ fn editor_gutter(
                             % config.get().editor.line_height() as f64)
                             as f32,
                     )
-                }),
+                })
+                .debug_name("Breakpoint Stack"),
                 dyn_stack(
                     move || {
                         let e_data = e_data.get();
@@ -1625,7 +1611,8 @@ fn editor_gutter(
                                 ),
                             )
                         })
-                }),
+                })
+                .debug_name("Code Action LightBulb"),
             ))
             .style(|s| s.size_pct(100.0, 100.0)),
         )
@@ -1637,6 +1624,7 @@ fn editor_gutter(
         }),
     ))
     .style(|s| s.height_pct(100.0))
+    .debug_name("Editor Gutter")
 }
 
 fn editor_breadcrumbs(
@@ -1703,7 +1691,8 @@ fn editor_breadcrumbs(
                                             ),
                                         )
                                 }),
-                                label(move || section.clone()),
+                                label(move || section.clone())
+                                    .style(move |s| s.selectable(false)),
                             ))
                             .style(|s| s.items_center())
                         },
@@ -1749,7 +1738,9 @@ fn editor_breadcrumbs(
             .width_pct(100.0)
             .height(line_height as f32)
             .apply_if(doc_path.get().is_none(), |s| s.hide())
+            .apply_if(!config.editor.show_bread_crumbs, |s| s.hide())
     })
+    .debug_name("Editor BreadCrumbs")
 }
 
 fn editor_content(
@@ -1779,10 +1770,24 @@ fn editor_content(
         )
     });
 
+    {
+        create_effect(move |_| {
+            is_active(true);
+            let e_data = e_data.get_untracked();
+            e_data.cancel_completion();
+            e_data.cancel_inline_completion();
+        });
+    }
+
     scroll({
         let editor_content_view =
             editor_view(e_data.get_untracked(), debug_breakline, is_active).style(
-                move |s| s.absolute().min_size_full().cursor(CursorStyle::Text),
+                move |s| {
+                    s.absolute()
+                        .margin_left(1.0)
+                        .min_size_full()
+                        .cursor(CursorStyle::Text)
+                },
             );
 
         let id = editor_content_view.id();
@@ -1821,6 +1826,11 @@ fn editor_content(
     .on_move(move |point| {
         window_origin.set(point);
     })
+    .on_scroll(move |_| {
+        let e_data = e_data.get_untracked();
+        e_data.cancel_completion();
+        e_data.cancel_inline_completion();
+    })
     .scroll_to(move || scroll_to.get().map(|s| s.to_point()))
     .scroll_delta(move || scroll_delta.get())
     .ensure_visible(move || {
@@ -1840,8 +1850,9 @@ fn editor_content(
         let line_height = config.editor.line_height();
         // TODO: is there a good way to avoid the calculation of the vline here?
         let vline = e_data.editor.vline_of_rvline(rvline);
+        let vline = e_data.visual_line(vline.get());
         let rect = Rect::from_origin_size(
-            (x, (vline.get() * line_height) as f64),
+            (x, (vline * line_height) as f64),
             (width, line_height as f64),
         )
         .inflate(10.0, 0.0);
@@ -1872,7 +1883,8 @@ fn editor_content(
             rect
         }
     })
-    .style(|s| s.absolute().size_pct(100.0, 100.0))
+    .style(|s| s.size_full().set(PropagatePointerWheel, false))
+    .debug_name("Editor Content")
 }
 
 fn search_editor_view(

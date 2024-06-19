@@ -1,16 +1,16 @@
 use std::rc::Rc;
 
 use floem::{
+    event::EventPropagation,
     event::{Event, EventListener},
     kurbo::Size,
     reactive::create_rw_signal,
-    view::View,
     views::{
         container, dyn_stack, empty, label,
         scroll::{scroll, Thickness, VerticalScrollAsHorizontal},
         stack, svg, tab, Decorators,
     },
-    EventPropagation,
+    View,
 };
 
 use super::kind::PanelKind;
@@ -37,6 +37,7 @@ pub fn terminal_panel(window_tab_data: Rc<WindowTabData>) -> impl View {
         }
     })
     .style(|s| s.absolute().size_pct(100.0, 100.0).flex_col())
+    .debug_name("Terminal Panel")
 }
 
 fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
@@ -128,6 +129,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                                     .flex_basis(0.0)
                                     .flex_grow(1.0)
                                     .text_ellipsis()
+                                    .selectable(false)
                             }),
                             clickable_icon(
                                 || LapceIcons::CLOSE,

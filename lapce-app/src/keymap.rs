@@ -7,11 +7,11 @@ use floem::{
         Scope,
     },
     style::CursorStyle,
-    view::View,
     views::{
         container, dyn_stack, label, scroll, stack, text, virtual_stack, Decorators,
         VirtualDirection, VirtualItemSize,
     },
+    View,
 };
 use lapce_core::mode::Modes;
 
@@ -284,6 +284,7 @@ pub fn keymap_view(editors: Editors, common: Rc<CommonData>) -> impl View {
             text_input_view
                 .placeholder(|| "Search Key Bindings".to_string())
                 .keyboard_navigatable()
+                .request_focus(|| {})
                 .style(move |s| {
                     s.width_pct(100.0)
                         .border_radius(6.0)
@@ -500,6 +501,7 @@ fn keyboard_picker_view(
                     .border_color(config.color(LapceColor::LAPCE_BORDER))
             }),
         ))
+        .on_event_stop(EventListener::PointerDown, |_| {})
         .style(move |s| {
             let config = config.get();
             s.items_center()

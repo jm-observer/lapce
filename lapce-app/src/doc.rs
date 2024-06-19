@@ -29,6 +29,7 @@ use floem::{
         view::{ScreenLines, ScreenLinesBase},
         CursorInfo, Editor, EditorStyle,
     },
+    ViewId,
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -39,7 +40,7 @@ use lapce_core::{
     },
     char_buffer::CharBuffer,
     command::EditCommand,
-    cursor::Cursor,
+    cursor::{Cursor, CursorAffinity},
     editor::{Action, EditConf, EditType},
     indent::IndentStyle,
     language::LapceLanguage,
@@ -50,7 +51,7 @@ use lapce_core::{
     selection::{InsertDrift, Selection},
     style::line_styles,
     syntax::{edit::SyntaxEdit, BracketParser, Syntax},
-    word::WordCursor,
+    word::{get_char_property, CharClassification, WordCursor},
 };
 use lapce_rpc::{
     buffer::BufferId,
@@ -943,16 +944,16 @@ impl Doc {
         col: usize,
     ) {
         // TODO: more granular invalidation
-        self.clear_text_cache();
         self.completion_lens.set(Some(completion_lens));
         self.completion_pos.set((line, col));
+        self.clear_text_cache();
     }
 
     pub fn clear_completion_lens(&self) {
         // TODO: more granular invalidation
         if self.completion_lens.get_untracked().is_some() {
-            self.clear_text_cache();
             self.completion_lens.set(None);
+            self.clear_text_cache();
         }
     }
 
@@ -1239,9 +1240,9 @@ impl Doc {
     ) {
         // TODO: more granular invalidation
         batch(|| {
-            self.clear_text_cache();
             self.inline_completion.set(Some(inline_completion));
             self.inline_completion_pos.set((line, col));
+            self.clear_text_cache();
         });
     }
 
@@ -1456,9 +1457,46 @@ impl DocumentPhantom for Doc {
                 interval.start >= start_offset && interval.start < end_offset
             })
             .map(|(interval, inlay_hint)| {
-                let (_, col) = self
-                    .buffer
-                    .with_untracked(|b| b.offset_to_line_col(interval.start));
+                let (col, affinity) = self.buffer.with_untracked(|b| {
+                    let mut cursor =
+                        lapce_xi_rope::Cursor::new(b.text(), interval.start);
+
+                    let next_char = cursor.peek_next_codepoint();
+                    let prev_char = cursor.prev_codepoint();
+
+                    let mut affinity = None;
+                    if let Some(prev_char) = prev_char {
+                        let c = get_char_property(prev_char);
+                        if c == CharClassification::Other {
+                            affinity = Some(CursorAffinity::Backward)
+                        } else if matches!(
+                            c,
+                            CharClassification::Lf
+                                | CharClassification::Cr
+                                | CharClassification::Space
+                        ) {
+                            affinity = Some(CursorAffinity::Forward)
+                        }
+                    };
+                    if affinity.is_none() {
+                        if let Some(next_char) = next_char {
+                            let c = get_char_property(next_char);
+                            if c == CharClassification::Other {
+                                affinity = Some(CursorAffinity::Forward)
+                            } else if matches!(
+                                c,
+                                CharClassification::Lf
+                                    | CharClassification::Cr
+                                    | CharClassification::Space
+                            ) {
+                                affinity = Some(CursorAffinity::Backward)
+                            }
+                        }
+                    }
+
+                    let (_, col) = b.offset_to_line_col(interval.start);
+                    (col, affinity)
+                });
                 let text = match &inlay_hint.label {
                     InlayHintLabel::String(label) => label.to_string(),
                     InlayHintLabel::LabelParts(parts) => {
@@ -1469,6 +1507,7 @@ impl DocumentPhantom for Doc {
                     kind: PhantomTextKind::InlayHint,
                     col,
                     text,
+                    affinity,
                     fg: Some(config.color(LapceColor::INLAY_HINT_FOREGROUND)),
                     // font_family: Some(config.editor.inlay_hint_font_family()),
                     font_size: Some(config.editor.inlay_hint_font_size()),
@@ -1533,6 +1572,7 @@ impl DocumentPhantom for Doc {
                                     Some(PhantomText {
                                         kind: PhantomTextKind::Diagnostic,
                                         col: end_offset - start_offset,
+                                        affinity: Some(CursorAffinity::Backward),
                                         text,
                                         fg: Some(fg),
                                         font_size: Some(
@@ -1566,6 +1606,7 @@ impl DocumentPhantom for Doc {
                 text: completion.clone(),
                 fg: Some(config.color(LapceColor::COMPLETION_LENS_FOREGROUND)),
                 font_size: Some(config.editor.completion_lens_font_size()),
+                affinity: Some(CursorAffinity::Backward),
                 // font_family: Some(config.editor.completion_lens_font_family()),
                 bg: None,
                 under_line: None,
@@ -1590,6 +1631,7 @@ impl DocumentPhantom for Doc {
                 kind: PhantomTextKind::Completion,
                 col: inline_completion_col,
                 text: completion.clone(),
+                affinity: Some(CursorAffinity::Backward),
                 fg: Some(config.color(LapceColor::COMPLETION_LENS_FOREGROUND)),
                 font_size: Some(config.editor.completion_lens_font_size()),
                 // font_family: Some(config.editor.completion_lens_font_family()),
@@ -1933,7 +1975,7 @@ fn syntax_prev_unmatched(
 
 fn should_blink(
     focus: RwSignal<Focus>,
-    keyboard_focus: RwSignal<Option<floem::id::Id>>,
+    keyboard_focus: RwSignal<Option<ViewId>>,
 ) -> impl Fn() -> bool {
     move || {
         let Some(focus) = focus.try_get_untracked() else {

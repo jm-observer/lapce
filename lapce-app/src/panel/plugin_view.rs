@@ -5,13 +5,13 @@ use floem::{
     peniko::kurbo::{Point, Rect, Size},
     reactive::{create_memo, create_rw_signal, RwSignal},
     style::CursorStyle,
-    view::View,
     views::{
         container, dyn_container, img, label,
         scroll::{scroll, HideBar},
         stack, svg, virtual_stack, Decorators, VirtualDirection, VirtualItemSize,
         VirtualVector,
     },
+    IntoView, View,
 };
 use indexmap::IndexMap;
 use lapce_rpc::plugin::{VoltID, VoltInfo};
@@ -81,6 +81,7 @@ pub fn plugin_panel(
             window_tab_data.panel.section_open(PanelSection::Available),
         )
         .build()
+        .debug_name("Plugin Panel")
 }
 
 fn installed_view(plugin: PluginData) -> impl View {
@@ -102,12 +103,12 @@ fn installed_view(plugin: PluginData) -> impl View {
                 move |icon| match icon {
                     None => img(move || VOLT_DEFAULT_PNG.to_vec())
                         .style(|s| s.size_full())
-                        .any(),
-                    Some(VoltIcon::Svg(svg_str)) => {
-                        svg(move || svg_str.clone()).style(|s| s.size_full()).any()
-                    }
+                        .into_any(),
+                    Some(VoltIcon::Svg(svg_str)) => svg(move || svg_str.clone())
+                        .style(|s| s.size_full())
+                        .into_any(),
                     Some(VoltIcon::Img(buf)) => {
-                        img(move || buf.clone()).style(|s| s.size_full()).any()
+                        img(move || buf.clone()).style(|s| s.size_full()).into_any()
                     }
                 },
             )
@@ -119,14 +120,19 @@ fn installed_view(plugin: PluginData) -> impl View {
                     .padding(5)
             }),
             stack((
-                label(move || meta.display_name.clone())
-                    .style(|s| s.font_bold().text_ellipsis().min_width(0.0)),
+                label(move || meta.display_name.clone()).style(|s| {
+                    s.font_bold()
+                        .text_ellipsis()
+                        .min_width(0.0)
+                        .selectable(false)
+                }),
                 label(move || meta.description.clone())
-                    .style(|s| s.text_ellipsis().min_width(0.0)),
+                    .style(|s| s.text_ellipsis().min_width(0.0).selectable(false)),
                 stack((
                     stack((
-                        label(move || meta.author.clone())
-                            .style(|s| s.text_ellipsis().max_width_pct(100.0)),
+                        label(move || meta.author.clone()).style(|s| {
+                            s.text_ellipsis().max_width_pct(100.0).selectable(false)
+                        }),
                         label(move || {
                             if disabled.with(|d| d.contains(&volt_id))
                                 || workspace_disabled.with(|d| d.contains(&volt_id))
@@ -140,7 +146,7 @@ fn installed_view(plugin: PluginData) -> impl View {
                                 format!("v{}", volt.meta.with(|m| m.version.clone()))
                             }
                         })
-                        .style(|s| s.text_ellipsis()),
+                        .style(|s| s.text_ellipsis().selectable(false)),
                     ))
                     .style(|s| {
                         s.justify_between()
@@ -268,12 +274,12 @@ fn available_view(plugin: PluginData) -> impl View {
                 move |icon| match icon {
                     None => img(move || VOLT_DEFAULT_PNG.to_vec())
                         .style(|s| s.size_full())
-                        .any(),
-                    Some(VoltIcon::Svg(svg_str)) => {
-                        svg(move || svg_str.clone()).style(|s| s.size_full()).any()
-                    }
+                        .into_any(),
+                    Some(VoltIcon::Svg(svg_str)) => svg(move || svg_str.clone())
+                        .style(|s| s.size_full())
+                        .into_any(),
                     Some(VoltIcon::Img(buf)) => {
-                        img(move || buf.clone()).style(|s| s.size_full()).any()
+                        img(move || buf.clone()).style(|s| s.size_full()).into_any()
                     }
                 },
             )
@@ -285,16 +291,21 @@ fn available_view(plugin: PluginData) -> impl View {
                     .padding(5)
             }),
             stack((
-                label(move || info.display_name.clone())
-                    .style(|s| s.font_bold().text_ellipsis().min_width(0.0)),
+                label(move || info.display_name.clone()).style(|s| {
+                    s.font_bold()
+                        .text_ellipsis()
+                        .min_width(0.0)
+                        .selectable(false)
+                }),
                 label(move || info.description.clone())
-                    .style(|s| s.text_ellipsis().min_width(0.0)),
+                    .style(|s| s.text_ellipsis().min_width(0.0).selectable(false)),
                 stack((
                     label(move || info.author.clone()).style(|s| {
                         s.text_ellipsis()
                             .min_width(0.0)
                             .flex_grow(1.0)
                             .flex_basis(0.0)
+                            .selectable(false)
                     }),
                     install_button(id, volt.info, volt.installing),
                 ))
@@ -332,6 +343,7 @@ fn available_view(plugin: PluginData) -> impl View {
                 TextInputBuilder::new()
                     .is_focused(is_focused)
                     .build_editor(editor.clone())
+                    .placeholder(|| "Search extensions".to_string())
                     .on_cursor_pos(move |point| {
                         cursor_x.set(point.x);
                     })

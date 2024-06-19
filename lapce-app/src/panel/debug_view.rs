@@ -6,11 +6,11 @@ use floem::{
     peniko::Color,
     reactive::{create_rw_signal, ReadSignal, RwSignal},
     style::CursorStyle,
-    view::View,
     views::{
         container, dyn_stack, label, scroll, stack, svg, text, virtual_stack,
         Decorators, VirtualDirection, VirtualItemSize,
     },
+    View,
 };
 use lapce_rpc::{
     dap_types::{DapId, ThreadId},
@@ -62,6 +62,7 @@ pub fn debug_panel(
             window_tab_data.panel.section_open(PanelSection::Breakpoint),
         )
         .build()
+        .debug_name("Debug Panel")
 }
 
 fn debug_process_icons(

@@ -21,7 +21,7 @@ pub enum CodeActionStatus {
     Active,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ScoredCodeActionItem {
     pub item: CodeActionOrCommand,
     pub plugin_id: PluginId,
@@ -38,7 +38,7 @@ impl ScoredCodeActionItem {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CodeActionData {
     pub status: RwSignal<CodeActionStatus>,
     pub active: RwSignal<usize>,
@@ -194,7 +194,7 @@ impl CodeActionData {
         self.common.focus.set(Focus::Workbench);
     }
 
-    fn select(&self) {
+    pub fn select(&self) {
         if let Some(item) = self.filtered_items.get(self.active.get_untracked()) {
             self.common
                 .internal_command

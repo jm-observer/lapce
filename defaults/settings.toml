@@ -7,7 +7,7 @@ icon-theme = "Lapce Codicons"
 custom-titlebar = true
 
 [editor]
-font-family = "Monospace"
+font-family = "monospace"
 font-size = 13
 code-lens-font-size = 2
 line-height = 1.5
@@ -81,15 +81,17 @@ default = {}
 # workdir     = "/home/user"
 
 [ui]
+scale = +1.0
 font-family = ""
 font-size = 13
 icon-size = 0
 header-height = 36
 status-height = 25
 tab-min-width = 100
+tab-separator-height = "Content"
 scroll-width = 10
 drop-shadow-width = 0
-preview-editor-width = 500
+palette-width = 500
 hover-font-family = ""
 hover-font-size = 0
 trim-search-results-whitespace = true

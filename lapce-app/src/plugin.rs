@@ -15,14 +15,14 @@ use floem::{
         create_effect, create_memo, create_rw_signal, use_context, RwSignal, Scope,
     },
     style::CursorStyle,
-    view::View,
     views::{
         container, dyn_container, dyn_stack, empty, img, label, rich_text, scroll,
         stack, svg, text, Decorators,
     },
+    IntoView, View,
 };
 use indexmap::IndexMap;
-use lapce_core::{directory::Directory, mode::Mode};
+use lapce_core::{command::EditCommand, directory::Directory, mode::Mode};
 use lapce_proxy::plugin::{download_volt, volt_icon, wasi::find_all_volts};
 use lapce_rpc::plugin::{VoltID, VoltInfo, VoltMetadata};
 use serde::{Deserialize, Serialize};
@@ -85,7 +85,7 @@ pub struct AvailableVoltData {
     pub installing: RwSignal<bool>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AvailableVoltList {
     pub loading: RwSignal<bool>,
     pub query_id: RwSignal<usize>,
@@ -94,7 +94,7 @@ pub struct AvailableVoltList {
     pub total: RwSignal<usize>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PluginData {
     pub installed: RwSignal<IndexMap<VoltID, InstalledVoltData>>,
     pub available: AvailableVoltList,
@@ -126,6 +126,14 @@ impl KeyPressFocus for PluginData {
             CommandKind::Edit(_)
             | CommandKind::Move(_)
             | CommandKind::MultiSelection(_) => {
+                #[allow(clippy::single_match)]
+                match command.kind {
+                    CommandKind::Edit(EditCommand::InsertNewLine) => {
+                        return CommandExecuted::Yes
+                    }
+                    _ => {}
+                }
+
                 return self
                     .available
                     .query_editor
@@ -763,6 +771,7 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                         .disabled(|s| {
                             s.background(config.color(LapceColor::EDITOR_DIM))
                         })
+                        .selectable(false)
                 })
                 .disabled(move || installing.map(|i| i.get()).unwrap_or(false))
                 .on_click_stop(move |_| {
@@ -835,8 +844,7 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                                 let scroll_width = scroll_width.get();
                                 s.max_width(
                                     scroll_width
-                                        .max(200.0 + 60.0 * 2.0 + 200.0)
-                                        .min(800.0)
+                                        .clamp(200.0 + 60.0 * 2.0 + 200.0, 800.0)
                                         - 60.0 * 2.0
                                         - 200.0,
                                 )
@@ -971,7 +979,7 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                         )
                         .padding(padding)
                 })
-                .any()
+                .into_any()
             },
         )
         .style(|s| s.min_width_full().justify_center()),
@@ -982,4 +990,5 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
         }
     })
     .style(|s| s.absolute().size_full())
+    .debug_name("Plugin Info")
 }

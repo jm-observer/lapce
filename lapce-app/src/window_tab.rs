@@ -17,6 +17,7 @@ use floem::{
     kurbo::Size,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal},
+    ViewId,
 };
 use indexmap::IndexMap;
 use itertools::Itertools;
@@ -35,7 +36,7 @@ use lapce_rpc::{
 };
 use lsp_types::{Diagnostic, ProgressParams, ProgressToken, ShowMessageParams};
 use serde_json::Value;
-use tracing::{debug, error};
+use tracing::{debug, error, event, Level};
 
 use crate::{
     about::AboutData,
@@ -60,6 +61,7 @@ use crate::{
     inline_completion::InlineCompletionData,
     keypress::{condition::Condition, EventRef, KeyPressData, KeyPressFocus},
     listener::Listener,
+    lsp::path_from_url,
     main_split::{MainSplitData, SplitData, SplitDirection, SplitMoveDirection},
     palette::{kind::PaletteKind, PaletteData, PaletteStatus},
     panel::{
@@ -68,13 +70,14 @@ use crate::{
         position::PanelContainerPosition,
     },
     plugin::PluginData,
-    proxy::{new_proxy, path_from_url, ProxyData},
+    proxy::{new_proxy, ProxyData},
     rename::RenameData,
     source_control::SourceControlData,
     terminal::{
         event::{terminal_update_process, TermEvent, TermNotification},
         panel::TerminalPanelData,
     },
+    tracing::*,
     window::WindowCommonData,
     workspace::{LapceWorkspace, LapceWorkspaceType, WorkspaceInfo},
 };
@@ -128,7 +131,7 @@ pub struct CommonData {
     pub term_tx: Sender<(TermId, TermEvent)>,
     pub term_notification_tx: Sender<TermNotification>,
     pub proxy: ProxyRpcHandler,
-    pub view_id: RwSignal<floem::id::Id>,
+    pub view_id: RwSignal<ViewId>,
     pub ui_line_height: Memo<f64>,
     pub dragging: RwSignal<Option<DragContent>>,
     pub config: ReadSignal<Arc<LapceConfig>>,
@@ -136,8 +139,16 @@ pub struct CommonData {
     pub mouse_hover_timer: RwSignal<TimerToken>,
     pub breakpoints: RwSignal<BTreeMap<PathBuf, BTreeMap<usize, LapceBreakpoint>>>,
     // the current focused view which will receive keyboard events
-    pub keyboard_focus: RwSignal<Option<floem::id::Id>>,
+    pub keyboard_focus: RwSignal<Option<ViewId>>,
     pub window_common: Rc<WindowCommonData>,
+}
+
+impl std::fmt::Debug for CommonData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CommonData")
+            .field("workspace", &self.workspace)
+            .finish()
+    }
 }
 
 #[derive(Clone)]
@@ -166,6 +177,14 @@ pub struct WindowTabData {
     pub progresses: RwSignal<IndexMap<ProgressToken, WorkProgress>>,
     pub messages: RwSignal<Vec<(String, ShowMessageParams)>>,
     pub common: Rc<CommonData>,
+}
+
+impl std::fmt::Debug for WindowTabData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WindowTabData")
+            .field("window_tab_id", &self.window_tab_id)
+            .finish()
+    }
 }
 
 impl KeyPressFocus for WindowTabData {
@@ -307,7 +326,7 @@ impl WindowTabData {
         let hover = HoverData::new(cx);
 
         let register = cx.create_rw_signal(Register::default());
-        let view_id = cx.create_rw_signal(floem::id::Id::next());
+        let view_id = cx.create_rw_signal(ViewId::new());
         let find = Find::new(cx);
 
         let ui_line_height = cx.create_memo(move |_| {
@@ -447,8 +466,11 @@ impl WindowTabData {
                 )
             });
 
-        let terminal =
-            TerminalPanelData::new(workspace.clone(), None, common.clone());
+        let terminal = TerminalPanelData::new(
+            workspace.clone(),
+            common.config.get_untracked().terminal.get_default_profile(),
+            common.clone(),
+        );
         if let Some(workspace_info) = workspace_info.as_ref() {
             terminal.debug.breakpoints.set(
                 workspace_info
@@ -1064,6 +1086,12 @@ impl WindowTabData {
                     scale = 4.0
                 }
                 self.common.window_common.window_scale.set(scale);
+
+                LapceConfig::update_file(
+                    "ui",
+                    "scale",
+                    toml_edit::Value::from(scale),
+                );
             }
             ZoomOut => {
                 let mut scale =
@@ -1073,9 +1101,21 @@ impl WindowTabData {
                     scale = 0.1
                 }
                 self.common.window_common.window_scale.set(scale);
+
+                LapceConfig::update_file(
+                    "ui",
+                    "scale",
+                    toml_edit::Value::from(scale),
+                );
             }
             ZoomReset => {
                 self.common.window_common.window_scale.set(1.0);
+
+                LapceConfig::update_file(
+                    "ui",
+                    "scale",
+                    toml_edit::Value::from(1.0),
+                );
             }
 
             ToggleMaximizedPanel => {
@@ -1171,6 +1211,9 @@ impl WindowTabData {
             }
             OpenUIInspector => {
                 self.common.view_id.get_untracked().inspect();
+            }
+            ShowEnvironment => {
+                self.main_split.show_env();
             }
 
             // ==== Source Control ====
@@ -1269,9 +1312,23 @@ impl WindowTabData {
 
             // ==== Movement ====
             #[cfg(target_os = "macos")]
-            InstallToPATH => {}
+            InstallToPATH => {
+                self.common.internal_command.send(
+                    InternalCommand::ExecuteProcess {
+                        program: String::from("osascript"),
+                        arguments: vec![String::from("-e"), format!(r#"do shell script "ln -sf '{}' /usr/local/bin/lapce" with administrator privileges"#, std::env::args().next().unwrap())],
+                    }
+                )
+            }
             #[cfg(target_os = "macos")]
-            UninstallFromPATH => {}
+            UninstallFromPATH => {
+                self.common.internal_command.send(
+                    InternalCommand::ExecuteProcess {
+                        program: String::from("osascript"),
+                        arguments: vec![String::from("-e"), String::from(r#"do shell script "rm /usr/local/bin/lapce" with administrator privileges"#)],
+                    }
+                )
+            }
             JumpLocationForward => {
                 self.main_split.jump_location_forward(false);
             }
@@ -1647,10 +1704,13 @@ impl WindowTabData {
                 if !uri.is_empty() {
                     match open::that(&uri) {
                         Ok(_) => {
-                            debug!("opened web uri: {uri:?}");
+                            trace!(TraceLevel::TRACE, "opened web uri: {uri:?}");
                         }
                         Err(e) => {
-                            error!("failed to open web uri: {uri:?}, error: {e}");
+                            trace!(
+                                TraceLevel::ERROR,
+                                "failed to open web uri: {uri:?}, error: {e}"
+                            );
                         }
                     }
                 }
@@ -1691,6 +1751,24 @@ impl WindowTabData {
                 left_path,
                 right_path,
             } => self.main_split.open_diff_files(left_path, right_path),
+            InternalCommand::ExecuteProcess { program, arguments } => {
+                let mut cmd = match std::process::Command::new(program)
+                    .args(arguments)
+                    .spawn()
+                {
+                    Ok(v) => v,
+                    Err(e) => {
+                        return event!(Level::ERROR, "Failed to spawn process: {e}")
+                    }
+                };
+
+                match cmd.wait() {
+                    Ok(v) => event!(Level::TRACE, "Process exited with status {v}"),
+                    Err(e) => {
+                        event!(Level::ERROR, "Proces exited with an error: {e}")
+                    }
+                };
+            }
         }
     }
 
@@ -1831,8 +1909,9 @@ impl WindowTabData {
                             if let Some(breakpoint) = breakpoints.get(i) {
                                 current_breakpoint.id = breakpoint.id;
                                 current_breakpoint.verified = breakpoint.verified;
-                                current_breakpoint.message =
-                                    breakpoint.message.clone();
+                                current_breakpoint
+                                    .message
+                                    .clone_from(&breakpoint.message);
                                 if let Some(new_line) = breakpoint.line {
                                     if current_breakpoint.line + 1 != new_line {
                                         line_changed.insert(current_breakpoint.line);
@@ -1930,37 +2009,45 @@ impl WindowTabData {
         }
         let focus = self.common.focus.get_untracked();
         let keypress = self.common.keypress.get_untracked();
-        let executed = match focus {
-            Focus::Workbench => {
-                self.main_split.key_down(event, &keypress) == Some(true)
-            }
-            Focus::Palette => keypress.key_down(event, &self.palette),
+        let handle = match focus {
+            Focus::Workbench => self.main_split.key_down(event, &keypress),
+            Focus::Palette => Some(keypress.key_down(event, &self.palette)),
             Focus::CodeAction => {
                 let code_action = self.code_action.get_untracked();
-                keypress.key_down(event, &code_action)
+                Some(keypress.key_down(event, &code_action))
             }
-            Focus::Rename => keypress.key_down(event, &self.rename),
-            Focus::AboutPopup => keypress.key_down(event, &self.about_data),
+            Focus::Rename => Some(keypress.key_down(event, &self.rename)),
+            Focus::AboutPopup => Some(keypress.key_down(event, &self.about_data)),
             Focus::Panel(PanelKind::Terminal) => {
                 self.terminal.key_down(event, &keypress)
             }
             Focus::Panel(PanelKind::Search) => {
-                keypress.key_down(event, &self.global_search)
+                Some(keypress.key_down(event, &self.global_search))
             }
             Focus::Panel(PanelKind::Plugin) => {
-                keypress.key_down(event, &self.plugin)
+                Some(keypress.key_down(event, &self.plugin))
             }
             Focus::Panel(PanelKind::SourceControl) => {
-                keypress.key_down(event, &self.source_control)
+                Some(keypress.key_down(event, &self.source_control))
             }
-            _ => false,
+            _ => None,
         };
 
-        if executed {
-            return true;
+        if let Some(handle) = &handle {
+            if handle.handled {
+                true
+            } else {
+                keypress
+                    .handle_keymatch(
+                        self,
+                        handle.keymatch.clone(),
+                        handle.keypress.clone(),
+                    )
+                    .handled
+            }
+        } else {
+            keypress.key_down(event, self).handled
         }
-
-        keypress.key_down(event, self)
     }
 
     pub fn workspace_info(&self) -> WorkspaceInfo {
@@ -2292,7 +2379,13 @@ impl WindowTabData {
                 .tab_info
                 .with_untracked(|info| info.tabs.is_empty())
         {
-            self.terminal.new_tab(None);
+            self.terminal.new_tab(
+                self.common
+                    .config
+                    .get_untracked()
+                    .terminal
+                    .get_default_profile(),
+            );
         }
         self.panel.show_panel(&kind);
         if kind == PanelKind::Search
@@ -2448,7 +2541,7 @@ impl WindowTabData {
                 lsp_types::WorkDoneProgress::Report(report) => {
                     self.progresses.update(|p| {
                         if let Some(progress) = p.get_mut(&token) {
-                            progress.message = report.message.clone();
+                            progress.message.clone_from(&report.message);
                             progress.percentage = report.percentage;
                         }
                     })

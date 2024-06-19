@@ -4,10 +4,11 @@ use std::{
 };
 
 use floem::{
+    event::EventPropagation,
     reactive::{create_memo, Memo, ReadSignal, RwSignal},
-    style::{AlignItems, CursorStyle, Display},
-    view::View,
+    style::{AlignItems, CursorStyle, Display, FlexWrap},
     views::{dyn_stack, label, stack, svg, Decorators},
+    View,
 };
 use indexmap::IndexMap;
 use lapce_core::mode::{Mode, VisualMode};
@@ -119,6 +120,7 @@ pub fn status(
                     .background(bg)
                     .height_pct(100.0)
                     .align_items(Some(AlignItems::Center))
+                    .selectable(false)
             }),
             stack((
                 svg(move || config.get().ui_svg(LapceIcons::SCM)).style(move |s| {
@@ -130,6 +132,7 @@ pub fn status(
                 label(branch).style(move |s| {
                     s.margin_left(10.0)
                         .color(config.get().color(LapceColor::STATUS_FOREGROUND))
+                        .selectable(false)
                 }),
             ))
             .style(move |s| {
@@ -158,7 +161,7 @@ pub fn status(
                             .send(LapceWorkbenchCommand::PaletteSCMReferences);
                     }
                     pointer_down.set(false);
-                    floem::EventPropagation::Continue
+                    EventPropagation::Continue
                 },
             ),
             {
@@ -174,9 +177,13 @@ pub fn status(
                     ),
                     label(move || diagnostic_count.get().0.to_string()).style(
                         move |s| {
-                            s.margin_left(5.0).color(
-                                config.get().color(LapceColor::STATUS_FOREGROUND),
-                            )
+                            s.margin_left(5.0)
+                                .color(
+                                    config
+                                        .get()
+                                        .color(LapceColor::STATUS_FOREGROUND),
+                                )
+                                .selectable(false)
                         },
                     ),
                     svg(move || config.get().ui_svg(LapceIcons::WARNING)).style(
@@ -190,9 +197,13 @@ pub fn status(
                     ),
                     label(move || diagnostic_count.get().1.to_string()).style(
                         move |s| {
-                            s.margin_left(5.0).color(
-                                config.get().color(LapceColor::STATUS_FOREGROUND),
-                            )
+                            s.margin_left(5.0)
+                                .color(
+                                    config
+                                        .get()
+                                        .color(LapceColor::STATUS_FOREGROUND),
+                                )
+                                .selectable(false)
                         },
                     ),
                 ))
@@ -216,6 +227,7 @@ pub fn status(
         ))
         .style(|s| {
             s.height_pct(100.0)
+                .min_width(0.0)
                 .flex_basis(0.0)
                 .flex_grow(1.0)
                 .items_center()
@@ -318,7 +330,9 @@ pub fn status(
                     {
                         status = format!(
                             "Ln {}, Col {}, Char {}",
-                            line, column, character,
+                            line + 1,
+                            column + 1,
+                            character,
                         );
                     }
                     if let Some(selection) = cursor.get_selection() {
@@ -384,9 +398,12 @@ pub fn status(
         s.border_top(1.0)
             .border_color(config.color(LapceColor::LAPCE_BORDER))
             .background(config.color(LapceColor::STATUS_BACKGROUND))
-            .height(config.ui.status_height() as f32)
-            .align_items(Some(AlignItems::Center))
+            .flex_basis(config.ui.status_height() as f32)
+            .flex_grow(0.0)
+            .flex_shrink(0.0)
+            .items_center()
     })
+    .debug_name("Status/Bottom Bar")
 }
 
 fn progress_view(
@@ -398,21 +415,24 @@ fn progress_view(
         move || progresses.get(),
         move |_| id.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
         move |(_, p)| {
-            stack((label(move || p.title.clone()), {
-                let message = p.message.unwrap_or_default();
-                let is_empty = message.is_empty();
-                label(move || format!(": {message}")).style(move |s| {
-                    s.min_width(0.0)
-                        .text_ellipsis()
-                        .apply_if(is_empty, |s| s.hide())
-                })
-            }))
-            .style(move |s| {
-                s.margin_left(10.0)
+            let progress = match p.message {
+                Some(message) if !message.is_empty() => {
+                    format!("{}: {}", p.title, message)
+                }
+                _ => p.title,
+            };
+            label(move || progress.clone()).style(move |s| {
+                s.height_pct(100.0)
+                    .min_width(0.0)
+                    .margin_left(10.0)
+                    .text_ellipsis()
+                    .selectable(false)
+                    .items_center()
                     .color(config.get().color(LapceColor::STATUS_FOREGROUND))
             })
         },
     )
+    .style(move |s| s.flex_wrap(FlexWrap::Wrap).height_pct(100.0).min_width(0.0))
 }
 
 fn status_text<S: std::fmt::Display + 'static>(
@@ -441,5 +461,6 @@ fn status_text<S: std::fmt::Display + 'static>(
                 s.cursor(CursorStyle::Pointer)
                     .background(config.color(LapceColor::PANEL_HOVERED_BACKGROUND))
             })
+            .selectable(false)
     })
 }

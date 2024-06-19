@@ -3,7 +3,7 @@ use std::time::SystemTime;
 
 use alacritty_terminal::index::Side;
 use alacritty_terminal::selection::{Selection, SelectionType};
-use alacritty_terminal::term::search::{Match, RegexSearch};
+use alacritty_terminal::term::search::Match;
 use alacritty_terminal::term::RenderableContent;
 use alacritty_terminal::{
     grid::Dimensions,
@@ -15,13 +15,13 @@ use floem::peniko::Color;
 use floem::pointer::PointerInputEvent;
 use floem::views::editor::core::register::Clipboard;
 use floem::views::editor::text::SystemClipboard;
+use floem::ViewId;
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
-    id::Id,
+    event::EventPropagation,
     peniko::kurbo::{Point, Rect, Size},
     reactive::{create_effect, ReadSignal, RwSignal},
-    view::{AnyWidget, View, ViewData, Widget},
-    EventPropagation, Renderer,
+    Renderer, View,
 };
 use lapce_core::mode::Mode;
 use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
@@ -33,7 +33,6 @@ use super::{panel::TerminalPanelData, raw::RawTerminal};
 use crate::command::InternalCommand;
 use crate::editor::location::{EditorLocation, EditorPosition};
 use crate::listener::Listener;
-use crate::terminal::raw::visible_regex_match_iter;
 use crate::workspace::LapceWorkspace;
 use crate::{
     config::{color::LapceColor, LapceConfig},
@@ -60,7 +59,7 @@ struct TerminalLineContent<'a> {
 }
 
 pub struct TerminalView {
-    data: ViewData,
+    id: ViewId,
     term_id: TermId,
     raw: Arc<RwLock<RawTerminal>>,
     mode: ReadSignal<Mode>,
@@ -88,7 +87,7 @@ pub fn terminal_view(
     internal_command: Listener<InternalCommand>,
     workspace: Arc<LapceWorkspace>,
 ) -> TerminalView {
-    let id = Id::next();
+    let id = ViewId::new();
 
     create_effect(move |_| {
         let raw = raw.get();
@@ -128,7 +127,7 @@ pub fn terminal_view(
     });
 
     TerminalView {
-        data: ViewData::new(id),
+        id,
         term_id,
         raw: raw.get_untracked(),
         mode,
@@ -192,7 +191,7 @@ impl TerminalView {
         None
     }
 
-    fn update_mouse_action_by_down(&mut self, mouse: PointerInputEvent) {
+    fn update_mouse_action_by_down(&mut self, mouse: &PointerInputEvent) {
         let mut next_action = MouseAction::None;
         match self.current_mouse_action {
             MouseAction::None
@@ -228,7 +227,8 @@ impl TerminalView {
         }
         self.current_mouse_action = next_action;
     }
-    fn update_mouse_action_by_up(&mut self, mouse: PointerInputEvent) {
+
+    fn update_mouse_action_by_up(&mut self, mouse: &PointerInputEvent) {
         let mut next_action = MouseAction::None;
         match self.current_mouse_action {
             MouseAction::None => {}
@@ -486,33 +486,14 @@ impl Drop for TerminalView {
 }
 
 impl View for TerminalView {
-    fn view_data(&self) -> &ViewData {
-        &self.data
+    fn id(&self) -> ViewId {
+        self.id
     }
 
-    fn view_data_mut(&mut self) -> &mut ViewData {
-        &mut self.data
-    }
-
-    fn build(self) -> AnyWidget {
-        Box::new(self)
-    }
-}
-
-impl Widget for TerminalView {
-    fn view_data(&self) -> &ViewData {
-        &self.data
-    }
-
-    fn view_data_mut(&mut self) -> &mut ViewData {
-        &mut self.data
-    }
-
-    fn event(
+    fn event_before_children(
         &mut self,
         _cx: &mut EventCx,
-        _id_path: Option<&[Id]>,
-        event: Event,
+        event: &Event,
     ) -> EventPropagation {
         match event {
             Event::PointerDown(e) => {
@@ -538,7 +519,7 @@ impl Widget for TerminalView {
                             .update(self.get_terminal_point(end_pos), Side::Right);
                         selection.include_all();
                         self.raw.write().term.selection = Some(selection);
-                        _cx.app_state_mut().request_paint(self.data.id());
+                        _cx.app_state_mut().request_paint(self.id);
                     }
                     MouseAction::LeftDouble { pos } => {
                         let position = self.get_terminal_point(pos);
@@ -554,7 +535,7 @@ impl Widget for TerminalView {
                         selection.update(end_point, Side::Right);
                         selection.include_all();
                         raw.term.selection = Some(selection);
-                        _cx.app_state_mut().request_paint(self.data.id());
+                        _cx.app_state_mut().request_paint(self.id);
                     }
                     MouseAction::RightOnce { pos } => {
                         let position = self.get_terminal_point(pos);
@@ -584,7 +565,7 @@ impl Widget for TerminalView {
                 }
                 if clear_selection {
                     self.raw.write().term.selection = None;
-                    _cx.app_state_mut().request_paint(self.data.id());
+                    _cx.app_state_mut().request_paint(self.id);
                 }
             }
             _ => {}
@@ -607,7 +588,7 @@ impl Widget for TerminalView {
                     self.raw = raw;
                 }
             }
-            cx.app_state_mut().request_paint(self.data.id());
+            cx.app_state_mut().request_paint(self.id);
         }
     }
 
@@ -615,14 +596,14 @@ impl Widget for TerminalView {
         &mut self,
         cx: &mut floem::context::LayoutCx,
     ) -> floem::taffy::prelude::NodeId {
-        cx.layout_node(self.data.id(), false, |_cx| Vec::new())
+        cx.layout_node(self.id, false, |_cx| Vec::new())
     }
 
     fn compute_layout(
         &mut self,
-        cx: &mut floem::context::ComputeLayoutCx,
+        _cx: &mut floem::context::ComputeLayoutCx,
     ) -> Option<Rect> {
-        let layout = cx.get_layout(self.data.id()).unwrap();
+        let layout = self.id.get_layout().unwrap_or_default();
         let size = layout.size;
         let size = Size::new(size.width as f64, size.height as f64);
         if size.is_empty() {
@@ -671,8 +652,8 @@ impl Widget for TerminalView {
         let term = &raw.term;
         let content = term.renderable_content();
 
-        let mut search = RegexSearch::new("[\\w\\\\?]+\\.rs:\\d+:\\d+").unwrap();
-        self.hyper_matches = visible_regex_match_iter(term, &mut search).collect();
+        // let mut search = RegexSearch::new("[\\w\\\\?]+\\.rs:\\d+:\\d+").unwrap();
+        // self.hyper_matches = visible_regex_match_iter(term, &mut search).collect();
 
         if let Some(selection) = content.selection.as_ref() {
             let start_line = selection.start.line.0 + content.display_offset as i32;

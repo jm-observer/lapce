@@ -29,7 +29,7 @@ use lsp_types::{
     DocumentChanges, OneOf, Position, TextEdit, Url, WorkspaceEdit,
 };
 use serde::{Deserialize, Serialize};
-use tracing::{debug, warn};
+use tracing::{event, Level};
 
 use crate::{
     alert::AlertButton,
@@ -47,7 +47,7 @@ use crate::{
         DiffEditorId, EditorTabId, KeymapId, SettingsId, SplitId,
         ThemeColorSettingsId, VoltViewId,
     },
-    keypress::{EventRef, KeyPressData},
+    keypress::{EventRef, KeyPressData, KeyPressHandle},
     window_tab::{CommonData, Focus, WindowTabData},
 };
 
@@ -233,13 +233,13 @@ impl Editors {
         Self(cx.create_rw_signal(im::HashMap::new()))
     }
 
-    /// Add an editor to the editors.  
+    /// Add an editor to the editors.
     /// Returns the id of the editor.
     pub fn insert(&self, editor: EditorData) -> EditorId {
         let id = editor.id();
         self.0.update(|editors| {
             if editors.insert(id, editor).is_some() {
-                warn!("Inserted EditorId that already exists");
+                event!(Level::WARN, "Inserted EditorId that already exists");
             }
         });
 
@@ -388,6 +388,14 @@ pub struct MainSplitData {
     pub common: Rc<CommonData>,
 }
 
+impl std::fmt::Debug for MainSplitData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MainSplitData")
+            .field("root_split", &self.root_split)
+            .finish()
+    }
+}
+
 impl MainSplitData {
     pub fn new(cx: Scope, common: Rc<CommonData>) -> Self {
         let splits = cx.create_rw_signal(im::HashMap::new());
@@ -467,7 +475,7 @@ impl MainSplitData {
         &self,
         event: impl Into<EventRef<'a>>,
         keypress: &KeyPressData,
-    ) -> Option<bool> {
+    ) -> Option<KeyPressHandle> {
         let active_editor_tab = self.active_editor_tab.get_untracked()?;
         let editor_tab = self.editor_tabs.with_untracked(|editor_tabs| {
             editor_tabs.get(&active_editor_tab).copied()
@@ -478,9 +486,9 @@ impl MainSplitData {
         match child {
             EditorTabChild::Editor(editor_id) => {
                 let editor = self.editors.editor_untracked(editor_id)?;
-                let proccesed = keypress.key_down(event, &editor);
+                let handle = keypress.key_down(event, &editor);
                 editor.get_code_actions();
-                Some(proccesed)
+                Some(handle)
             }
             EditorTabChild::DiffEditor(diff_editor_id) => {
                 let diff_editor =
@@ -492,9 +500,9 @@ impl MainSplitData {
                 } else {
                     &diff_editor.left
                 };
-                let processed = keypress.key_down(event, editor);
+                let handle = keypress.key_down(event, editor);
                 editor.get_code_actions();
-                Some(processed)
+                Some(handle)
             }
             EditorTabChild::Settings(_) => None,
             EditorTabChild::ThemeColorSettings(_) => None,
@@ -604,9 +612,9 @@ impl MainSplitData {
                 let local_doc = doc.clone();
                 let send = create_ext_action(cx, move |result| {
                     if let Ok(ProxyResponse::NewBufferResponse {
-                        content,
-                        read_only,
-                    }) = result
+                                  content,
+                                  read_only,
+                              }) = result
                     {
                         local_doc.init_content(Rope::from(content));
                         if read_only {
@@ -772,7 +780,7 @@ impl MainSplitData {
                         left.content.get_untracked()
                             == diff_editor.left.doc().content.get_untracked()
                             && right.content.get_untracked()
-                                == diff_editor.right.doc().content.get_untracked()
+                            == diff_editor.right.doc().content.get_untracked()
                     })
                     .unwrap_or(false)
             };
@@ -814,15 +822,15 @@ impl MainSplitData {
                             {
                                 is_same_diff_editor(diff_editor_id, left, right)
                                     || diff_editors
-                                        .get(diff_editor_id)
-                                        .map(|diff_editor| {
-                                            diff_editor.left.doc().is_pristine()
-                                                && diff_editor
-                                                    .right
-                                                    .doc()
-                                                    .is_pristine()
-                                        })
-                                        .unwrap_or(false)
+                                    .get(diff_editor_id)
+                                    .map(|diff_editor| {
+                                        diff_editor.left.doc().is_pristine()
+                                            && diff_editor
+                                            .right
+                                            .doc()
+                                            .is_pristine()
+                                    })
+                                    .unwrap_or(false)
                             } else {
                                 false
                             }
@@ -1850,8 +1858,8 @@ impl MainSplitData {
                             let doc = editor.doc();
                             id != editor_id
                                 && doc.content.with_untracked(|content| {
-                                    content == &doc_content
-                                })
+                                content == &doc_content
+                            })
                         })
                     });
                     if !exists {
@@ -1999,8 +2007,8 @@ impl MainSplitData {
                         .internal_command
                         .send(InternalCommand::ShowAlert {
                             title: format!(
-                            "Do you want to save the changes you made to {name}?"
-                        ),
+                                "Do you want to save the changes you made to {name}?"
+                            ),
                             msg: "Your changes will be lost if you don't save them."
                                 .to_string(),
                             buttons: vec![
@@ -2090,7 +2098,6 @@ impl MainSplitData {
         match action {
             CodeActionOrCommand::Command(_) => {}
             CodeActionOrCommand::CodeAction(action) => {
-                debug!("run_code_action {:?}", action);
                 if let Some(edit) = action.edit.as_ref() {
                     self.apply_workspace_edit(edit);
                 } else {
@@ -2312,7 +2319,11 @@ impl MainSplitData {
                     let path = path.clone();
                     create_ext_action(self.scope, move |result| {
                         if let Err(err) = result {
-                            warn!("Failed to save as a file: {:?}", err);
+                            event!(
+                                Level::WARN,
+                                "Failed to save as a file: {:?}",
+                                err
+                            );
                         } else {
                             let syntax = Syntax::init(&path);
                             doc.content.set(DocContent::File {
@@ -2363,7 +2374,11 @@ impl MainSplitData {
                     let path = path.clone();
                     create_ext_action(self.scope, move |result| {
                         if let Err(err) = result {
-                            warn!("Failed to save as a file: {:?}", err);
+                            event!(
+                                Level::WARN,
+                                "Failed to save as a file: {:?}",
+                                err
+                            );
                         } else {
                             let syntax = Syntax::init(&path);
                             doc.content.set(DocContent::File {
@@ -2437,11 +2452,11 @@ impl MainSplitData {
         if tracked {
             !(self.locations.with(|l| l.is_empty())
                 || self.current_location.get()
-                    >= self.locations.with(|l| l.len()) - 1)
+                >= self.locations.with(|l| l.len()) - 1)
         } else {
             !(self.locations.with_untracked(|l| l.is_empty())
                 || self.current_location.get_untracked()
-                    >= self.locations.with_untracked(|l| l.len()) - 1)
+                >= self.locations.with_untracked(|l| l.len()) - 1)
         }
     }
 
@@ -2817,6 +2832,21 @@ impl MainSplitData {
             }
         }
     }
+
+    pub fn show_env(&self) {
+        let child = self.new_file();
+        if let EditorTabChild::Editor(id) = child {
+            if let Some(editor) = self.editors.editor_untracked(id) {
+                let doc = editor.doc();
+                doc.reload(
+                    Rope::from(
+                        std::env::vars().map(|(k, v)| format!("{k}={v}")).join("\n"),
+                    ),
+                    true,
+                );
+            }
+        }
+    }
 }
 
 fn workspace_edits(edit: &WorkspaceEdit) -> Option<HashMap<Url, Vec<TextEdit>>> {
@@ -2880,8 +2910,8 @@ fn next_in_file_errors_offset(
 
                     if diagnostic.diagnostic.range.start.line > position.line
                         || (diagnostic.diagnostic.range.start.line == position.line
-                            && diagnostic.diagnostic.range.start.character
-                                > position.character)
+                        && diagnostic.diagnostic.range.start.character
+                        > position.character)
                     {
                         return (
                             (*current_path).clone(),
