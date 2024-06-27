@@ -1052,11 +1052,11 @@ impl LapceLanguage {
     }
 
     fn get_grammar(&self) -> Option<tree_sitter::Language> {
-        let props = self.properties();
         let grammar_name = self.grammar_name();
 
         #[cfg(unix)]
         {
+            let props = self.properties();
             let grammars_dir = Path::new(Self::SYSTEM_GRAMMARS_DIRECTORY);
             if grammars_dir.exists() {
                 let grammars_dir = grammars_dir.join(props.id.as_ref());
@@ -1100,7 +1100,7 @@ impl LapceLanguage {
 
         // Try reading highlights from user config dir
         if let Some(queries_dir) = Directory::queries_directory() {
-            let queries_dir = queries_dir.join(&query_name);
+            let queries_dir = queries_dir.join(query_name.as_str());
             if queries_dir.exists() {
                 let highlights_file =
                     queries_dir.join(Self::HIGHLIGHTS_QUERIES_FILE_NAME);
