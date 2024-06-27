@@ -1,44 +1,40 @@
-use std::sync::Arc;
-use std::time::SystemTime;
+use std::{sync::Arc, time::SystemTime};
 
-use alacritty_terminal::index::Side;
-use alacritty_terminal::selection::{Selection, SelectionType};
-use alacritty_terminal::term::RenderableContent;
 use alacritty_terminal::{
     grid::Dimensions,
-    term::{cell::Flags, test::TermSize},
+    index::Side,
+    selection::{Selection, SelectionType},
+    term::{cell::Flags, search::Match, test::TermSize, RenderableContent},
 };
-use floem::context::{EventCx, PaintCx};
-use floem::event::Event;
-use floem::peniko::Color;
-use floem::pointer::PointerInputEvent;
-use floem::views::editor::core::register::Clipboard;
-use floem::views::editor::text::SystemClipboard;
-use floem::ViewId;
 use floem::{
+    context::{EventCx, PaintCx},
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
-    event::EventPropagation,
-    peniko::kurbo::{Point, Rect, Size},
+    event::{Event, EventPropagation},
+    peniko::{
+        kurbo::{Point, Rect, Size},
+        Color,
+    },
+    pointer::PointerInputEvent,
     reactive::{create_effect, ReadSignal, RwSignal},
-    Renderer, View,
+    views::editor::{core::register::Clipboard, text::SystemClipboard},
+    Renderer, View, ViewId,
 };
 use lapce_core::mode::Mode;
 use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
 use lsp_types::Position;
 use parking_lot::RwLock;
-use regex::Regex;
 use unicode_width::UnicodeWidthChar;
 
 use super::{panel::TerminalPanelData, raw::RawTerminal};
-use crate::command::InternalCommand;
-use crate::editor::location::{EditorLocation, EditorPosition};
-use crate::listener::Listener;
-use crate::workspace::LapceWorkspace;
 use crate::{
+    command::InternalCommand,
     config::{color::LapceColor, LapceConfig},
     debug::RunDebugProcess,
+    editor::location::{EditorLocation, EditorPosition},
+    listener::Listener,
     panel::kind::PanelKind,
     window_tab::Focus,
+    workspace::LapceWorkspace,
 };
 
 /// Threshold used for double_click/triple_click.
@@ -71,7 +67,7 @@ pub struct TerminalView {
     launch_error: RwSignal<Option<String>>,
     internal_command: Listener<InternalCommand>,
     workspace: Arc<LapceWorkspace>,
-    hyper_regs: Vec<Regex>,
+    hyper_matches: Vec<Match>,
     previous_mouse_action: MouseAction,
     current_mouse_action: MouseAction,
 }
@@ -125,8 +121,6 @@ pub fn terminal_view(
 
         is_focused
     });
-    // for rust
-    let reg = regex::Regex::new("[\\w\\\\/]+\\.rs:\\d+:\\d+").unwrap();
 
     TerminalView {
         id,
@@ -141,7 +135,7 @@ pub fn terminal_view(
         launch_error,
         internal_command,
         workspace,
-        hyper_regs: vec![reg],
+        hyper_matches: vec![],
         previous_mouse_action: Default::default(),
         current_mouse_action: Default::default(),
     }
@@ -171,39 +165,25 @@ impl TerminalView {
     }
 
     fn click(&self, pos: Point) -> Option<()> {
-        let raw = self.raw.read();
+        let raw_origin = self.raw.read();
         let position = self.get_terminal_point(pos);
-        let start_point = raw.term.semantic_search_left(position);
-        let end_point = raw.term.semantic_search_right(position);
-        let mut selection =
-            Selection::new(SelectionType::Simple, start_point, Side::Left);
-        selection.update(end_point, Side::Right);
-        selection.include_all();
-        if let Some(selection) = selection.to_range(&raw.term) {
-            let content = raw.term.bounds_to_string(selection.start, selection.end);
-            if let Some(match_str) =
-                self.hyper_regs.iter().find_map(|x| x.find(&content))
-            {
-                let hyperlink = match_str.as_str();
-                let content: Vec<&str> = hyperlink.split(':').collect();
-                let (file, line_str, col_str) =
-                    (content.first()?, content.get(1)?, content.get(2)?);
-                let (line, col) =
-                    (line_str.parse::<u32>().ok()?, col_str.parse::<u32>().ok()?);
-                let parent_path = self.workspace.path.as_ref()?;
-                self.internal_command.send(InternalCommand::JumpToLocation {
-                    location: EditorLocation {
-                        path: parent_path.join(file),
-                        position: Some(EditorPosition::Position(Position::new(
-                            line, col,
-                        ))),
-                        scroll_offset: None,
-                        ignore_unconfirmed: false,
-                        same_editor_tab: false,
-                    },
-                });
-            }
-        }
+        let hy = self.hyper_matches.iter().find(|x| x.contains(&position))?;
+        let hyperlink = raw_origin.term.bounds_to_string(*hy.start(), *hy.end());
+        let content: Vec<&str> = hyperlink.split(':').collect();
+        let (file, line_str, col_str) =
+            (content.first()?, content.get(1)?, content.get(2)?);
+        let (line, col) =
+            (line_str.parse::<u32>().ok()?, col_str.parse::<u32>().ok()?);
+        let parent_path = self.workspace.path.as_ref()?;
+        self.internal_command.send(InternalCommand::JumpToLocation {
+            location: EditorLocation {
+                path: parent_path.join(file),
+                position: Some(EditorPosition::Position(Position::new(line, col))),
+                scroll_offset: None,
+                ignore_unconfirmed: false,
+                same_editor_tab: false,
+            },
+        });
         None
     }
 
@@ -324,6 +304,7 @@ impl TerminalView {
         config: &LapceConfig,
     ) {
         let term_bg = config.color(LapceColor::TERMINAL_BACKGROUND);
+        let term_fg = config.color(LapceColor::TERMINAL_FOREGROUND);
 
         let font_size = config.terminal_font_size();
         let font_family = config.terminal_font_family();
@@ -351,6 +332,9 @@ impl TerminalView {
             let y =
                 (point.line.0 as f64 + content.display_offset as f64) * line_height;
             let char_y = y + (line_height - char_size.height) / 2.0;
+            let underline_y = (point.line.0 as f64 + content.display_offset as f64)
+                * line_height
+                + line_height;
             if y != line_content.y {
                 self.paint_line_content(
                     cx,
@@ -390,6 +374,24 @@ impl TerminalView {
                     line_content
                         .bg
                         .push((point.column.0, point.column.0 + 1, bg));
+                }
+            }
+
+            if self.hyper_matches.iter().any(|x| x.contains(&point)) {
+                let mut extend = false;
+                if let Some((_, end, _, _)) = line_content.underline.last_mut() {
+                    if *end == point.column.0 {
+                        *end += 1;
+                        extend = true;
+                    }
+                }
+                if !extend {
+                    line_content.underline.push((
+                        point.column.0,
+                        point.column.0 + 1,
+                        term_fg,
+                        underline_y,
+                    ));
                 }
             }
 
@@ -499,7 +501,7 @@ impl View for TerminalView {
                 match self.current_mouse_action {
                     MouseAction::LeftOnce { pos, .. } => {
                         clear_selection = true;
-                        if e.modifiers.control() && self.click(pos).is_some() {
+                        if self.click(pos).is_some() {
                             return EventPropagation::Stop;
                         }
                     }
@@ -645,6 +647,9 @@ impl View for TerminalView {
         let raw = self.raw.read();
         let term = &raw.term;
         let content = term.renderable_content();
+
+        // let mut search = RegexSearch::new("[\\w\\\\?]+\\.rs:\\d+:\\d+").unwrap();
+        // self.hyper_matches = visible_regex_match_iter(term, &mut search).collect();
 
         if let Some(selection) = content.selection.as_ref() {
             let start_line = selection.start.line.0 + content.display_offset as i32;
