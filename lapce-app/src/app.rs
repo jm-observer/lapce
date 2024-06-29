@@ -13,6 +13,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use crossbeam_channel::Sender;
+use floem::keyboard::{Key, Modifiers, NamedKey};
 use floem::{
     cosmic_text::{Style as FontStyle, Weight},
     event::{Event, EventListener, EventPropagation},
@@ -585,6 +586,9 @@ impl AppData {
             })
             .on_event_stop(EventListener::WindowClosed, move |_| {
                 app_command.send(AppCommand::WindowClosed(window_id));
+            })
+            .on_key_up(Key::Named(NamedKey::F11), Modifiers::empty(), move |_| {
+                view_id.inspect()
             })
             .debug_name("App View")
     }
