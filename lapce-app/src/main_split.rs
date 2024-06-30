@@ -612,9 +612,9 @@ impl MainSplitData {
                 let local_doc = doc.clone();
                 let send = create_ext_action(cx, move |result| {
                     if let Ok(ProxyResponse::NewBufferResponse {
-                                  content,
-                                  read_only,
-                              }) = result
+                        content,
+                        read_only,
+                    }) = result
                     {
                         local_doc.init_content(Rope::from(content));
                         if read_only {
@@ -780,7 +780,7 @@ impl MainSplitData {
                         left.content.get_untracked()
                             == diff_editor.left.doc().content.get_untracked()
                             && right.content.get_untracked()
-                            == diff_editor.right.doc().content.get_untracked()
+                                == diff_editor.right.doc().content.get_untracked()
                     })
                     .unwrap_or(false)
             };
@@ -822,15 +822,15 @@ impl MainSplitData {
                             {
                                 is_same_diff_editor(diff_editor_id, left, right)
                                     || diff_editors
-                                    .get(diff_editor_id)
-                                    .map(|diff_editor| {
-                                        diff_editor.left.doc().is_pristine()
-                                            && diff_editor
-                                            .right
-                                            .doc()
-                                            .is_pristine()
-                                    })
-                                    .unwrap_or(false)
+                                        .get(diff_editor_id)
+                                        .map(|diff_editor| {
+                                            diff_editor.left.doc().is_pristine()
+                                                && diff_editor
+                                                    .right
+                                                    .doc()
+                                                    .is_pristine()
+                                        })
+                                        .unwrap_or(false)
                             } else {
                                 false
                             }
@@ -1858,8 +1858,8 @@ impl MainSplitData {
                             let doc = editor.doc();
                             id != editor_id
                                 && doc.content.with_untracked(|content| {
-                                content == &doc_content
-                            })
+                                    content == &doc_content
+                                })
                         })
                     });
                     if !exists {
@@ -1914,6 +1914,60 @@ impl MainSplitData {
             editor_tab.children.get(editor_tab.active).cloned()
         })?;
         self.editor_tab_child_close(active_editor_tab, child, false);
+        Some(())
+    }
+
+    pub fn editor_tab_child_close_by_kind(
+        &self,
+        editor_tab_id: EditorTabId,
+        child: EditorTabChild,
+        kind: TabCloseKind,
+    ) -> Option<()> {
+        let tabs_to_close: Vec<EditorTabChild> = {
+            let editor_tabs = self.editor_tabs.get_untracked();
+
+            let editor_tab = editor_tabs.get(&editor_tab_id).copied()?;
+            let editor_tab = editor_tab.get_untracked();
+            match kind {
+                TabCloseKind::CloseOther => editor_tab
+                    .children
+                    .iter()
+                    .filter_map(|x| {
+                        if x.2 != child {
+                            Some(x.2.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect(),
+                TabCloseKind::CloseToLeft => {
+                    let mut tabs_to_close = Vec::new();
+                    for child_tab in &editor_tab.children {
+                        if child_tab.2 != child {
+                            tabs_to_close.push(child_tab.2.clone());
+                        } else {
+                            break;
+                        }
+                    }
+                    tabs_to_close
+                }
+                TabCloseKind::CloseToRight => {
+                    let mut tabs_to_close = Vec::new();
+                    let mut add_to_tabs = false;
+                    for child_tab in &editor_tab.children {
+                        if child_tab.2 != child && add_to_tabs {
+                            tabs_to_close.push(child_tab.2.clone());
+                        } else {
+                            add_to_tabs = true;
+                        }
+                    }
+                    tabs_to_close
+                }
+            }
+        };
+        for child_tab in tabs_to_close {
+            self.editor_tab_child_close(editor_tab_id, child_tab, false);
+        }
         Some(())
     }
 
@@ -2452,11 +2506,11 @@ impl MainSplitData {
         if tracked {
             !(self.locations.with(|l| l.is_empty())
                 || self.current_location.get()
-                >= self.locations.with(|l| l.len()) - 1)
+                    >= self.locations.with(|l| l.len()) - 1)
         } else {
             !(self.locations.with_untracked(|l| l.is_empty())
                 || self.current_location.get_untracked()
-                >= self.locations.with_untracked(|l| l.len()) - 1)
+                    >= self.locations.with_untracked(|l| l.len()) - 1)
         }
     }
 
@@ -2910,8 +2964,8 @@ fn next_in_file_errors_offset(
 
                     if diagnostic.diagnostic.range.start.line > position.line
                         || (diagnostic.diagnostic.range.start.line == position.line
-                        && diagnostic.diagnostic.range.start.character
-                        > position.character)
+                            && diagnostic.diagnostic.range.start.character
+                                > position.character)
                     {
                         return (
                             (*current_path).clone(),
@@ -2948,4 +3002,11 @@ fn next_in_file_errors_offset(
             EditorPosition::Position(file_diagnostics[0].1[0].diagnostic.range.start)
         },
     )
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum TabCloseKind {
+    CloseOther,
+    CloseToLeft,
+    CloseToRight,
 }
