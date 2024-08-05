@@ -567,7 +567,8 @@ impl PluginCatalog {
                     .and_then(|ty| self.debuggers.get(ty).cloned())
                 {
                     thread::spawn(move || {
-                        if let Ok(dap_rpc) = DapClient::start(
+                        tracing::debug!("DapClient::start");
+                        match DapClient::start(
                             DapServer {
                                 program: debugger.program,
                                 args: debugger.args.unwrap_or_default(),
@@ -577,9 +578,19 @@ impl PluginCatalog {
                             breakpoints,
                             plugin_rpc.clone(),
                         ) {
-                            let _ = plugin_rpc.dap_loaded(dap_rpc.clone());
-
-                            let _ = dap_rpc.launch(&config);
+                            Ok(dap_rpc) => {
+                                if let Err(err) =
+                                    plugin_rpc.dap_loaded(dap_rpc.clone())
+                                {
+                                    tracing::error!("{:?}", err);
+                                }
+                                if let Err(err) = dap_rpc.launch(&config) {
+                                    tracing::error!("{:?}", err);
+                                }
+                            }
+                            Err(err) => {
+                                tracing::error!("{:?}", err);
+                            }
                         }
                     });
                 }

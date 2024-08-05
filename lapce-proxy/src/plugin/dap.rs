@@ -131,6 +131,7 @@ impl DapClient {
                             dap_rpc.handle_server_message(&message_str);
                         }
                         Err(_err) => {
+                            tracing::error!("{:?}", _err);
                             let _ = io_tx.send(DapPayload::Event(
                                 DapEvent::Initialized(None),
                             ));

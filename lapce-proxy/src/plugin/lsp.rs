@@ -24,6 +24,7 @@ use lsp_types::{
 };
 use parking_lot::Mutex;
 use serde_json::Value;
+use tracing::debug;
 
 use super::{
     client_capabilities,
@@ -213,6 +214,7 @@ impl LspClient {
                     break;
                 }
                 if let Ok(msg) = serde_json::to_string(&msg) {
+                    debug!("write to lsp: {}", msg);
                     let msg =
                         format!("Content-Length: {}\r\n\r\n{}", msg.len(), msg);
                     let _ = writer.write(msg.as_bytes());
@@ -224,11 +226,15 @@ impl LspClient {
         let local_server_rpc = server_rpc.clone();
         let core_rpc = plugin_rpc.core_rpc.clone();
         let volt_id_closure = volt_id.clone();
+        let name = volt_display_name.clone();
         thread::spawn(move || {
             let mut reader = Box::new(BufReader::new(stdout));
             loop {
                 match read_message(&mut reader) {
                     Ok(message_str) => {
+                        if !message_str.contains("$/progress") {
+                            debug!("read from lsp {}: {}", name, message_str);
+                        }
                         if let Some(resp) = handle_plugin_server_message(
                             &local_server_rpc,
                             &message_str,
@@ -253,6 +259,7 @@ impl LspClient {
 
         let core_rpc = plugin_rpc.core_rpc.clone();
         let volt_id_closure = volt_id.clone();
+        let volt_display_name_clone = volt_display_name.clone();
         thread::spawn(move || {
             let mut reader = Box::new(BufReader::new(stderr));
             loop {
@@ -282,7 +289,7 @@ impl LspClient {
             workspace.clone(),
             pwd,
             volt_id,
-            volt_display_name,
+            volt_display_name_clone,
             document_selector,
             plugin_rpc.core_rpc.clone(),
             server_rpc.clone(),
