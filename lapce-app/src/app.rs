@@ -590,6 +590,11 @@ impl AppData {
             .on_event_stop(EventListener::WindowClosed, move |_| {
                 app_command.send(AppCommand::WindowClosed(window_id));
             })
+            .on_key_up(
+                floem::keyboard::Key::Named(floem::keyboard::NamedKey::F11),
+                floem::keyboard::Modifiers::empty(),
+                move |_| view_id.inspect(),
+            )
             .debug_name("App View")
     }
 }
