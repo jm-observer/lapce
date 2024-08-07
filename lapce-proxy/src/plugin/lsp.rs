@@ -109,8 +109,13 @@ impl PluginServerHandler for LspClient {
         self.host.handle_request(id, method, params, resp);
     }
 
-    fn handle_host_notification(&mut self, method: String, params: Params) {
-        let _ = self.host.handle_notification(method, params);
+    fn handle_host_notification(
+        &mut self,
+        method: String,
+        params: Params,
+        from: String,
+    ) {
+        let _ = self.host.handle_notification(method, params, from);
     }
 
     fn handle_did_save_text_document(
@@ -238,6 +243,7 @@ impl LspClient {
                         if let Some(resp) = handle_plugin_server_message(
                             &local_server_rpc,
                             &message_str,
+                            &name,
                         ) {
                             let _ = io_tx.send(resp);
                         }
