@@ -51,7 +51,7 @@ use lapce_core::{
     command::{EditCommand, FocusCommand},
     directory::Directory,
     meta,
-    syntax::highlight::reset_highlight_configs,
+    syntax::{highlight::reset_highlight_configs, Syntax},
 };
 use lapce_rpc::{
     core::{CoreMessage, CoreNotification},
@@ -147,7 +147,7 @@ pub struct AppInfo {
 #[derive(Clone)]
 pub enum AppCommand {
     SaveApp,
-    NewWindow,
+    NewWindow { folder: Option<PathBuf> },
     CloseWindow(WindowId),
     WindowGotFocus(WindowId),
     WindowClosed(WindowId),
@@ -202,7 +202,7 @@ impl AppData {
             .title("Lapce")
     }
 
-    pub fn new_window(&self) {
+    pub fn new_window(&self, folder: Option<PathBuf>) {
         let config = self
             .active_window()
             .map(|window| {
@@ -228,6 +228,10 @@ impl AppData {
         } else {
             config
         };
+        let workspace = LapceWorkspace {
+            path: folder,
+            ..Default::default()
+        };
         let app_data = self.clone();
         floem::new_window(
             move |window_id| {
@@ -239,7 +243,7 @@ impl AppData {
                         maximised: false,
                         tabs: TabsInfo {
                             active_tab: 0,
-                            workspaces: vec![LapceWorkspace::default()],
+                            workspaces: vec![workspace],
                         },
                     },
                 )
@@ -274,8 +278,8 @@ impl AppData {
             AppCommand::CloseWindow(window_id) => {
                 floem::close_window(window_id);
             }
-            AppCommand::NewWindow => {
-                self.new_window();
+            AppCommand::NewWindow { folder } => {
+                self.new_window(folder);
             }
             AppCommand::WindowGotFocus(window_id) => {
                 self.active_window.set(window_id);
@@ -566,12 +570,15 @@ impl AppData {
                     EventPropagation::Continue
                 }
             })
-            .on_event(EventListener::PointerDown, move |event| {
-                if let Event::PointerDown(pointer_event) = event {
-                    window_data.key_down(pointer_event);
-                    EventPropagation::Stop
-                } else {
-                    EventPropagation::Continue
+            .on_event(EventListener::PointerDown, {
+                let window_data = window_data.clone();
+                move |event| {
+                    if let Event::PointerDown(pointer_event) = event {
+                        window_data.key_down(pointer_event);
+                        EventPropagation::Stop
+                    } else {
+                        EventPropagation::Continue
+                    }
                 }
             })
             .on_event_stop(EventListener::WindowResized, move |event| {
@@ -590,11 +597,29 @@ impl AppData {
             .on_event_stop(EventListener::WindowClosed, move |_| {
                 app_command.send(AppCommand::WindowClosed(window_id));
             })
-            .on_key_up(
-                floem::keyboard::Key::Named(floem::keyboard::NamedKey::F11),
-                floem::keyboard::Modifiers::empty(),
-                move |_| view_id.inspect(),
-            )
+            .on_event_stop(EventListener::DroppedFile, move |event: &Event| {
+                if let Event::DroppedFile(file) = event {
+                    if file.path.is_dir() {
+                        app_command.send(AppCommand::NewWindow {
+                            folder: Some(file.path.clone()),
+                        });
+                    } else if let Some(win_tab_data) =
+                        window_data.active_window_tab()
+                    {
+                        win_tab_data.common.internal_command.send(
+                            InternalCommand::GoToLocation {
+                                location: EditorLocation {
+                                    path: file.path.clone(),
+                                    position: None,
+                                    scroll_offset: None,
+                                    ignore_unconfirmed: false,
+                                    same_editor_tab: false,
+                                },
+                            },
+                        )
+                    }
+                }
+            })
             .debug_name("App View")
     }
 }
@@ -3080,7 +3105,7 @@ fn code_action(window_tab_data: Rc<WindowTabData>) -> impl View {
                             .align_items(Some(AlignItems::Center))
                             .min_width(0.0)
                             .width_full()
-                            .line_height(1.6)
+                            .line_height(1.8)
                             .border_radius(6.0)
                             .cursor(CursorStyle::Pointer)
                             .apply_if(active.get() == i, |s| {
@@ -3685,30 +3710,6 @@ pub fn launch() {
         }
     }
 
-    {
-        let cx = Scope::new();
-        let send = create_ext_action(cx, |_| {
-            reset_highlight_configs();
-        });
-        std::thread::spawn(move || {
-            use self::grammars::*;
-            match find_grammar_release() {
-                Ok(release) => {
-                    if let Err(e) = fetch_grammars(&release) {
-                        trace!(TraceLevel::ERROR, "failed to fetch grammars: {e}");
-                    }
-                    if let Err(e) = fetch_queries(&release) {
-                        trace!(TraceLevel::ERROR, "failed to fetch grammars: {e}");
-                    }
-                }
-                Err(e) => {
-                    trace!(TraceLevel::ERROR, "failed to obtain release info: {e}");
-                }
-            }
-            send(());
-        });
-    }
-
     #[cfg(feature = "updater")]
     crate::update::cleanup();
 
@@ -3779,6 +3780,62 @@ pub fn launch() {
         });
     }
 
+    {
+        let cx = Scope::new();
+        let app_data = app_data.clone();
+        let send = create_ext_action(cx, move |updated| {
+            if updated {
+                trace!(
+                    TraceLevel::INFO,
+                    "grammar or query got updated, reset highlight configs"
+                );
+                reset_highlight_configs();
+                for (_, window) in app_data.windows.get_untracked() {
+                    for (_, tab) in window.window_tabs.get_untracked() {
+                        for (_, doc) in tab.main_split.docs.get_untracked() {
+                            doc.syntax.update(|syntaxt| {
+                                *syntaxt = Syntax::from_language(syntaxt.language);
+                            });
+                            doc.trigger_syntax_change(None);
+                        }
+                    }
+                }
+            }
+        });
+        std::thread::spawn(move || {
+            use self::grammars::*;
+            let updated = match find_grammar_release() {
+                Ok(release) => {
+                    let mut updated = false;
+                    match fetch_grammars(&release) {
+                        Err(e) => {
+                            trace!(
+                                TraceLevel::ERROR,
+                                "failed to fetch grammars: {e}"
+                            );
+                        }
+                        Ok(u) => updated |= u,
+                    }
+                    match fetch_queries(&release) {
+                        Err(e) => {
+                            trace!(
+                                TraceLevel::ERROR,
+                                "failed to fetch grammars: {e}"
+                            );
+                        }
+                        Ok(u) => updated |= u,
+                    }
+                    updated
+                }
+                Err(e) => {
+                    trace!(TraceLevel::ERROR, "failed to obtain release info: {e}");
+                    false
+                }
+            };
+            send(updated);
+        });
+    }
+
     #[cfg(feature = "updater")]
     {
         let (tx, rx) = crossbeam_channel::bounded(1);
@@ -3829,7 +3886,7 @@ pub fn launch() {
             has_visible_windows,
         } => {
             if !has_visible_windows {
-                app_data.new_window();
+                app_data.new_window(None);
             }
         }
     })

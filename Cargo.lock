@@ -1684,6 +1684,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.1"
+source = "git+https://github.com/lapce/floem?rev=54f0d1bcf0e1a91d82492ee7300a526adb60eb5c#54f0d1bcf0e1a91d82492ee7300a526adb60eb5c"
 dependencies = [
  "bitflags 2.6.0",
  "copypasta",
@@ -1714,7 +1715,6 @@ dependencies = [
  "strum",
  "strum_macros",
  "taffy",
- "tracing 0.2.0",
  "unicode-segmentation",
  "wgpu",
 ]
@@ -1722,6 +1722,7 @@ dependencies = [
 [[package]]
 name = "floem-editor-core"
 version = "0.1.1"
+source = "git+https://github.com/lapce/floem?rev=54f0d1bcf0e1a91d82492ee7300a526adb60eb5c#54f0d1bcf0e1a91d82492ee7300a526adb60eb5c"
 dependencies = [
  "bitflags 2.6.0",
  "itertools 0.12.1",
@@ -1799,6 +1800,7 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.1"
+source = "git+https://github.com/lapce/floem?rev=54f0d1bcf0e1a91d82492ee7300a526adb60eb5c#54f0d1bcf0e1a91d82492ee7300a526adb60eb5c"
 dependencies = [
  "smallvec",
 ]
@@ -1806,6 +1808,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.1"
+source = "git+https://github.com/lapce/floem?rev=54f0d1bcf0e1a91d82492ee7300a526adb60eb5c#54f0d1bcf0e1a91d82492ee7300a526adb60eb5c"
 dependencies = [
  "cosmic-text",
  "image",
@@ -1818,6 +1821,7 @@ dependencies = [
 [[package]]
 name = "floem_tiny_skia_renderer"
 version = "0.1.1"
+source = "git+https://github.com/lapce/floem?rev=54f0d1bcf0e1a91d82492ee7300a526adb60eb5c#54f0d1bcf0e1a91d82492ee7300a526adb60eb5c"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1834,6 +1838,7 @@ dependencies = [
 [[package]]
 name = "floem_vger_renderer"
 version = "0.1.1"
+source = "git+https://github.com/lapce/floem?rev=54f0d1bcf0e1a91d82492ee7300a526adb60eb5c#54f0d1bcf0e1a91d82492ee7300a526adb60eb5c"
 dependencies = [
  "anyhow",
  "floem-vger",
@@ -2901,7 +2906,7 @@ dependencies = [
 
 [[package]]
 name = "lapce"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "lapce-app",
  "lapce-proxy",
@@ -2909,7 +2914,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-app"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "Inflector",
  "alacritty_terminal",
@@ -2966,14 +2971,14 @@ dependencies = [
  "tracing-subscriber",
  "unicode-width",
  "url",
- "windows-sys 0.52.0",
+ "windows-sys 0.36.1",
  "zip",
  "zstd",
 ]
 
 [[package]]
 name = "lapce-core"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "ahash",
  "anyhow",
@@ -3001,7 +3006,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-proxy"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
@@ -3050,7 +3055,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-rpc"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
