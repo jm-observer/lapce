@@ -1684,7 +1684,6 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=48d2b6eb22a02a100d67868052ecc35fa3c42e10#48d2b6eb22a02a100d67868052ecc35fa3c42e10"
 dependencies = [
  "bitflags 2.6.0",
  "copypasta",
@@ -1715,6 +1714,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "taffy",
+ "tracing 0.2.0",
  "unicode-segmentation",
  "wgpu",
 ]
@@ -1722,7 +1722,6 @@ dependencies = [
 [[package]]
 name = "floem-editor-core"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=48d2b6eb22a02a100d67868052ecc35fa3c42e10#48d2b6eb22a02a100d67868052ecc35fa3c42e10"
 dependencies = [
  "bitflags 2.6.0",
  "itertools 0.12.1",
@@ -1800,7 +1799,6 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=48d2b6eb22a02a100d67868052ecc35fa3c42e10#48d2b6eb22a02a100d67868052ecc35fa3c42e10"
 dependencies = [
  "smallvec",
 ]
@@ -1808,19 +1806,18 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=48d2b6eb22a02a100d67868052ecc35fa3c42e10#48d2b6eb22a02a100d67868052ecc35fa3c42e10"
 dependencies = [
  "cosmic-text",
  "image",
  "parking_lot",
  "peniko",
  "resvg",
+ "swash",
 ]
 
 [[package]]
 name = "floem_tiny_skia_renderer"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=48d2b6eb22a02a100d67868052ecc35fa3c42e10#48d2b6eb22a02a100d67868052ecc35fa3c42e10"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1837,7 +1834,6 @@ dependencies = [
 [[package]]
 name = "floem_vger_renderer"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=48d2b6eb22a02a100d67868052ecc35fa3c42e10#48d2b6eb22a02a100d67868052ecc35fa3c42e10"
 dependencies = [
  "anyhow",
  "floem-vger",
