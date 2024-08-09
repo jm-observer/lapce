@@ -620,6 +620,11 @@ impl AppData {
                     }
                 }
             })
+            .on_key_up(
+                floem::keyboard::Key::Named(floem::keyboard::NamedKey::F11),
+                floem::keyboard::Modifiers::empty(),
+                move |_| view_id.inspect(),
+            )
             .debug_name("App View")
     }
 }
