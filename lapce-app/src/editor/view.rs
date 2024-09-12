@@ -13,7 +13,7 @@ use floem::{
     },
     reactive::{
         create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
-        SignalGet, SignalUpdate, SignalWith,
+        SignalGet, SignalTrack, SignalUpdate, SignalWith,
     },
     style::{CursorColor, CursorStyle, Style, TextColor},
     taffy::prelude::NodeId,

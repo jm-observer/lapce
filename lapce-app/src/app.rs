@@ -23,7 +23,8 @@ use floem::{
     },
     reactive::{
         create_effect, create_memo, create_rw_signal, provide_context, use_context,
-        ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
+        ReadSignal, RwSignal, Scope, SignalGet, SignalTrack, SignalUpdate,
+        SignalWith,
     },
     style::{
         AlignItems, CursorStyle, Display, FlexDirection, JustifyContent, Position,

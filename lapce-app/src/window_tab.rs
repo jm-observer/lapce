@@ -10,6 +10,7 @@ use std::{
 
 use alacritty_terminal::vte::ansi::Handler;
 use crossbeam_channel::Sender;
+use floem::reactive::SignalTrack;
 use floem::{
     action::{open_file, remove_overlay, TimerToken},
     ext_event::{create_ext_action, create_signal_from_channel},
@@ -1524,8 +1525,8 @@ impl WindowTabData {
                         line
                     });
                     let rs = doc.document_symbol_data.virtual_list.with_untracked(|x| {
-                    x.match_line_with_children(line as u32)
-                });
+                        x.match_line_with_children(line as u32)
+                    });
                     if let Some(MatchDocumentSymbol::MatchSymbol(id, index)) = rs {
                         batch(|| {
                             doc.document_symbol_data.select.set(Some(id));

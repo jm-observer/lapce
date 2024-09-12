@@ -1,6 +1,8 @@
 use std::cmp::{max, min};
 
-use floem::reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith};
+use floem::reactive::{
+    RwSignal, Scope, SignalGet, SignalTrack, SignalUpdate, SignalWith,
+};
 use lapce_core::{
     selection::{SelRegion, Selection},
     word::WordCursor,

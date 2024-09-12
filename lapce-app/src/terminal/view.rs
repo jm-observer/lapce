@@ -14,7 +14,9 @@ use floem::{
         Color,
     },
     pointer::PointerInputEvent,
-    reactive::{create_effect, ReadSignal, RwSignal, SignalGet, SignalWith},
+    reactive::{
+        create_effect, ReadSignal, RwSignal, SignalGet, SignalTrack, SignalWith,
+    },
     text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     views::editor::{core::register::Clipboard, text::SystemClipboard},
     Renderer, View, ViewId,
@@ -606,7 +608,7 @@ impl View for TerminalView {
         let layout = self.id.get_layout().unwrap_or_default();
         let size = layout.size;
         let size = Size::new(size.width as f64, size.height as f64);
-        if size.is_empty() {
+        if size.is_zero_area() {
             return None;
         }
         if size != self.size {

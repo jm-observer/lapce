@@ -59,7 +59,6 @@ impl SvgStore {
             let svg = fs::read_to_string(path).ok();
             self.svgs_on_disk.insert(path.to_path_buf(), svg);
         }
-
         self.svgs_on_disk.get(path).unwrap().clone()
     }
 }

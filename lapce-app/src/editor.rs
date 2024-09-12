@@ -14,8 +14,8 @@ use floem::{
     menu::{Menu, MenuItem},
     pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
     reactive::{
-        batch, use_context, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate,
-        SignalWith,
+        batch, use_context, ReadSignal, RwSignal, Scope, SignalGet, SignalTrack,
+        SignalUpdate, SignalWith,
     },
     views::editor::{
         command::CommandExecuted,
