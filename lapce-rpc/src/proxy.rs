@@ -37,7 +37,7 @@ use crate::{
 #[allow(clippy::large_enum_variant)]
 pub enum ProxyRpc {
     Request(RequestId, ProxyRequest),
-    Notification(ProxyNotification),
+    Notification(RequestId, ProxyNotification),
     Shutdown,
 }
 
@@ -500,7 +500,7 @@ impl ResponseHandler {
 }
 
 pub trait ProxyHandler {
-    fn handle_notification(&mut self, rpc: ProxyNotification);
+    fn handle_notification(&mut self, id: RequestId, rpc: ProxyNotification);
     fn handle_request(&mut self, id: RequestId, rpc: ProxyRequest);
 }
 
@@ -537,8 +537,8 @@ impl ProxyRpcHandler {
                 Request(id, request) => {
                     handler.handle_request(id, request);
                 }
-                Notification(notification) => {
-                    handler.handle_notification(notification);
+                Notification(id, notification) => {
+                    handler.handle_notification(id, notification);
                 }
                 Shutdown => {
                     return;
@@ -588,7 +588,8 @@ impl ProxyRpcHandler {
     }
 
     pub fn notification(&self, notification: ProxyNotification) {
-        if let Err(err) = self.tx.send(ProxyRpc::Notification(notification)) {
+        let id = self.id.fetch_add(1, Ordering::Relaxed);
+        if let Err(err) = self.tx.send(ProxyRpc::Notification(id, notification)) {
             tracing::error!("{:?}", err);
         }
     }
