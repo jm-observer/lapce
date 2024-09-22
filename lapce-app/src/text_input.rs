@@ -1,5 +1,6 @@
 use std::{rc::Rc, sync::Arc};
 
+use floem::keyboard::{KeyEvent, Modifiers};
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
     context::EventCx,
@@ -122,7 +123,42 @@ impl TextInputBuilder {
             editor.doc().reload(value, true);
         }
 
-        text_input_full(editor, self.key_focus, is_focused, keyboard_focus)
+        text_input_full(editor, self.key_focus, is_focused, keyboard_focus, |_| {
+            false
+        })
+    }
+
+    pub fn build_with_editor_and_handle<F: Fn(&KeyEvent) -> bool + 'static>(
+        self,
+        editors: Editors,
+        editor: EditorData,
+        f: F,
+    ) -> TextInput {
+        let id = editor.id();
+
+        self.build_editor_with_handle(editor, f)
+            .on_cleanup(move || {
+                editors.remove(id);
+            })
+    }
+
+    pub fn build_editor_with_handle<F: Fn(&KeyEvent) -> bool + 'static>(
+        self,
+        editor: EditorData,
+        f: F,
+    ) -> TextInput {
+        let keyboard_focus = self.keyboard_focus;
+        let is_focused = if let Some(is_focused) = self.is_focused {
+            is_focused
+        } else {
+            create_memo(move |_| keyboard_focus.get())
+        };
+
+        if let Some(value) = self.value {
+            editor.doc().reload(value, true);
+        }
+
+        text_input_full(editor, self.key_focus, is_focused, keyboard_focus, f)
     }
 }
 
@@ -131,11 +167,15 @@ impl TextInputBuilder {
 /// `supplied_editor`
 /// `key_focus` is what receives the keydown events, leave as `None` to default to editor.  
 /// `is_focused` is a function that returns if the input is focused, used for certain events.
-fn text_input_full<T: KeyPressFocus + 'static>(
+fn text_input_full<
+    T: KeyPressFocus + 'static,
+    F: Fn(&KeyEvent) -> bool + 'static,
+>(
     e_data: EditorData,
     key_focus: Option<T>,
     is_focused: Memo<bool>,
     keyboard_focus: RwSignal<bool>,
+    before_handle_keydown: F,
 ) -> TextInput {
     let id = ViewId::new();
 
@@ -253,12 +293,17 @@ fn text_input_full<T: KeyPressFocus + 'static>(
     })
     .on_event(EventListener::KeyDown, move |event| {
         if let Event::KeyDown(key_event) = event {
+            if before_handle_keydown(key_event) {
+                return EventPropagation::Stop;
+            }
             let keypress = keypress.get_untracked();
             let key_focus = key_focus
                 .as_ref()
                 .map(|k| k as &dyn KeyPressFocus)
                 .unwrap_or(&e_data);
-            if keypress.key_down(key_event, key_focus).handled {
+            let handle = keypress.key_down(key_event, key_focus);
+            tracing::debug!("{:?}", handle);
+            if handle.handled {
                 EventPropagation::Stop
             } else {
                 EventPropagation::Continue

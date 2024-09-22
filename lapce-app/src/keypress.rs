@@ -138,6 +138,7 @@ impl<'a> From<&'a PointerInputEvent> for EventRef<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct KeyPressHandle {
     pub handled: bool,
     pub keypress: KeyPress,

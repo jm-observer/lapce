@@ -1,5 +1,6 @@
 use std::{rc::Rc, sync::Arc};
 
+use floem::keyboard::{Key, KeyEvent, NamedKey};
 use floem::{
     event::{Event, EventListener},
     reactive::{
@@ -15,6 +16,7 @@ use floem::{
 };
 use lapce_core::mode::Modes;
 
+use crate::keypress::KeyPressFocus;
 use crate::{
     command::LapceCommand,
     config::{color::LapceColor, LapceConfig},
@@ -47,7 +49,38 @@ pub fn keymap_view(editors: Editors, common: Rc<CommonData>) -> impl View {
     };
 
     let cx = Scope::current();
-    let text_input_view = TextInputBuilder::new().build(cx, editors, common.clone());
+    let editor_data = editors.make_local(cx, common.clone());
+
+    let editor = editor_data.clone();
+    let f = move |key_event: &KeyEvent| {
+        if key_event.key.repeat {
+            return false;
+        }
+        match key_event.key.logical_key {
+            Key::Named(name_key) => match name_key {
+                NamedKey::Alt => {
+                    editor.receive_char("Alt+");
+                    return true;
+                }
+                NamedKey::Control => {
+                    editor.receive_char("Ctrl+");
+                    return true;
+                }
+                NamedKey::Shift => {
+                    editor.receive_char("Shift+");
+                    return true;
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+        false
+    };
+    let text_input_view = TextInputBuilder::new().build_with_editor_and_handle(
+        editors,
+        editor_data,
+        f,
+    );
     let doc = text_input_view.doc_signal();
 
     let items = move || {
