@@ -31,6 +31,8 @@ use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;
 use lsp_types::{DocumentSymbol, DocumentSymbolResponse};
 use nucleo::Utf32Str;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use strum::{EnumMessage, IntoEnumIterator};
 use tracing::error;
 
@@ -72,6 +74,7 @@ pub enum PaletteStatus {
 pub struct PaletteInput {
     pub input: String,
     pub kind: PaletteKind,
+    pub line: Option<usize>,
 }
 
 impl PaletteInput {
@@ -79,9 +82,31 @@ impl PaletteInput {
     pub fn update_input(&mut self, input: String, kind: Option<PaletteKind>) {
         if let Some(kind) = kind {
             self.kind = kind.get_palette_kind(&input);
-            self.input = self.kind.get_input(&input).to_string();
+            if self.kind == PaletteKind::File {
+                let (file, line) = get_file_and_line(&input);
+                tracing::debug!("{} {} {:?}", input, file, line);
+                self.input = file;
+                self.line = line;
+            } else {
+                self.input = self.kind.get_input(&input).to_string();
+                self.line = None;
+            }
         }
     }
+}
+
+fn get_file_and_line(text: &str) -> (String, Option<usize>) {
+    static INHERITS_REGEX: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r"^([^: ]+?(\.[a-zA-Z0-9]+))?(((#L)|(:\s*))(\d*))?$").unwrap()
+    });
+    let Some(caps) = INHERITS_REGEX.captures(text) else {
+        return (text.to_string(), None);
+    };
+
+    (
+        caps.get(1).map(|x| x.as_str()).unwrap_or(text).to_string(),
+        caps.get(7).and_then(|x| x.as_str().parse::<usize>().ok()),
+    )
 }
 
 #[derive(Clone)]
@@ -134,6 +159,7 @@ impl PaletteData {
         let input = cx.create_rw_signal(PaletteInput {
             input: "".to_string(),
             kind: PaletteKind::File,
+            line: None,
         });
         let kind = cx.create_rw_signal(None);
         let input_editor = main_split.editors.make_local(cx, common.clone());
@@ -259,7 +285,7 @@ impl PaletteData {
             let doc = palette.input_editor.doc();
             let input = palette.input;
             let status = palette.status.read_only();
-            let preset_kind = palette.kind.clone();
+            let preset_kind = palette.kind;
             // Monitors when the palette's input changes, so that it can update the stored input
             // and kind of palette.
             cx.create_effect(move |last_input| {
@@ -320,7 +346,6 @@ impl PaletteData {
                     {
                         palette.run_inner(new_kind);
                     }
-                } else {
                 }
                 new_kind
             });
@@ -386,7 +411,12 @@ impl PaletteData {
 
         let run_id = self.run_id_counter.fetch_add(1, Ordering::Relaxed) + 1;
         self.run_id.set(run_id);
-        tracing::debug!("run_inner {} {:?}", run_id, kind);
+        tracing::debug!(
+            "run_inner {} {:?} {:?}",
+            run_id,
+            kind,
+            self.input.get_untracked()
+        );
         match kind {
             PaletteKind::PaletteHelp => self.get_palette_help(),
             PaletteKind::File | PaletteKind::DiffFiles => {
@@ -488,6 +518,7 @@ impl PaletteData {
     fn get_files_and_prepend(&self, prepend: Option<im::Vector<PaletteItem>>) {
         let workspace = self.workspace.clone();
         let set_items = self.items.write_only();
+        let line = self.input.get_untracked().line;
         let send =
             create_ext_action(self.common.scope, move |items: Vec<PathBuf>| {
                 let items = items
@@ -505,7 +536,11 @@ impl PaletteData {
                             };
                         let filter_text = path.to_string_lossy().into_owned();
                         PaletteItem {
-                            content: PaletteItemContent::File { path, full_path },
+                            content: PaletteItemContent::File {
+                                path,
+                                full_path,
+                                line,
+                            },
                             filter_text,
                             score: 0,
                             indices: Vec::new(),
@@ -1156,7 +1191,9 @@ impl PaletteData {
 
                     self.common.lapce_command.send(cmd);
                 }
-                PaletteItemContent::File { full_path, .. } => {
+                PaletteItemContent::File {
+                    full_path, line, ..
+                } => {
                     if self.kind.get_untracked() == Some(PaletteKind::DiffFiles) {
                         if let Some(left_path) =
                             self.left_diff_path.try_update(Option::take).flatten()
@@ -1172,9 +1209,17 @@ impl PaletteData {
                             self.run(PaletteKind::DiffFiles);
                         }
                     } else {
+                        tracing::debug!("{:?}:{:?}", full_path, line);
                         self.common.internal_command.send(
-                            InternalCommand::OpenFile {
-                                path: full_path.clone(),
+                            InternalCommand::GoToLocation {
+                                location: EditorLocation {
+                                    path: full_path.clone(),
+                                    position: line
+                                        .map(|x| EditorPosition::Line(x + 1)),
+                                    scroll_offset: None,
+                                    ignore_unconfirmed: false,
+                                    same_editor_tab: false,
+                                },
                             },
                         );
                     }

@@ -27,6 +27,7 @@ pub enum PaletteItemContent {
     File {
         path: PathBuf,
         full_path: PathBuf,
+        line: Option<usize>,
     },
     Line {
         line: usize,
