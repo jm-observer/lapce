@@ -17,8 +17,8 @@ use floem::{
     kurbo::Size,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
-        use_context, Memo, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate,
-        SignalWith, WriteSignal,
+        batch, use_context, Memo, ReadSignal, RwSignal, Scope, SignalGet,
+        SignalUpdate, SignalWith, WriteSignal,
     },
     text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
     views::editor::core::buffer::rope_text::RopeText,
@@ -77,6 +77,7 @@ use crate::{
     panel::{
         call_hierarchy_view::{CallHierarchyData, CallHierarchyItemData},
         data::{default_panel_order, PanelData, PanelSection},
+        document_symbol::MatchDocumentSymbol,
         kind::PanelKind,
         position::PanelContainerPosition,
     },
@@ -1445,6 +1446,28 @@ impl WindowTabData {
                     });
                     if let DocContent::File {path, ..} = editor_data.doc().content.get_untracked() {
                         self.file_explorer.reveal_in_file_tree(path);
+                    }
+                }
+            }
+            RevealInDocumentSymbolPanel => {
+                if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    self.show_panel(PanelKind::DocumentSymbol);
+                    let offset = editor_data.cursor().with_untracked(|c| c.offset());
+                    let doc = editor_data.doc();
+                    let line = doc.buffer.with_untracked(|buffer| {
+                        let (line, _) = buffer.offset_to_line_col(offset);
+                        line
+                    });
+                    let rs = doc.document_symbol_data.virtual_list.with_untracked(|x| {
+                    x.match_line_with_children(line as u32)
+                });
+                    if let Some(MatchDocumentSymbol::MatchSymbol(id, index)) = rs {
+                        batch(|| {
+                            doc.document_symbol_data.select.set(Some(id));
+                            doc.document_symbol_data.scroll_to.set(Some(index as f64));
+                        })
                     }
                 }
             }

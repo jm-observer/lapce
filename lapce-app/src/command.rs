@@ -600,6 +600,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "add_run_debug_config")]
     #[strum(message = "Add Run Debug Config")]
     AddRunDebugConfig,
+
+    #[strum(serialize = "reveal_in_document_symbol_panel")]
+    #[strum(message = "Reveal In Document Symbol Panel")]
+    RevealInDocumentSymbolPanel,
 }
 
 #[derive(Clone, Debug)]

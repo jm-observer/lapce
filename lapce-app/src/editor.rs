@@ -2951,6 +2951,9 @@ impl EditorData {
                         LapceWorkbenchCommand::RevealInFileExplorer,
                     )),
                     Some(CommandKind::Workbench(
+                        LapceWorkbenchCommand::RevealInDocumentSymbolPanel,
+                    )),
+                    Some(CommandKind::Workbench(
                         LapceWorkbenchCommand::SourceControlOpenActiveFileRemoteUrl,
                     )),
                     None,
