@@ -59,6 +59,7 @@ use lapce_rpc::{
 };
 use lsp_types::{CompletionItemKind, MessageType, ShowMessageParams};
 use notify::Watcher;
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tracing_subscriber::{filter::Targets, reload::Handle};
 
@@ -161,7 +162,7 @@ pub struct AppData {
     pub app_terminated: RwSignal<bool>,
     /// The latest release information
     pub latest_release: RwSignal<Arc<Option<ReleaseInfo>>>,
-    pub watcher: Arc<notify::RecommendedWatcher>,
+    pub watcher: Arc<RwLock<notify::RecommendedWatcher>>,
     pub tracing_handle: Handle<Targets>,
     pub config: RwSignal<Arc<LapceConfig>>,
     /// Paths to extra plugins to load
@@ -468,6 +469,7 @@ impl AppData {
             self.latest_release.read_only(),
             self.plugin_paths.clone(),
             self.app_command,
+            self.watcher.clone(),
         );
         self.windows.update(|windows| {
             windows.insert(window_id, window_data.clone());
@@ -3824,7 +3826,7 @@ pub fn launch() {
         active_window: scope.create_rw_signal(WindowId::from(0)),
         window_scale,
         app_terminated: scope.create_rw_signal(false),
-        watcher: Arc::new(watcher),
+        watcher: Arc::new(RwLock::new(watcher)),
         latest_release,
         app_command,
         tracing_handle: reload_handle,
