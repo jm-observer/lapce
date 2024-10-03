@@ -10,6 +10,7 @@ use floem::{
     window::WindowId,
     ViewId,
 };
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -81,6 +82,7 @@ pub struct WindowData {
     pub config: RwSignal<Arc<LapceConfig>>,
     pub ime_enabled: RwSignal<bool>,
     pub common: Rc<WindowCommonData>,
+    pub watcher: Arc<RwLock<notify::RecommendedWatcher>>,
 }
 
 impl WindowData {
@@ -92,6 +94,7 @@ impl WindowData {
         latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
         extra_plugin_paths: Arc<Vec<PathBuf>>,
         app_command: Listener<AppCommand>,
+        watcher: Arc<RwLock<notify::RecommendedWatcher>>,
     ) -> Self {
         let cx = Scope::new();
         let config =
@@ -125,8 +128,11 @@ impl WindowData {
             app_view_id,
             extra_plugin_paths,
         });
-
+        //
         for w in info.tabs.workspaces {
+            tracing::info!("WindowData {:?}", w);
+            w.watch_project_setting(&watcher);
+
             let window_tab =
                 Rc::new(WindowTabData::new(cx, Arc::new(w), common.clone()));
             window_tabs.update(|window_tabs| {
@@ -161,6 +167,7 @@ impl WindowData {
             config,
             ime_enabled: cx.create_rw_signal(false),
             common,
+            watcher,
         };
 
         {
@@ -218,32 +225,42 @@ impl WindowData {
                         }
                     }
                 });
-
+                //
+                tracing::info!("SetWorkspace {:?}", workspace);
+                let workspace = Arc::new(workspace);
                 let window_tab = Rc::new(WindowTabData::new(
                     self.scope,
-                    Arc::new(workspace),
+                    workspace.clone(),
                     self.common.clone(),
                 ));
+
                 self.window_tabs.update(|window_tabs| {
                     if window_tabs.is_empty() {
-                        window_tabs
-                            .push_back((self.scope.create_rw_signal(0), window_tab));
+                        window_tabs.push_back((
+                            self.scope.create_rw_signal(0),
+                            window_tab.clone(),
+                        ));
                     } else {
                         let active = window_tabs.len().saturating_sub(1).min(active);
                         let (_, old_window_tab) = window_tabs.set(
                             active,
-                            (self.scope.create_rw_signal(0), window_tab),
+                            (self.scope.create_rw_signal(0), window_tab.clone()),
                         );
                         old_window_tab.proxy.shutdown();
+                        old_window_tab
+                            .workspace
+                            .unwatch_project_setting(&self.watcher);
                     }
-                })
+                });
+                workspace.watch_project_setting(&self.watcher);
             }
             WindowCommand::NewWorkspaceTab { workspace, end } => {
                 let db: Arc<LapceDb> = use_context().unwrap();
                 if let Err(err) = db.update_recent_workspace(&workspace) {
                     tracing::error!("{:?}", err);
                 }
-
+                tracing::info!("NewWorkspaceTab {:?}", workspace);
+                workspace.watch_project_setting(&self.watcher);
                 let window_tab = Rc::new(WindowTabData::new(
                     self.scope,
                     Arc::new(workspace),

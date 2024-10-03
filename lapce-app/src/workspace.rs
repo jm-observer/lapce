@@ -1,5 +1,7 @@
-use std::{collections::HashMap, fmt::Display, path::PathBuf};
+use std::{collections::HashMap, fmt::Display, path::PathBuf, sync::Arc};
 
+use notify::{RecursiveMode, Watcher};
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 
 use crate::{debug::LapceBreakpoint, main_split::SplitInfo, panel::data::PanelInfo};
@@ -127,6 +129,40 @@ impl LapceWorkspace {
             }
         };
         Some(format!("{path}{remote}"))
+    }
+
+    pub fn watch_project_setting(
+        &self,
+        watcher: &Arc<RwLock<notify::RecommendedWatcher>>,
+    ) {
+        if let Some(path) = self.project_setting() {
+            if let Err(e) = watcher
+                .write_arc()
+                .watch(&path, RecursiveMode::NonRecursive)
+            {
+                tracing::error!("{:?}", e);
+            }
+        }
+    }
+
+    pub fn unwatch_project_setting(
+        &self,
+        watcher: &Arc<RwLock<notify::RecommendedWatcher>>,
+    ) {
+        if let Some(path) = self.project_setting() {
+            if let Err(e) = watcher.write_arc().unwatch(&path) {
+                tracing::error!("{:?}", e);
+            }
+        }
+    }
+
+    pub fn project_setting(&self) -> Option<PathBuf> {
+        if let Some(path) = &self.path {
+            if path.exists() {
+                return Some(path.join("").join(""));
+            }
+        }
+        None
     }
 }
 
