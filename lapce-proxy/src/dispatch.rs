@@ -1098,6 +1098,7 @@ impl ProxyHandler for Dispatcher {
                         });
                         proxy_rpc.handle_response(id, result);
                     },
+                    id,
                 );
             }
             GetCodeLensResolve { code_lens, path } => {

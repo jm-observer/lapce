@@ -724,6 +724,7 @@ impl PluginCatalogRpcHandler {
             ) + Clone
             + Send
             + 'static,
+        id: u64,
     ) {
         let uri = Url::from_file_path(path).unwrap();
         let method = FoldingRangeRequest::METHOD;
@@ -740,6 +741,7 @@ impl PluginCatalogRpcHandler {
             params,
             language_id,
             Some(path.to_path_buf()),
+            id,
             cb,
         );
     }
