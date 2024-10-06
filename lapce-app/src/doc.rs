@@ -72,6 +72,7 @@ use lsp_types::{
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
+use crate::panel::document_symbol::DocumentSymbolViewData;
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand},
     config::{color::LapceColor, LapceConfig},
@@ -185,7 +186,7 @@ pub struct Doc {
     /// (line, col)
     pub completion_pos: RwSignal<(usize, usize)>,
 
-    /// Current inline completion text, if any.  
+    /// Current inline completion text, if any.
     /// This will be displayed even on views that are not focused.
     pub inline_completion: RwSignal<Option<String>>,
     /// (line, col)
@@ -218,7 +219,7 @@ pub struct Doc {
     editors: Editors,
     pub common: Rc<CommonData>,
 
-    pub document_symbol_data: RwSignal<Option<SymbolData>>,
+    pub document_symbol_data: DocumentSymbolViewData,
 }
 impl Doc {
     pub fn new(
@@ -263,7 +264,7 @@ impl Doc {
             editors,
             common,
             code_lens: cx.create_rw_signal(im::HashMap::new()),
-            document_symbol_data: cx.create_rw_signal(None),
+            document_symbol_data: DocumentSymbolViewData::new(cx),
             folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
         }
     }
@@ -314,7 +315,7 @@ impl Doc {
             editors,
             common,
             code_lens: cx.create_rw_signal(im::HashMap::new()),
-            document_symbol_data: cx.create_rw_signal(None),
+            document_symbol_data: DocumentSymbolViewData::new(cx),
             folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
         }
     }
@@ -365,7 +366,7 @@ impl Doc {
             editors,
             common,
             code_lens: cx.create_rw_signal(im::HashMap::new()),
-            document_symbol_data: cx.create_rw_signal(None),
+            document_symbol_data: DocumentSymbolViewData::new(cx),
             folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
         }
     }
@@ -641,7 +642,7 @@ impl Doc {
         self.buffer.with_untracked(|b| b.rev())
     }
 
-    /// Get the buffer's line-ending.  
+    /// Get the buffer's line-ending.
     /// Note: this may not be the same as what the actual line endings in the file are, rather this
     /// is what the line-ending is set to (and what it will be saved as).
     pub fn line_ending(&self) -> LineEnding {
@@ -997,8 +998,8 @@ impl Doc {
                                     .collect(),
                             };
                         let symbol_new = Some(SymbolData::new(items, path, cx));
-                        doc.document_symbol_data.update(|symbol| {
-                            *symbol = symbol_new;
+                        doc.document_symbol_data.virtual_list.update(|symbol| {
+                            symbol.update(symbol_new);
                         });
                     }
                 }
