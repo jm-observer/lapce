@@ -11,7 +11,7 @@ use floem::{
     },
     View,
 };
-use lsp_types::{DocumentSymbol, SymbolKind};
+use lsp_types::{DocumentSymbol, Position, Range, SymbolKind};
 
 use super::position::PanelPosition;
 use crate::{
@@ -38,6 +38,15 @@ impl SymbolData {
             .and_then(|x| x.to_str())
             .map(|x| x.to_string())
             .unwrap_or_default();
+
+        let end = items.iter().fold(Position::new(0, 0), |x, y| {
+            let item_end = y.with_untracked(|x| x.item.range.end);
+            if item_end > x {
+                item_end
+            } else {
+                x
+            }
+        });
         #[allow(deprecated)]
         let file_ds = DocumentSymbol {
             name: name.clone(),
@@ -45,7 +54,7 @@ impl SymbolData {
             kind: SymbolKind::FILE,
             tags: None,
             deprecated: None,
-            range: Default::default(),
+            range: Range::new(Position::new(0, 0), end),
             selection_range: Default::default(),
             children: None,
         };
@@ -73,6 +82,11 @@ impl SymbolData {
         let level: usize = 0;
         let mut next = 0;
         get_children(self.file, &mut next, min, max, level, path.clone())
+    }
+
+    pub fn match_line_with_children(&self, line: u32) -> MatchDocumentSymbol {
+        self.file
+            .with_untracked(|x| x.match_line_with_children(line))
     }
 }
 
@@ -116,6 +130,57 @@ impl SymbolInformationItemData {
             }
         }
         count
+    }
+
+    pub fn match_line_with_children(&self, line: u32) -> MatchDocumentSymbol {
+        let rs = self.match_line(line);
+        if rs.is_mach() {
+            for (index, child) in self.children.iter().enumerate() {
+                let mut rs_child =
+                    child.with_untracked(|x| x.match_line_with_children(line));
+                if let MatchDocumentSymbol::MatchSymbol(_, match_index) =
+                    &mut rs_child
+                {
+                    self.open.set(true);
+                    match_index.add_assign(index);
+                    return rs_child;
+                } else if rs_child.is_before() {
+                    break;
+                }
+            }
+        }
+        rs
+    }
+
+    fn match_line(&self, line: u32) -> MatchDocumentSymbol {
+        if self.item.range.start.line > line {
+            MatchDocumentSymbol::BeforeSymbol
+        } else if self.item.range.start.line <= line
+            && self.item.range.end.line >= line
+        {
+            MatchDocumentSymbol::MatchSymbol(self.id, 1)
+        } else {
+            MatchDocumentSymbol::AfterSymbol
+        }
+    }
+}
+
+#[derive(Eq, PartialEq, Debug)]
+pub enum MatchDocumentSymbol {
+    BeforeSymbol,
+    MatchSymbol(Id, usize),
+    AfterSymbol,
+}
+impl MatchDocumentSymbol {
+    pub fn is_mach(&self) -> bool {
+        if let MatchDocumentSymbol::MatchSymbol(_, _) = self {
+            true
+        } else {
+            false
+        }
+    }
+    pub fn is_before(&self) -> bool {
+        *self == MatchDocumentSymbol::BeforeSymbol
     }
 }
 
@@ -181,6 +246,13 @@ impl VirtualList {
     }
     pub fn update(&mut self, root: Option<SymbolData>) {
         self.root = root;
+    }
+
+    pub fn match_line_with_children(
+        &self,
+        line: u32,
+    ) -> Option<MatchDocumentSymbol> {
+        self.root.as_ref().map(|x| x.match_line_with_children(line))
     }
 }
 
@@ -258,94 +330,94 @@ pub fn symbol_panel(
                             };
                             config.ui_svg(svg_str)
                         })
-                        .style(move |s| {
-                            let config = config.get();
-                            let color = if has_child {
-                                config.color(LapceColor::LAPCE_ICON_ACTIVE)
-                            } else {
-                                Color::TRANSPARENT
-                            };
-                            let size = config.ui.icon_size() as f32;
-                            s.size(size, size)
-                                 .color(color)
-                        })
+                            .style(move |s| {
+                                let config = config.get();
+                                let color = if has_child {
+                                    config.color(LapceColor::LAPCE_ICON_ACTIVE)
+                                } else {
+                                    Color::TRANSPARENT
+                                };
+                                let size = config.ui.icon_size() as f32;
+                                s.size(size, size)
+                                    .color(color)
+                            })
                     ).style(|s| s.padding(4.0).margin_left(6.0).margin_right(2.0))
-                    .on_click_cont({
-                        move |_x| {
-                            if has_child {
-                                open.update(|x| {
-                                    *x = !*x;
-                                });
+                        .on_click_cont({
+                            move |_x| {
+                                if has_child {
+                                    open.update(|x| {
+                                        *x = !*x;
+                                    });
+                                }
                             }
-                        }
-                    }),
+                        }),
                     svg(move || {
                         let config = config.get();
                         config
                             .symbol_svg(&kind)
                             .unwrap_or_else(|| config.ui_svg(LapceIcons::FILE))
                     }).style(move |s| {
-                            let config = config.get();
-                            let size = config.ui.icon_size() as f32;
-                            s.min_width(size)
-                                .size(size, size)
-                                .margin_right(5.0)
-                                .color(config.symbol_color(&kind).unwrap_or_else(|| {
-                                    config.color(LapceColor::LAPCE_ICON_ACTIVE)
-                                }))
-                        }),
-                    label(move || {
-                            data.name.replace('\n', "↵")
-                    })
-                    .style(move |s| {
-                        s.selectable(false)
+                        let config = config.get();
+                        let size = config.ui.icon_size() as f32;
+                        s.min_width(size)
+                            .size(size, size)
+                            .margin_right(5.0)
+                            .color(config.symbol_color(&kind).unwrap_or_else(|| {
+                                config.color(LapceColor::LAPCE_ICON_ACTIVE)
+                            }))
                     }),
+                    label(move || {
+                        data.name.replace('\n', "↵")
+                    })
+                        .style(move |s| {
+                            s.selectable(false)
+                        }),
                     label(move || {
                         data.detail.clone().unwrap_or_default()
                     }).style(move |s| s.margin_left(6.0)
-                                              .color(config.get().color(LapceColor::EDITOR_DIM))
-                                              .selectable(false)
-                                              .apply_if(
-                                                data.item.detail.clone().is_none(),
-                                                 |s| s.hide())
+                        .color(config.get().color(LapceColor::EDITOR_DIM))
+                        .selectable(false)
+                        .apply_if(
+                            data.item.detail.clone().is_none(),
+                            |s| s.hide())
                     ),
                 ))
-                .style({
-                    let value = window_tab_data.clone();
-                    move |s| {
-                        s.padding_right(5.0)
-                            .padding_left((level * 10) as f32)
-                            .items_center()
-                            .height(ui_line_height.get())
-                            .hover(|s| {
-                                s.background(
-                                    config
-                                        .get()
-                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                                )
-                                    .cursor(CursorStyle::Pointer)
-                            }).apply_if(
-                            {
-                                let editor = value.main_split.get_active_editor();
-                                editor.map(|x| x.doc().document_symbol_data.select.get().map(|x| x == id)).flatten().unwrap_or_default()
-                            },
-                            |x| {
-                                x.background(
-                                    config.get().color(
-                                        LapceColor::PANEL_CURRENT_BACKGROUND,
-                                    ),
-                                )
-                            },
-                        )
-                    }
-                })
-                .on_click_stop({
-                    let window_tab_data = window_tab_data.clone();
-                    let data = rw_data;
-                    move |_| {
-                        let editor = window_tab_data.main_split.get_active_editor();
-                        editor.map(|x| x.doc().document_symbol_data.select.set(Some(id)));
-                        let data = data.get_untracked();
+                    .style({
+                        let value = window_tab_data.clone();
+                        move |s| {
+                            s.padding_right(5.0)
+                                .padding_left((level * 10) as f32)
+                                .items_center()
+                                .height(ui_line_height.get())
+                                .hover(|s| {
+                                    s.background(
+                                        config
+                                            .get()
+                                            .color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                    )
+                                        .cursor(CursorStyle::Pointer)
+                                }).apply_if(
+                                {
+                                    let editor = value.main_split.get_active_editor();
+                                    editor.map(|x| x.doc().document_symbol_data.select.get().map(|x| x == id)).flatten().unwrap_or_default()
+                                },
+                                |x| {
+                                    x.background(
+                                        config.get().color(
+                                            LapceColor::PANEL_CURRENT_BACKGROUND,
+                                        ),
+                                    )
+                                },
+                            )
+                        }
+                    })
+                    .on_click_stop({
+                        let window_tab_data = window_tab_data.clone();
+                        let data = rw_data;
+                        move |_| {
+                            let editor = window_tab_data.main_split.get_active_editor();
+                            editor.map(|x| x.doc().document_symbol_data.select.set(Some(id)));
+                            let data = data.get_untracked();
                             window_tab_data
                                 .common
                                 .internal_command
@@ -356,18 +428,18 @@ pub fn symbol_panel(
                                     ignore_unconfirmed: false,
                                     same_editor_tab: false,
                                 } });
-                    }
-                })
+                        }
+                    })
             }
             ,
         )
-        .style(|s| s.flex_col().absolute().min_width_full()),
+            .style(|s| s.flex_col().absolute().min_width_full()),
     ).on_resize(move |rect| {
         scroll_rect.set(rect);
     })
-    .style(
-        |s| s.absolute().size_full()
-    )
+        .style(
+            |s| s.absolute().size_full()
+        )
         .scroll_to({
             move || {
                 let editor = window_tab_data_clone.main_split.get_active_editor();

@@ -163,7 +163,7 @@ pub struct DocInfo {
 
 /// (Offset -> (Plugin the code actions are from, Code Actions))
 pub type CodeActions =
-    im::HashMap<usize, (PluginId, im::Vector<CodeActionOrCommand>)>;
+im::HashMap<usize, (PluginId, im::Vector<CodeActionOrCommand>)>;
 
 pub type AllCodeLens = im::HashMap<usize, (PluginId, usize, im::Vector<CodeLens>)>;
 
@@ -738,8 +738,8 @@ impl Doc {
                                 return;
                             }
                             if let Ok(ProxyResponse::GetDocumentFormatting {
-                                edits,
-                            }) = result
+                                          edits,
+                                      }) = result
                             {
                                 doc.do_text_edit(&edits);
                             }
@@ -1107,8 +1107,8 @@ impl Doc {
                         return;
                     }
                     if let Ok(ProxyResponse::LspFoldingRangeResponse {
-                        resp, ..
-                    }) = result
+                                  resp, ..
+                              }) = result
                     {
                         let folding = resp
                             .unwrap_or_default()
@@ -1367,8 +1367,8 @@ impl Doc {
                 let doc = self.clone();
                 create_ext_action(self.scope, move |result| {
                     if let Ok(ProxyResponse::BufferHeadResponse {
-                        content, ..
-                    }) = result
+                                  content, ..
+                              }) = result
                     {
                         let hisotry = DocumentHistory::new(
                             path.clone(),
