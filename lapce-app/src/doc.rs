@@ -1727,8 +1727,19 @@ impl DocumentPhantom for Doc {
                         parts.iter().map(|p| &p.value).join("")
                     }
                 };
-                if text.ends_with(':') {
-                    text.push(' ');
+                match (text.starts_with(':'), text.ends_with(':')) {
+                    (true, true) => {
+                        text.push(' ');
+                    }
+                    (true, false) => {
+                        text.push(' ');
+                    }
+                    (false, true) => {
+                        text = format!(" {} ", text);
+                    }
+                    (false, false) => {
+                        text = format!(" {}", text);
+                    }
                 }
                 PhantomText {
                     kind: PhantomTextKind::InlayHint,
