@@ -11,9 +11,6 @@ struct CargoArgs {
     #[serde(rename = "cargoArgs")]
     pub cargo_args: Vec<String>,
 
-    #[serde(rename = "cargoExtraArgs")]
-    pub cargo_extra_args: Vec<String>,
-
     #[serde(rename = "executableArgs")]
     pub executable_args: Vec<String>,
 }
@@ -68,10 +65,6 @@ impl CodeLensData {
                 tracing::error!("serde error");
                 return None;
             };
-            cargo_args
-                .args
-                .cargo_args
-                .extend(cargo_args.args.cargo_extra_args);
 
             let mut prelaunch = None;
             let mut program = cargo_args.kind;
