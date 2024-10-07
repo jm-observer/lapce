@@ -173,11 +173,7 @@ pub enum MatchDocumentSymbol {
 }
 impl MatchDocumentSymbol {
     pub fn is_mach(&self) -> bool {
-        if let MatchDocumentSymbol::MatchSymbol(_, _) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, MatchDocumentSymbol::MatchSymbol(_, _))
     }
     pub fn is_before(&self) -> bool {
         *self == MatchDocumentSymbol::BeforeSymbol
@@ -399,7 +395,7 @@ pub fn symbol_panel(
                                 }).apply_if(
                                 {
                                     let editor = value.main_split.get_active_editor();
-                                    editor.map(|x| x.doc().document_symbol_data.select.get().map(|x| x == id)).flatten().unwrap_or_default()
+                                    editor.and_then(|x| x.doc().document_symbol_data.select.get().map(|x| x == id)).unwrap_or_default()
                                 },
                                 |x| {
                                     x.background(
@@ -416,7 +412,7 @@ pub fn symbol_panel(
                         let data = rw_data;
                         move |_| {
                             let editor = window_tab_data.main_split.get_active_editor();
-                            editor.map(|x| x.doc().document_symbol_data.select.set(Some(id)));
+                            if let Some(x) = editor { x.doc().document_symbol_data.select.set(Some(id)) }
                             let data = data.get_untracked();
                             window_tab_data
                                 .common

@@ -259,7 +259,7 @@ impl PaletteData {
             let doc = palette.input_editor.doc();
             let input = palette.input;
             let status = palette.status.read_only();
-            let preset_kind = palette.kind.clone();
+            let preset_kind = palette.kind;
             // Monitors when the palette's input changes, so that it can update the stored input
             // and kind of palette.
             cx.create_effect(move |last_input| {
@@ -320,7 +320,6 @@ impl PaletteData {
                     {
                         palette.run_inner(new_kind);
                     }
-                } else {
                 }
                 new_kind
             });

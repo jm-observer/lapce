@@ -86,6 +86,7 @@ pub struct WindowData {
 }
 
 impl WindowData {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         window_id: WindowId,
         app_view_id: RwSignal<ViewId>,

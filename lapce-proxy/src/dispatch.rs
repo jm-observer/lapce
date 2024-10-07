@@ -1336,8 +1336,8 @@ impl FileWatchNotifier {
             for path in event.paths {
                 #[cfg(windows)]
                 if let Some(path_str) = path.to_str() {
-                    if path_str.starts_with(PREFIX) {
-                        let path = PathBuf::from(&path_str[PREFIX.len()..]);
+                    if let Some(path_str) = path_str.strip_prefix(PREFIX) {
+                        let path = PathBuf::from(path_str);
                         self.proxy_rpc.notification(
                             ProxyNotification::OpenFileChanged { path },
                         );
