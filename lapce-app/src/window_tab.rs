@@ -2745,16 +2745,11 @@ impl WindowTabData {
         let shown = !self.panel.is_container_shown(position, false);
         self.panel.set_shown(position, shown);
 
-        if shown {
-            if let Some((kind, _)) =
-                self.panel.active_panel_at_position(position, false)
-            {
+        if let Some((kind, _)) = self.panel.active_panel_at_position(position, false)
+        {
+            if shown {
                 self.show_panel(kind);
-            }
-        } else {
-            if let Some((kind, _)) =
-                self.panel.active_panel_at_position(position, false)
-            {
+            } else {
                 self.hide_panel(kind);
             }
         }
