@@ -26,6 +26,7 @@ use super::{
     source_control_view::source_control_panel,
     terminal_view::terminal_panel,
 };
+use crate::panel::data::PanelData;
 use crate::{
     app::{clickable_icon, clickable_icon_base},
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
@@ -394,10 +395,14 @@ pub fn panel_container_view(
 
     let is_bottom = position.is_bottom();
     stack((
-        panel_picker(window_tab_data.clone(), position.first()),
-        panel_view(window_tab_data.clone(), position.first()),
-        panel_view(window_tab_data.clone(), position.second()),
-        panel_picker(window_tab_data.clone(), position.second()),
+        panel_picker(window_tab_data.clone(), position.first())
+            .debug_name("panel first picker"),
+        panel_view(window_tab_data.clone(), position.first())
+            .debug_name("panel first view"),
+        panel_view(window_tab_data.clone(), position.second())
+            .debug_name("panel second view"),
+        panel_picker(window_tab_data.clone(), position.second())
+            .debug_name("panel second picker"),
         resize_drag_view(position),
         stack((drop_view(position.first()), drop_view(position.second()))).style(
             move |s| {
@@ -445,7 +450,155 @@ pub fn panel_container_view(
             .border_color(config.color(LapceColor::LAPCE_BORDER))
             .color(config.color(LapceColor::PANEL_FOREGROUND))
     })
-    .debug_name(format!("{:?} Pannel Container View", position))
+    .debug_name(position.debug_name())
+}
+
+pub fn new_left_panel_container_view(
+    window_tab_data: Rc<WindowTabData>,
+    container_position: PanelContainerPosition,
+) -> impl View {
+    let panel = window_tab_data.panel.clone();
+    let config = window_tab_data.common.config;
+    let dragging = window_tab_data.common.dragging;
+    let current_size = create_rw_signal(Size::ZERO);
+    let available_size = window_tab_data.panel.available_size;
+
+    let resize_drag_view = {
+        let panel = panel.clone();
+        let panel_size = panel.size;
+        move |position: PanelContainerPosition| {
+            panel.panel_info();
+            let view = empty();
+            let view_id = view.id();
+            let drag_start: RwSignal<Option<Point>> = create_rw_signal(None);
+            view.on_event_stop(EventListener::PointerDown, move |event| {
+                view_id.request_active();
+                if let Event::PointerDown(pointer_event) = event {
+                    drag_start.set(Some(pointer_event.pos));
+                }
+            })
+            .on_event_stop(EventListener::PointerMove, move |event| {
+                if let Event::PointerMove(pointer_event) = event {
+                    if let Some(drag_start_point) = drag_start.get_untracked() {
+                        let current_size = current_size.get_untracked();
+                        let available_size = available_size.get_untracked();
+                        match position {
+                            PanelContainerPosition::Left => {
+                                let new_size = current_size.width
+                                    + pointer_event.pos.x
+                                    - drag_start_point.x;
+                                let current_panel_size = panel_size.get_untracked();
+                                let new_size = new_size
+                                    .max(150.0)
+                                    .min(available_size.width - 150.0 - 150.0);
+                                if new_size != current_panel_size.left {
+                                    panel_size.update(|size| {
+                                        size.left = new_size;
+                                        size.right = size.right.min(
+                                            available_size.width - new_size - 150.0,
+                                        )
+                                    })
+                                }
+                            }
+                            PanelContainerPosition::Bottom => {}
+                            PanelContainerPosition::Right => {}
+                        }
+                    }
+                }
+            })
+            .on_event_stop(EventListener::PointerUp, move |_| {
+                drag_start.set(None);
+            })
+            .style(move |s| {
+                let is_dragging = drag_start.get().is_some();
+                let current_size = current_size.get();
+                let config = config.get();
+                s.absolute()
+                    .apply_if(position == PanelContainerPosition::Left, |s| {
+                        s.width(4.0)
+                            .margin_left(current_size.width as f32 - 2.0)
+                            .height_pct(100.0)
+                    })
+                    .apply_if(is_dragging, |s| {
+                        s.background(config.color(LapceColor::EDITOR_CARET))
+                            .apply_if(
+                                position == PanelContainerPosition::Bottom,
+                                |s| s.cursor(CursorStyle::RowResize),
+                            )
+                            .apply_if(
+                                position != PanelContainerPosition::Bottom,
+                                |s| s.cursor(CursorStyle::ColResize),
+                            )
+                            .z_index(2)
+                    })
+                    .hover(|s| {
+                        s.background(config.color(LapceColor::EDITOR_CARET))
+                            .apply_if(
+                                position != PanelContainerPosition::Bottom,
+                                |s| s.cursor(CursorStyle::ColResize),
+                            )
+                            .z_index(2)
+                    })
+            })
+        }
+    };
+
+    let is_bottom = container_position.is_bottom();
+    let panels = window_tab_data.panel.panels;
+    let position: PanelPosition = container_position.first();
+    stack((
+        {
+            new_panel_picker(window_tab_data.clone(), position)
+                .debug_name("panel first picker")
+                .style(move |s| {
+                    s.border_color(config.get().color(LapceColor::LAPCE_BORDER))
+                        .flex_col()
+                        .padding(5.0)
+                        .width(50.0)
+                        .height_pct(100.0)
+                })
+        },
+        {
+            let panel = panel.clone();
+            new_panel_view(window_tab_data.clone(), position)
+                .style(move |s| {
+                    s.flex_grow(1.0).height_pct(100.0).apply_if(
+                        !panel.is_position_shown(&position, true)
+                            || panel.is_position_empty(&position, true),
+                        |s| s.hide(),
+                    )
+                })
+                .debug_name("panel first view")
+        },
+        resize_drag_view(container_position),
+    ))
+    .on_resize(move |rect| {
+        let size = rect.size();
+        if size != current_size.get_untracked() {
+            current_size.set(size);
+        }
+    })
+    .style({
+        let panel = panel.clone();
+        move |s| {
+            let size = panel.size.with(|s| match container_position {
+                PanelContainerPosition::Left => s.left,
+                PanelContainerPosition::Bottom => s.bottom,
+                PanelContainerPosition::Right => s.right,
+            });
+            let is_maximized = panel.panel_bottom_maximized(true);
+            let config = config.get();
+            s.flex_row()
+                .border_right(1.0)
+                .width(size as f32)
+                .height_pct(100.0)
+                .background(config.color(LapceColor::PANEL_BACKGROUND))
+                .border_color(config.color(LapceColor::LAPCE_BORDER))
+                .color(config.color(LapceColor::PANEL_FOREGROUND))
+        }
+    })
+    .debug_name(container_position.debug_name())
+    .event(move |x| drag_event(x, config, dragging, panel.clone(), position))
 }
 
 fn panel_view(
@@ -518,6 +671,70 @@ fn panel_view(
     })
 }
 
+fn new_panel_view(
+    window_tab_data: Rc<WindowTabData>,
+    position: PanelPosition,
+) -> impl View {
+    let panel = window_tab_data.panel.clone();
+    let panels = move || {
+        panel
+            .panels
+            .with(|p| p.get(&position).cloned().unwrap_or_default())
+    };
+    let active_fn = move || {
+        panel
+            .styles
+            .with(|s| s.get(&position).map(|s| s.active).unwrap_or(0))
+    };
+    tab(
+        active_fn,
+        panels,
+        |p| *p,
+        move |kind| {
+            let view = match kind {
+                PanelKind::Terminal => {
+                    terminal_panel(window_tab_data.clone()).into_any()
+                }
+                PanelKind::FileExplorer => {
+                    file_explorer_panel(window_tab_data.clone(), position).into_any()
+                }
+                PanelKind::SourceControl => {
+                    source_control_panel(window_tab_data.clone(), position)
+                        .into_any()
+                }
+                PanelKind::Plugin => {
+                    plugin_panel(window_tab_data.clone(), position).into_any()
+                }
+                PanelKind::Search => {
+                    global_search_panel(window_tab_data.clone(), position).into_any()
+                }
+                PanelKind::Problem => {
+                    problem_panel(window_tab_data.clone(), position).into_any()
+                }
+                PanelKind::Debug => {
+                    debug_panel(window_tab_data.clone(), position).into_any()
+                }
+                PanelKind::CallHierarchy => {
+                    show_hierarchy_panel(window_tab_data.clone(), position)
+                        .into_any()
+                }
+                PanelKind::DocumentSymbol => {
+                    symbol_panel(window_tab_data.clone(), position).into_any()
+                }
+                PanelKind::References => {
+                    references_panel(window_tab_data.clone(), position).into_any()
+                }
+                PanelKind::Implementation => {
+                    implementation_panel(window_tab_data.clone(), position)
+                        .into_any()
+                }
+            };
+            // view.style(|s| s.size_pct(100.0, 100.0))
+            view
+        },
+    )
+}
+
 pub fn panel_header(
     header: String,
     config: ReadSignal<Arc<LapceConfig>>,
@@ -549,19 +766,7 @@ fn panel_picker(
         |p| *p,
         move |p| {
             let window_tab_data = window_tab_data.clone();
-            let tooltip = match p {
-                PanelKind::Terminal => "Terminal",
-                PanelKind::FileExplorer => "File Explorer",
-                PanelKind::SourceControl => "Source Control",
-                PanelKind::Plugin => "Plugins",
-                PanelKind::Search => "Search",
-                PanelKind::Problem => "Problems",
-                PanelKind::Debug => "Debug",
-                PanelKind::CallHierarchy => "Call Hierarchy",
-                PanelKind::DocumentSymbol => "Document Symbol",
-                PanelKind::References => "References",
-                PanelKind::Implementation => "Implementation",
-            };
+            let tooltip = p.tooltip();
             let icon = p.svg_name();
             let is_active = {
                 let window_tab_data = window_tab_data.clone();
@@ -649,4 +854,161 @@ fn panel_picker(
             .apply_if(!is_bottom && is_first, |s| s.border_bottom(1.0))
             .apply_if(!is_bottom && !is_first, |s| s.border_top(1.0))
     })
+}
+
+fn new_panel_picker(
+    window_tab_data: Rc<WindowTabData>,
+    position: PanelPosition,
+) -> impl View {
+    let panel = window_tab_data.panel.clone();
+    let panels = panel.panels;
+    let config = window_tab_data.common.config;
+    let dragging = window_tab_data.common.dragging;
+    let is_bottom = position.is_bottom();
+    let is_first = position.is_first();
+    dyn_stack(
+        move || {
+            panel
+                .panels
+                .with(|panels| panels.get(&position).cloned().unwrap_or_default())
+        },
+        |p| *p,
+        move |p| {
+            let window_tab_data = window_tab_data.clone();
+            let tooltip = p.tooltip();
+            let icon = p.svg_name();
+            let is_active = {
+                let window_tab_data = window_tab_data.clone();
+                move || {
+                    if let Some((active_panel, shown)) = window_tab_data
+                        .panel
+                        .active_panel_at_position(&position, true)
+                    {
+                        shown && active_panel == p
+                    } else {
+                        false
+                    }
+                }
+            };
+            container(stack((
+                clickable_icon(
+                    || icon,
+                    move || {
+                        window_tab_data.toggle_panel_visual(p);
+                    },
+                    || false,
+                    || false,
+                    move || tooltip,
+                    config,
+                )
+                .draggable()
+                .on_event_stop(EventListener::DragStart, move |_| {
+                    dragging.set(Some(DragContent::Panel(p)));
+                })
+                .on_event_stop(EventListener::DragEnd, move |_| {
+                    dragging.set(None);
+                })
+                .dragging_style(move |s| {
+                    let config = config.get();
+                    s.border(1.0)
+                        .border_radius(6.0)
+                        .border_color(config.color(LapceColor::LAPCE_BORDER))
+                        .padding(6.0)
+                        .background(
+                            config
+                                .color(LapceColor::PANEL_BACKGROUND)
+                                .with_alpha_factor(0.7),
+                        )
+                })
+                .style(|s| s.padding(1.0)),
+                label(|| "".to_string()).style(move |s| {
+                    s.selectable(false)
+                        .absolute()
+                        .size_pct(100.0, 100.0)
+                        .apply_if(!is_bottom && is_first, |s| s.margin_top(2.0))
+                        .apply_if(!is_bottom && !is_first, |s| s.margin_top(-2.0))
+                        .apply_if(is_bottom && is_first, |s| s.margin_left(-2.0))
+                        .apply_if(is_bottom && !is_first, |s| s.margin_left(2.0))
+                        .apply_if(is_active(), |s| {
+                            s.apply_if(!is_bottom && is_first, |s| {
+                                s.border_bottom(2.0)
+                            })
+                            .apply_if(!is_bottom && !is_first, |s| s.border_top(2.0))
+                            .apply_if(is_bottom && is_first, |s| s.border_left(2.0))
+                            .apply_if(is_bottom && !is_first, |s| {
+                                s.border_right(2.0)
+                            })
+                        })
+                        .border_color(
+                            config
+                                .get()
+                                .color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE),
+                        )
+                }),
+            )))
+            .style(|s| s.padding(6.0))
+        },
+    )
+}
+
+fn drag_event<T: IntoView>(
+    view: T,
+    config: ReadSignal<Arc<LapceConfig>>,
+    dragging: RwSignal<Option<DragContent>>,
+    panel: PanelData,
+    position: PanelPosition,
+) -> <T as IntoView>::V {
+    let panel = panel.clone();
+
+    let is_dragging_panel = move || {
+        dragging
+            .with_untracked(|d| d.as_ref().map(|d| d.is_panel()))
+            .unwrap_or(false)
+    };
+
+    let dragging_over = create_rw_signal(false);
+    view.on_event(EventListener::DragEnter, move |_| {
+        if is_dragging_panel() {
+            dragging_over.set(true);
+            EventPropagation::Stop
+        } else {
+            EventPropagation::Continue
+        }
+    })
+    .on_event(EventListener::DragLeave, move |_| {
+        if is_dragging_panel() {
+            dragging_over.set(false);
+            EventPropagation::Stop
+        } else {
+            EventPropagation::Continue
+        }
+    })
+    .on_event(EventListener::Drop, move |_| {
+        if let Some(DragContent::Panel(kind)) = dragging.get_untracked() {
+            dragging_over.set(false);
+            panel.move_panel_to_position(kind, &position);
+            EventPropagation::Stop
+        } else {
+            EventPropagation::Continue
+        }
+    })
+    .style(move |s| {
+        s.apply_if(dragging_over.get(), |s| {
+            s.background(config.get().color(LapceColor::EDITOR_DRAG_DROP_BACKGROUND))
+        })
+    })
+}
+
+trait OnEvent: IntoView<V = Self::DV> + Sized {
+    type DV: View;
+    fn event(self, on_event: impl Fn(Self) -> Self::DV + 'static) -> Self::DV {
+        on_event(self)
+    }
+}
+
+impl<T: IntoView + Sized> OnEvent for T {
+    type DV = <T as IntoView>::V;
+    fn event(self, on_event: impl Fn(Self) -> Self::DV + 'static) -> Self::DV {
+        on_event(self)
+    }
 }

@@ -71,4 +71,12 @@ impl PanelContainerPosition {
             PanelContainerPosition::Right => PanelPosition::RightBottom,
         }
     }
+
+    pub fn debug_name(&self) -> &'static str {
+        match self {
+            PanelContainerPosition::Left => "Left Pannel Container View",
+            PanelContainerPosition::Bottom => "Bottom Pannel Container View",
+            PanelContainerPosition::Right => "Right Pannel Container View",
+        }
+    }
 }

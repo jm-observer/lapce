@@ -63,6 +63,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tracing_subscriber::{filter::Targets, reload::Handle};
 
+use crate::panel::view::new_left_panel_container_view;
 use crate::{
     about, alert,
     code_action::CodeActionStatus,
@@ -2117,7 +2118,10 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
     let workbench_size = window_tab_data.common.workbench_size;
     let main_split_width = window_tab_data.main_split.width;
     stack((
-        panel_container_view(window_tab_data.clone(), PanelContainerPosition::Left),
+        new_left_panel_container_view(
+            window_tab_data.clone(),
+            PanelContainerPosition::Left,
+        ),
         {
             let window_tab_data = window_tab_data.clone();
             stack((

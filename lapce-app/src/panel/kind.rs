@@ -63,4 +63,20 @@ impl PanelKind {
             PanelKind::Implementation => PanelPosition::BottomLeft,
         }
     }
+
+    pub fn tooltip(&self) -> &'static str {
+        match self {
+            PanelKind::Terminal => "Terminal",
+            PanelKind::FileExplorer => "File Explorer",
+            PanelKind::SourceControl => "Source Control",
+            PanelKind::Plugin => "Plugins",
+            PanelKind::Search => "Search",
+            PanelKind::Problem => "Problems",
+            PanelKind::Debug => "Debug",
+            PanelKind::CallHierarchy => "Call Hierarchy",
+            PanelKind::DocumentSymbol => "Document Symbol",
+            PanelKind::References => "References",
+            PanelKind::Implementation => "Implementation",
+        }
+    }
 }
