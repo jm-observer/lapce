@@ -151,14 +151,15 @@ impl GlobalSearchData {
             });
         }
 
-        {
-            let buffer = global_search.editor.doc().buffer;
-            let main_split = global_search.main_split.clone();
-            cx.create_effect(move |_| {
-                let content = buffer.with(|buffer| buffer.to_string());
-                main_split.set_find_pattern(Some(content));
-            });
-        }
+        // why? this will display find view
+        // {
+        //     let buffer = global_search.editor.doc().buffer;
+        //     let main_split = global_search.main_split.clone();
+        //     cx.create_effect(move |_| {
+        //         let content = buffer.with(|buffer| buffer.to_string());
+        //         main_split.set_find_pattern(Some(content));
+        //     });
+        // }
 
         global_search
     }
