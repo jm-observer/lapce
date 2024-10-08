@@ -72,7 +72,6 @@ use lsp_types::{
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use crate::panel::document_symbol::DocumentSymbolViewData;
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand},
     config::{color::LapceColor, LapceConfig},
@@ -87,10 +86,12 @@ use crate::{
     keypress::KeyPressFocus,
     main_split::Editors,
     panel::{
-        document_symbol::{SymbolData, SymbolInformationItemData},
+        document_symbol::{
+            DocumentSymbolViewData, SymbolData, SymbolInformationItemData,
+        },
         kind::PanelKind,
     },
-    window_tab::{CommonData, Focus},
+    window_tab::{CommonData, Focus, SignalManager},
     workspace::LapceWorkspace,
 };
 
@@ -2215,7 +2216,7 @@ fn syntax_prev_unmatched(
 }
 
 fn should_blink(
-    focus: RwSignal<Focus>,
+    focus: SignalManager<Focus>,
     keyboard_focus: RwSignal<Option<ViewId>>,
 ) -> impl Fn() -> bool {
     move || {

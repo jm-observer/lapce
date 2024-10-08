@@ -15,7 +15,7 @@ use crate::{
     config::color::LapceColor,
     keypress::KeyPressFocus,
     web_link::web_link,
-    window_tab::{Focus, WindowTabData},
+    window_tab::{Focus, SignalManager, WindowTabData},
 };
 
 struct AboutUri {}
@@ -31,11 +31,11 @@ impl AboutUri {
 #[derive(Clone, Debug)]
 pub struct AboutData {
     pub visible: RwSignal<bool>,
-    pub focus: RwSignal<Focus>,
+    pub focus: SignalManager<Focus>,
 }
 
 impl AboutData {
-    pub fn new(cx: Scope, focus: RwSignal<Focus>) -> Self {
+    pub fn new(cx: Scope, focus: SignalManager<Focus>) -> Self {
         let visible = cx.create_rw_signal(false);
 
         Self { visible, focus }

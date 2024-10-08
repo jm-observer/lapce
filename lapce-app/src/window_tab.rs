@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeMap, HashSet},
     env,
+    fmt::Debug,
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
@@ -94,6 +95,45 @@ use crate::{
     workspace::{LapceWorkspace, LapceWorkspaceType, WorkspaceInfo},
 };
 
+#[derive(Clone, Debug)]
+pub struct SignalManager<T>(RwSignal<T>, bool);
+
+impl<T: Clone> Copy for SignalManager<T> {}
+
+impl<T: Clone + Debug + 'static> SignalManager<T> {
+    pub fn new(signal: RwSignal<T>) -> Self {
+        Self(signal, false)
+    }
+
+    pub fn new_with_tracing(signal: RwSignal<T>) -> Self {
+        Self(signal, true)
+    }
+
+    pub fn get(&self) -> T {
+        self.0.get()
+    }
+
+    pub fn get_untracked(&self) -> T {
+        self.0.get_untracked()
+    }
+
+    pub fn set(&self, signal: T) {
+        if self.1 {
+            tracing::info!("{:?}", signal);
+            // panic!("ad");
+        }
+        self.0.set(signal);
+    }
+
+    pub fn with_untracked<O>(&self, f: impl FnOnce(&T) -> O) -> O {
+        self.0.with_untracked(f)
+    }
+
+    pub fn try_get_untracked(&self) -> Option<T> {
+        self.0.try_get_untracked()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Focus {
     Workbench,
@@ -128,7 +168,7 @@ pub struct WorkProgress {
 pub struct CommonData {
     pub workspace: Arc<LapceWorkspace>,
     pub scope: Scope,
-    pub focus: RwSignal<Focus>,
+    pub focus: SignalManager<Focus>,
     pub keypress: RwSignal<KeyPressData>,
     pub completion: RwSignal<CompletionData>,
     pub inline_completion: RwSignal<InlineCompletionData>,
@@ -338,7 +378,7 @@ impl WindowTabData {
         );
         let (config, set_config) = cx.create_signal(Arc::new(config));
 
-        let focus = cx.create_rw_signal(Focus::Workbench);
+        let focus = SignalManager::new(cx.create_rw_signal(Focus::Workbench));
         let completion = cx.create_rw_signal(CompletionData::new(cx, config));
         let inline_completion = cx.create_rw_signal(InlineCompletionData::new(cx));
         let hover = HoverData::new(cx);
