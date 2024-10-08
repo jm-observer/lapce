@@ -100,7 +100,7 @@ pub struct SignalManager<T>(RwSignal<T>, bool);
 
 impl<T: Clone> Copy for SignalManager<T> {}
 
-impl<T: Clone + Debug + 'static> SignalManager<T> {
+impl<T: Clone + 'static> SignalManager<T> {
     pub fn new(signal: RwSignal<T>) -> Self {
         Self(signal, false)
     }
@@ -119,7 +119,7 @@ impl<T: Clone + Debug + 'static> SignalManager<T> {
 
     pub fn set(&self, signal: T) {
         if self.1 {
-            tracing::info!("{:?}", signal);
+            tracing::info!("set");
             // panic!("ad");
         }
         self.0.set(signal);
@@ -129,8 +129,32 @@ impl<T: Clone + Debug + 'static> SignalManager<T> {
         self.0.with_untracked(f)
     }
 
+    pub fn with<O>(&self, f: impl FnOnce(&T) -> O) -> O {
+        self.0.with(f)
+    }
+
     pub fn try_get_untracked(&self) -> Option<T> {
         self.0.try_get_untracked()
+    }
+
+    pub fn update(&self, f: impl FnOnce(&mut T)) {
+        if self.1 {
+            tracing::info!("set");
+            // panic!("ad");
+        }
+        self.0.update(f)
+    }
+
+    pub fn try_update<O>(&self, f: impl FnOnce(&mut T) -> O) -> Option<O> {
+        if self.1 {
+            tracing::info!("set");
+            // panic!("ad");
+        }
+        self.0.try_update(f)
+    }
+
+    pub fn try_with_untracked<O>(&self, f: impl FnOnce(Option<&T>) -> O) -> O {
+        self.0.try_with_untracked(f)
     }
 }
 
