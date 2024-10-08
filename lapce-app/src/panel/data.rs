@@ -64,11 +64,8 @@ pub enum PanelSection {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PanelSize {
     pub left: f64,
-    pub left_split: f64,
     pub bottom: f64,
-    pub bottom_split: f64,
     pub right: f64,
-    pub right_split: f64,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -127,11 +124,8 @@ impl PanelData {
         let styles = cx.create_rw_signal(styles);
         let size = cx.create_rw_signal(PanelSize {
             left: 250.0,
-            left_split: 0.5,
             bottom: 300.0,
-            bottom_split: 0.5,
             right: 250.0,
-            right_split: 0.5,
         });
         let sections = cx.create_rw_signal(
             sections
@@ -169,7 +163,7 @@ impl PanelData {
         position: &PanelContainerPosition,
         tracked: bool,
     ) -> bool {
-        self.is_position_shown(&position, tracked)
+        self.is_position_shown(position, tracked)
     }
 
     pub fn is_position_empty(
@@ -335,8 +329,7 @@ impl PanelData {
                 style.shown = true;
             });
         } else {
-            if let Some((kind, _)) = self.active_panel_at_position(&position, false)
-            {
+            if let Some((kind, _)) = self.active_panel_at_position(position, false) {
                 self.hide_panel(&kind);
             }
             self.styles.update(|styles| {

@@ -471,9 +471,9 @@ pub fn new_left_panel_container_view(
         },
         {
             let panel = panel.clone();
-            new_panel_view(window_tab_data.clone(), container_position)
+            new_left_panel_view(window_tab_data.clone(), container_position)
                 .style(move |s| {
-                    s.flex_grow(1.0).height_pct(100.0).apply_if(
+                    s.height_pct(100.0).apply_if(
                         !panel.is_position_shown(&container_position, true)
                             || panel.is_position_empty(&container_position, true),
                         |s| s.hide(),
@@ -483,17 +483,11 @@ pub fn new_left_panel_container_view(
         },
     ))
     .style({
-        let panel = panel.clone();
         move |s| {
-            let size = panel.size.with(|s| match container_position {
-                PanelContainerPosition::Left => s.left,
-                PanelContainerPosition::Bottom => s.bottom,
-                PanelContainerPosition::Right => s.right,
-            });
             let config = config.get();
             s.flex_row()
                 .border_right(1.0)
-                .width(size as f32)
+                // .width(size as f32)
                 .height_pct(100.0)
                 .background(config.color(LapceColor::PANEL_BACKGROUND))
                 .border_color(config.color(LapceColor::LAPCE_BORDER))
@@ -513,20 +507,11 @@ pub fn new_right_panel_container_view(
     let panel = window_tab_data.panel.clone();
     let config = window_tab_data.common.config;
     let dragging = window_tab_data.common.dragging;
-    let current_size = create_rw_signal(Size::ZERO);
-    let available_size = window_tab_data.panel.available_size;
     let position = container_position;
     stack((
-        drag_line(
-            container_position,
-            panel.clone(),
-            current_size,
-            available_size,
-            config,
-        ),
         {
             let panel = panel.clone();
-            new_panel_view(window_tab_data.clone(), position)
+            new_right_panel_view(window_tab_data.clone(), position)
                 .style(move |s| {
                     s.flex_grow(1.0).height_pct(100.0).apply_if(
                         !panel.is_position_shown(&position, true)
@@ -534,7 +519,6 @@ pub fn new_right_panel_container_view(
                         |s| s.hide(),
                     )
                 })
-                .on_resize(|x| {})
                 .debug_name("panel right view")
         },
         {
@@ -549,24 +533,24 @@ pub fn new_right_panel_container_view(
                 })
         },
     ))
-    .on_resize(move |rect| {
-        let size = rect.size();
-        if size != current_size.get_untracked() {
-            current_size.set(size);
-        }
-    })
+    // .on_resize(move |rect| {
+    //     let size = rect.size();
+    //     if size != current_size.get_untracked() {
+    //         current_size.set(size);
+    //     }
+    // })
     .style({
-        let panel = panel.clone();
+        // let panel = panel.clone();
         move |s| {
-            let size = panel.size.with(|s| match container_position {
-                PanelContainerPosition::Left => s.left,
-                PanelContainerPosition::Bottom => s.bottom,
-                PanelContainerPosition::Right => s.right,
-            });
+            // let size = panel.size.with(|s| match container_position {
+            //     PanelContainerPosition::Left => s.left,
+            //     PanelContainerPosition::Bottom => s.bottom,
+            //     PanelContainerPosition::Right => s.right,
+            // });
             let config = config.get();
             s.flex_row()
                 .border_right(1.0)
-                .width(size as f32)
+                // .width(size as f32)
                 .height_pct(100.0)
                 .background(config.color(LapceColor::PANEL_BACKGROUND))
                 .border_color(config.color(LapceColor::LAPCE_BORDER))
@@ -647,14 +631,14 @@ fn panel_view(
     })
 }
 
-fn new_panel_view(
+fn new_left_panel_view(
     window_tab_data: Rc<WindowTabData>,
     position: PanelContainerPosition,
 ) -> impl View {
     let panel = window_tab_data.panel.clone();
     let config = window_tab_data.common.config;
-    let current_size = create_rw_signal(Size::ZERO);
-    let available_size = window_tab_data.panel.available_size;
+    // let current_size = create_rw_signal(Size::ZERO);
+    // let available_size = window_tab_data.panel.available_size;
     let panels = move || {
         panel
             .panels
@@ -709,22 +693,84 @@ fn new_panel_view(
                 }
             },
         )
-        .style(|s| s.flex_grow(1.0)),
-        drag_line(
-            position,
-            panel.clone(),
-            current_size,
-            available_size,
-            config,
-        ),
+        .style(|s| s.flex_grow(1.0).height_pct(100.0)),
+        drag_line(position, panel.clone(), config).style(|s| s.height_pct(100.0)),
     ))
-    .on_resize(move |rect| {
-        let size = rect.size();
-        if size != current_size.get_untracked() {
-            current_size.set(size);
-        }
+    .style(move |s| {
+        let mut width = panel.size.get().left;
+        s.flex_row().width(width as f32)
     })
-    .style(|s| s.flex_col())
+}
+
+fn new_right_panel_view(
+    window_tab_data: Rc<WindowTabData>,
+    position: PanelContainerPosition,
+) -> impl View {
+    let panel = window_tab_data.panel.clone();
+    let config = window_tab_data.common.config;
+    // let current_size = create_rw_signal(Size::ZERO);
+    // let available_size = window_tab_data.panel.available_size;
+    let panels = move || {
+        panel
+            .panels
+            .with(|p| p.get(&position).cloned().unwrap_or_default())
+    };
+    let active_fn = move || {
+        panel
+            .styles
+            .with(|s| s.get(&position).map(|s| s.active).unwrap_or(0))
+    };
+    stack((
+        drag_line(position, panel.clone(), config).style(|s| s.height_pct(100.0)),
+        tab(
+            active_fn,
+            panels,
+            |p| *p,
+            move |kind| match kind {
+                PanelKind::Terminal => {
+                    terminal_panel(window_tab_data.clone()).into_any()
+                }
+                PanelKind::FileExplorer => {
+                    file_explorer_panel(window_tab_data.clone(), position).into_any()
+                }
+                PanelKind::SourceControl => {
+                    source_control_panel(window_tab_data.clone(), position)
+                        .into_any()
+                }
+                PanelKind::Plugin => {
+                    plugin_panel(window_tab_data.clone(), position).into_any()
+                }
+                PanelKind::Search => {
+                    global_search_panel(window_tab_data.clone(), position).into_any()
+                }
+                PanelKind::Problem => {
+                    problem_panel(window_tab_data.clone(), position).into_any()
+                }
+                PanelKind::Debug => {
+                    debug_panel(window_tab_data.clone(), position).into_any()
+                }
+                PanelKind::CallHierarchy => {
+                    show_hierarchy_panel(window_tab_data.clone(), position)
+                        .into_any()
+                }
+                PanelKind::DocumentSymbol => {
+                    symbol_panel(window_tab_data.clone(), position).into_any()
+                }
+                PanelKind::References => {
+                    references_panel(window_tab_data.clone(), position).into_any()
+                }
+                PanelKind::Implementation => {
+                    implementation_panel(window_tab_data.clone(), position)
+                        .into_any()
+                }
+            },
+        )
+        .style(|s| s.flex_grow(1.0).height_pct(100.0)),
+    ))
+    .style(move |s| {
+        let mut width = panel.size.get().right;
+        s.flex_row().width(width as f32)
+    })
 }
 
 pub fn panel_header(
@@ -840,12 +886,9 @@ fn panel_picker(
 fn drag_line(
     position: PanelContainerPosition,
     panel: PanelData,
-    current_size: RwSignal<Size>,
-    available_size: Memo<Size>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let panel_size = panel.size;
-    panel.panel_info();
     let view = empty();
     let view_id = view.id();
     let drag_start: RwSignal<Option<Point>> = create_rw_signal(None);
@@ -858,58 +901,46 @@ fn drag_line(
     .on_event_stop(EventListener::PointerMove, move |event| {
         if let Event::PointerMove(pointer_event) = event {
             if let Some(drag_start_point) = drag_start.get_untracked() {
-                let current_size = current_size.get_untracked();
-                let available_size = available_size.get_untracked();
+                tracing::info!("pos.x = {}", pointer_event.pos.x);
                 match position {
                     PanelContainerPosition::Left => {
-                        let new_size = current_size.width + pointer_event.pos.x
-                            - drag_start_point.x;
                         let current_panel_size = panel_size.get_untracked();
-                        let new_size = new_size
-                            .max(150.0)
-                            .min(available_size.width - 150.0 - 150.0);
+                        let new_size = pointer_event.pos.x + current_panel_size.left;
+                        let new_size = new_size.clamp(250.0, 500.0);
                         if new_size != current_panel_size.left {
                             panel_size.update(|size| {
                                 size.left = new_size;
-                                size.right = size
-                                    .right
-                                    .min(available_size.width - new_size - 150.0)
                             })
                         }
                     }
                     PanelContainerPosition::Bottom => {
-                        let new_size = current_size.height
-                            - (pointer_event.pos.y - drag_start_point.y);
-                        let maximized = panel.panel_bottom_maximized(false);
-                        if (maximized && new_size < available_size.height - 50.0)
-                            || (!maximized
-                                && new_size > available_size.height - 50.0)
-                        {
-                            panel.toggle_bottom_maximize();
-                        }
-
-                        let new_size =
-                            new_size.max(100.0).min(available_size.height - 100.0);
-                        let current_size = panel_size.with_untracked(|s| s.bottom);
-                        if current_size != new_size {
-                            panel_size.update(|size| {
-                                size.bottom = new_size;
-                            })
-                        }
+                        // let new_size = current_size.height
+                        //     - (pointer_event.pos.y - drag_start_point.y);
+                        // let maximized = panel.panel_bottom_maximized(false);
+                        // if (maximized && new_size < available_size.height - 50.0)
+                        //     || (!maximized
+                        //         && new_size > available_size.height - 50.0)
+                        // {
+                        //     panel.toggle_bottom_maximize();
+                        // }
+                        //
+                        // let new_size =
+                        //     new_size.max(100.0).min(available_size.height - 100.0);
+                        // let current_size = panel_size.with_untracked(|s| s.bottom);
+                        // if current_size != new_size {
+                        //     panel_size.update(|size| {
+                        //         size.bottom = new_size;
+                        //     })
+                        // }
                     }
                     PanelContainerPosition::Right => {
-                        let new_size = current_size.width
-                            - (pointer_event.pos.x - drag_start_point.x);
                         let current_panel_size = panel_size.get_untracked();
-                        let new_size = new_size
-                            .max(150.0)
-                            .min(available_size.width - 150.0 - 150.0);
+                        let new_size =
+                            current_panel_size.right - pointer_event.pos.x;
+                        let new_size = new_size.clamp(250.0, 500.0);
                         if new_size != current_panel_size.right {
                             panel_size.update(|size| {
                                 size.right = new_size;
-                                size.left = size
-                                    .left
-                                    .min(available_size.width - new_size - 150.0)
                             })
                         }
                     }
@@ -922,22 +953,16 @@ fn drag_line(
     })
     .style(move |s| {
         let is_dragging = drag_start.get().is_some();
-        let current_size = current_size.get();
         let config = config.get();
-        s.absolute()
-            .apply_if(position == PanelContainerPosition::Bottom, |s| {
-                s.width_pct(100.0).height(4.0).margin_top(-2.0)
-            })
-            .apply_if(position == PanelContainerPosition::Left, |s| {
-                s.width(4.0)
-                    .margin_left(current_size.width as f32 - 2.0)
-                    .height_pct(100.0)
-            })
-            .apply_if(position == PanelContainerPosition::Right, |s| {
-                s.width(4.0)
-                    .margin_right(current_size.width as f32 - 2.0)
-                    .height_pct(100.0)
-            })
+        s
+            // s.apply_if(position == PanelContainerPosition::Bottom, |s| {
+            //     s.width_pct(100.0).height(4.0).margin_top(-2.0)
+            // })
+            .apply_if(
+                position == PanelContainerPosition::Left
+                    || position == PanelContainerPosition::Right,
+                |s| s.width(4.0).height_pct(100.0),
+            )
             .apply_if(is_dragging, |s| {
                 s.background(config.color(LapceColor::EDITOR_CARET))
                     .apply_if(position == PanelContainerPosition::Bottom, |s| {
