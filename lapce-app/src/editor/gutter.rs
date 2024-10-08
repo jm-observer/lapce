@@ -1,3 +1,4 @@
+use floem::views::editor::view::ScreenLines;
 use floem::{
     context::PaintCx,
     peniko::kurbo::{Point, Rect, Size},
@@ -6,11 +7,13 @@ use floem::{
     Renderer, View, ViewId,
 };
 use im::HashMap;
-use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
 use serde::{Deserialize, Serialize};
 
-use super::{view::changes_colors_screen, EditorData};
+use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
+
 use crate::config::{color::LapceColor, LapceConfig};
+
+use super::{view::changes_colors_screen, EditorData};
 
 pub struct EditorGutterView {
     id: ViewId,
@@ -229,7 +232,7 @@ impl FoldingRanges {
 
         FoldedRanges(range)
     }
-    pub fn to_display_items(&self) -> Vec<FoldingDisplayItem> {
+    pub fn to_display_items(&self, lines: ScreenLines) -> Vec<FoldingDisplayItem> {
         let mut folded = HashMap::new();
         let mut unfold_start: HashMap<u32, FoldingDisplayItem> = HashMap::new();
         let mut unfold_end = HashMap::new();
@@ -240,21 +243,48 @@ impl FoldingRanges {
             }
             match item.status {
                 FoldingRangeStatus::Fold => {
-                    folded.insert(
-                        item.start.line,
-                        FoldingDisplayItem::Folded(item.start),
-                    );
+                    if let Some(line) = lines.info_for_line(item.start.line as usize)
+                    {
+                        folded.insert(
+                            item.start.line,
+                            FoldingDisplayItem {
+                                position: item.start,
+                                y: line.y as i32,
+                                ty: FoldingDisplayType::Folded,
+                            },
+                        );
+                    }
                     limit_line = item.end.line;
                 }
                 FoldingRangeStatus::Unfold => {
-                    unfold_start.insert(
-                        item.start.line,
-                        FoldingDisplayItem::UnfoldStart(item.start),
-                    );
-                    unfold_end.insert(
-                        item.end.line,
-                        FoldingDisplayItem::UnfoldEnd(item.end),
-                    );
+                    {
+                        if let Some(line) =
+                            lines.info_for_line(item.start.line as usize)
+                        {
+                            unfold_start.insert(
+                                item.start.line,
+                                FoldingDisplayItem {
+                                    position: item.start,
+                                    y: line.y as i32,
+                                    ty: FoldingDisplayType::UnfoldStart,
+                                },
+                            );
+                        }
+                    }
+                    {
+                        if let Some(line) =
+                            lines.info_for_line(item.end.line as usize)
+                        {
+                            unfold_end.insert(
+                                item.start.line,
+                                FoldingDisplayItem {
+                                    position: item.end,
+                                    y: line.y as i32,
+                                    ty: FoldingDisplayType::UnfoldEnd,
+                                },
+                            );
+                        }
+                    }
                     limit_line = 0;
                 }
             };
@@ -371,21 +401,24 @@ impl FoldingRangeStatus {
     }
 }
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub enum FoldingDisplayItem {
-    UnfoldStart(FoldingPosition),
-    Folded(FoldingPosition),
-    UnfoldEnd(FoldingPosition),
+pub struct FoldingDisplayItem {
+    pub position: FoldingPosition,
+    pub y: i32,
+    pub ty: FoldingDisplayType,
 }
 
-impl FoldingDisplayItem {
-    pub fn position(&self) -> FoldingPosition {
-        match self {
-            FoldingDisplayItem::UnfoldStart(x) => *x,
-            FoldingDisplayItem::Folded(x) => *x,
-            FoldingDisplayItem::UnfoldEnd(x) => *x,
-        }
-    }
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub enum FoldingDisplayType {
+    UnfoldStart,
+    Folded,
+    UnfoldEnd,
 }
+
+// impl FoldingDisplayItem {
+//     pub fn position(&self) -> FoldingPosition {
+//         self.position
+//     }
+// }
 
 #[derive(Debug, Eq, PartialEq, Deserialize, Serialize, Clone, Hash, Copy)]
 pub enum FoldingRangeKind {

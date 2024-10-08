@@ -39,6 +39,9 @@ use floem::{
     Renderer, View, ViewId,
 };
 use itertools::Itertools;
+use lapce_xi_rope::find::CaseMatching;
+use lsp_types::CodeLens;
+
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText, Buffer},
     cursor::{CursorAffinity, CursorMode},
@@ -48,10 +51,8 @@ use lapce_rpc::{
     dap_types::{DapId, SourceBreakpoint},
     plugin::PluginId,
 };
-use lapce_xi_rope::find::CaseMatching;
-use lsp_types::CodeLens;
 
-use super::{gutter::editor_gutter_view, DocSignal, EditorData};
+use crate::editor::gutter::FoldingDisplayType;
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
@@ -63,6 +64,8 @@ use crate::{
     window_tab::{CommonData, Focus, WindowTabData},
     workspace::LapceWorkspace,
 };
+
+use super::{gutter::editor_gutter_view, DocSignal, EditorData};
 
 #[derive(Clone, Debug, Default)]
 pub struct StickyHeaderInfo {
@@ -1630,17 +1633,16 @@ fn editor_gutter_code_lens_view(
 
 fn editor_gutter_folding_view(
     window_tab_data: Rc<WindowTabData>,
-    screen_lines: RwSignal<ScreenLines>,
     viewport: RwSignal<Rect>,
     folding_display_item: FoldingDisplayItem,
 ) -> impl View {
     let config = window_tab_data.common.config;
     let view = container(
         svg(move || {
-            let icon_str = match folding_display_item {
-                FoldingDisplayItem::UnfoldStart(_) => LapceIcons::FOLD_DOWN,
-                FoldingDisplayItem::Folded(_) => LapceIcons::FOLD,
-                FoldingDisplayItem::UnfoldEnd(_) => LapceIcons::FOLD_UP,
+            let icon_str = match folding_display_item.ty {
+                FoldingDisplayType::UnfoldStart => LapceIcons::FOLD_DOWN,
+                FoldingDisplayType::Folded => LapceIcons::FOLD,
+                FoldingDisplayType::UnfoldEnd => LapceIcons::FOLD_UP,
             };
             config.get().ui_svg(icon_str)
         })
@@ -1666,9 +1668,6 @@ fn editor_gutter_folding_view(
             })
     });
     container(view).style(move |s| {
-        let line = folding_display_item.position().line;
-        let line_info = screen_lines.with(|s| s.info_for_line(line as usize));
-        let line_y = line_info.clone().map(|l| l.y).unwrap_or(-100.0);
         let rect = viewport.get();
         let config = config.get();
         let icon_size = config.ui.icon_size();
@@ -1678,7 +1677,7 @@ fn editor_gutter_folding_view(
             .height(config.editor.line_height() as f32)
             .justify_center()
             .items_center()
-            .margin_top(line_y as f32 - rect.y0 as f32)
+            .margin_top(folding_display_item.y as f32 - rect.y0 as f32)
     })
 }
 
@@ -1728,45 +1727,47 @@ fn editor_gutter_folding_range(
     let config = window_tab_data.common.config;
     let doc_clone = doc;
     dyn_stack(
-        move || doc.get().folding_ranges.get().to_display_items(),
+        move || {
+            doc.get()
+                .folding_ranges
+                .get()
+                .to_display_items(screen_lines.get())
+        },
         move |item| *item,
         move |item| {
-            editor_gutter_folding_view(
-                window_tab_data.clone(),
-                screen_lines,
-                viewport,
-                item,
-            )
-            .on_click_stop({
-                let value = doc_clone;
-                move |_| {
-                    value.get_untracked().folding_ranges.update(|x| match item {
-                        FoldingDisplayItem::UnfoldStart(pos)
-                        | FoldingDisplayItem::Folded(pos) => {
-                            x.0.iter_mut().find_map(|mut range| {
-                                let range = range.deref_mut();
-                                if range.start == pos {
-                                    range.status.click();
-                                    Some(())
-                                } else {
-                                    None
+            editor_gutter_folding_view(window_tab_data.clone(), viewport, item)
+                .on_click_stop({
+                    let value = doc_clone;
+                    move |_| {
+                        value.get_untracked().folding_ranges.update(|x| {
+                            match item.ty {
+                                FoldingDisplayType::UnfoldStart
+                                | FoldingDisplayType::Folded => {
+                                    x.0.iter_mut().find_map(|mut range| {
+                                        let range = range.deref_mut();
+                                        if range.start == item.position {
+                                            range.status.click();
+                                            Some(())
+                                        } else {
+                                            None
+                                        }
+                                    });
                                 }
-                            });
-                        }
-                        FoldingDisplayItem::UnfoldEnd(pos) => {
-                            x.0.iter_mut().find_map(|mut range| {
-                                let range = range.deref_mut();
-                                if range.end == pos {
-                                    range.status.click();
-                                    Some(())
-                                } else {
-                                    None
+                                FoldingDisplayType::UnfoldEnd => {
+                                    x.0.iter_mut().find_map(|mut range| {
+                                        let range = range.deref_mut();
+                                        if range.end == item.position {
+                                            range.status.click();
+                                            Some(())
+                                        } else {
+                                            None
+                                        }
+                                    });
                                 }
-                            });
-                        }
-                    })
-                }
-            })
+                            }
+                        })
+                    }
+                })
         },
     )
     .style(move |s| {
