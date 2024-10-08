@@ -3530,8 +3530,13 @@ pub(crate) fn compute_screen_lines(
     let (y0, y1) = base
         .with_untracked(|base| (base.active_viewport.y0, base.active_viewport.y1));
     // Get the start and end (visual) lines that are visible in the viewport
-    let min_vline = VLine((y0 / line_height as f64).floor() as usize);
-    let max_vline = VLine((y1 / line_height as f64).ceil() as usize);
+    let min_val = (y0 / line_height as f64).floor() as usize;
+    let min_vline = VLine(min_val);
+    let mut max_val = (y1 / line_height as f64).floor() as usize;
+    if max_val.saturating_sub(line_height) > min_val {
+        max_val = max_val.saturating_sub(line_height);
+    }
+    let max_vline = VLine(max_val);
 
     let cache_rev = doc.cache_rev.get();
     lines.check_cache_rev(cache_rev);
