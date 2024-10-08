@@ -19,7 +19,8 @@ use lapce_rpc::{
     terminal::TermId,
 };
 
-use super::{data::PanelSection, position::PanelPosition, view::PanelBuilder};
+use super::{data::PanelSection, view::PanelBuilder};
+use crate::panel::position::PanelContainerPosition;
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
@@ -34,7 +35,7 @@ use crate::{
 
 pub fn debug_panel(
     window_tab_data: Rc<WindowTabData>,
-    position: PanelPosition,
+    position: PanelContainerPosition,
 ) -> impl View {
     let config = window_tab_data.common.config;
     let terminal = window_tab_data.terminal.clone();

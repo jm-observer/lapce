@@ -11,7 +11,7 @@ use floem::{
 };
 use lsp_types::{CallHierarchyItem, Range};
 
-use super::position::PanelPosition;
+use crate::panel::position::PanelContainerPosition;
 use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons},
@@ -124,7 +124,7 @@ impl VirtualVector<(usize, usize, RwSignal<CallHierarchyItemData>)> for VirtualL
 }
 pub fn show_hierarchy_panel(
     window_tab_data: Rc<WindowTabData>,
-    _position: PanelPosition,
+    _position: PanelContainerPosition,
 ) -> impl View {
     let call_hierarchy_data = window_tab_data.call_hierarchy_data.clone();
     let config = call_hierarchy_data.common.config;

@@ -63,7 +63,9 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use tracing_subscriber::{filter::Targets, reload::Handle};
 
-use crate::panel::view::new_left_panel_container_view;
+use crate::panel::view::{
+    new_left_panel_container_view, new_right_panel_container_view,
+};
 use crate::{
     about, alert,
     code_action::CodeActionStatus,
@@ -96,7 +98,7 @@ use crate::{
         item::{PaletteItem, PaletteItemContent},
         PaletteStatus,
     },
-    panel::{position::PanelContainerPosition, view::panel_container_view},
+    panel::position::PanelContainerPosition,
     plugin::{plugin_info_view, PluginData},
     settings::{settings_view, theme_color_settings_view},
     status::status,
@@ -2126,10 +2128,10 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
             let window_tab_data = window_tab_data.clone();
             stack((
                 main_split(window_tab_data.clone()),
-                panel_container_view(
-                    window_tab_data,
-                    PanelContainerPosition::Bottom,
-                ),
+                // panel_container_view(
+                //     window_tab_data,
+                //     PanelContainerPosition::Bottom,
+                // ),
             ))
             .on_resize(move |rect| {
                 let width = rect.size().width;
@@ -2139,7 +2141,11 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
             })
             .style(|s| s.flex_col().flex_grow(1.0))
         },
-        panel_container_view(window_tab_data.clone(), PanelContainerPosition::Right),
+        new_right_panel_container_view(
+            window_tab_data.clone(),
+            PanelContainerPosition::Right,
+        ),
+        // panel_container_view(window_tab_data.clone(), PanelContainerPosition::Right),
         window_message_view(window_tab_data.messages, window_tab_data.common.config),
     ))
     .on_resize(move |rect| {

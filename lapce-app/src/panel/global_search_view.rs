@@ -12,7 +12,8 @@ use floem::{
 };
 use lapce_xi_rope::find::CaseMatching;
 
-use super::{kind::PanelKind, position::PanelPosition};
+use super::kind::PanelKind;
+use crate::panel::position::PanelContainerPosition;
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
@@ -28,7 +29,7 @@ use crate::{
 
 pub fn global_search_panel(
     window_tab_data: Rc<WindowTabData>,
-    _position: PanelPosition,
+    _position: PanelContainerPosition,
 ) -> impl View {
     let global_search = window_tab_data.global_search.clone();
     let editor = global_search.editor.clone();

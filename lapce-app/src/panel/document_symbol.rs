@@ -13,7 +13,7 @@ use floem::{
 };
 use lsp_types::{DocumentSymbol, Position, Range, SymbolKind};
 
-use super::position::PanelPosition;
+use crate::panel::position::PanelContainerPosition;
 use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons},
@@ -292,7 +292,7 @@ impl
 
 pub fn symbol_panel(
     window_tab_data: Rc<WindowTabData>,
-    _position: PanelPosition,
+    _position: PanelContainerPosition,
 ) -> impl View {
     let config = window_tab_data.common.config;
     let ui_line_height = window_tab_data.common.ui_line_height;

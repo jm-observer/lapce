@@ -19,9 +19,8 @@ use lapce_rpc::{
     plugin::{VoltID, VoltInfo},
 };
 
-use super::{
-    data::PanelSection, kind::PanelKind, position::PanelPosition, view::PanelBuilder,
-};
+use super::{data::PanelSection, kind::PanelKind, view::PanelBuilder};
+use crate::panel::position::PanelContainerPosition;
 use crate::{
     app::not_clickable_icon,
     command::InternalCommand,
@@ -67,7 +66,7 @@ impl<K: Clone + 'static, V: Clone + 'static> VirtualVector<(usize, K, V)>
 
 pub fn plugin_panel(
     window_tab_data: Rc<WindowTabData>,
-    position: PanelPosition,
+    position: PanelContainerPosition,
 ) -> impl View {
     let config = window_tab_data.common.config;
     let plugin = window_tab_data.plugin.clone();

@@ -23,15 +23,13 @@ use lapce_rpc::{
 use lapce_xi_rope::Rope;
 
 use super::{data::FileExplorerData, node::FileNodeVirtualList};
+use crate::panel::position::PanelContainerPosition;
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     editor_tab::{EditorTabChild, EditorTabData},
-    panel::{
-        data::PanelSection, kind::PanelKind, position::PanelPosition,
-        view::PanelBuilder,
-    },
+    panel::{data::PanelSection, kind::PanelKind, view::PanelBuilder},
     plugin::PluginData,
     source_control::SourceControlData,
     text_input::TextInputBuilder,
@@ -73,7 +71,7 @@ fn blend_colors(background: Color, foreground: Color) -> Color {
 
 pub fn file_explorer_panel(
     window_tab_data: Rc<WindowTabData>,
-    position: PanelPosition,
+    position: PanelContainerPosition,
 ) -> impl View {
     let config = window_tab_data.common.config;
     let data = window_tab_data.file_explorer.clone();

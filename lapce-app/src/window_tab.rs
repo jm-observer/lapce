@@ -2743,34 +2743,17 @@ impl WindowTabData {
     /// Toggle a panel on one of the sides.
     fn toggle_container_visual(&self, position: &PanelContainerPosition) {
         let shown = !self.panel.is_container_shown(position, false);
-        self.panel.set_shown(&position.first(), shown);
-        self.panel.set_shown(&position.second(), shown);
+        self.panel.set_shown(&position, shown);
 
         if shown {
-            if let Some((kind, _)) = self
-                .panel
-                .active_panel_at_position(&position.second(), false)
-            {
-                self.show_panel(kind);
-            }
-
-            if let Some((kind, _)) = self
-                .panel
-                .active_panel_at_position(&position.first(), false)
+            if let Some((kind, _)) =
+                self.panel.active_panel_at_position(&position, false)
             {
                 self.show_panel(kind);
             }
         } else {
-            if let Some((kind, _)) = self
-                .panel
-                .active_panel_at_position(&position.second(), false)
-            {
-                self.hide_panel(kind);
-            }
-
-            if let Some((kind, _)) = self
-                .panel
-                .active_panel_at_position(&position.first(), false)
+            if let Some((kind, _)) =
+                self.panel.active_panel_at_position(&position, false)
             {
                 self.hide_panel(kind);
             }

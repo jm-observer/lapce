@@ -8,22 +8,18 @@ use floem::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{
-    kind::PanelKind,
-    position::{PanelContainerPosition, PanelPosition},
-    style::PanelStyle,
-};
+use super::{kind::PanelKind, position::PanelContainerPosition, style::PanelStyle};
 use crate::{
     db::LapceDb,
     window_tab::{CommonData, Focus},
 };
 
-pub type PanelOrder = im::HashMap<PanelPosition, im::Vector<PanelKind>>;
+pub type PanelOrder = im::HashMap<PanelContainerPosition, im::Vector<PanelKind>>;
 
 pub fn default_panel_order() -> PanelOrder {
     let mut order = PanelOrder::new();
     order.insert(
-        PanelPosition::LeftTop,
+        PanelContainerPosition::Left,
         im::vector![
             PanelKind::FileExplorer,
             PanelKind::Plugin,
@@ -32,7 +28,7 @@ pub fn default_panel_order() -> PanelOrder {
         ],
     );
     order.insert(
-        PanelPosition::BottomLeft,
+        PanelContainerPosition::Bottom,
         im::vector![
             PanelKind::Terminal,
             PanelKind::Search,
@@ -43,7 +39,7 @@ pub fn default_panel_order() -> PanelOrder {
         ],
     );
     order.insert(
-        PanelPosition::RightTop,
+        PanelContainerPosition::Right,
         im::vector![PanelKind::DocumentSymbol,],
     );
 
@@ -78,7 +74,7 @@ pub struct PanelSize {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PanelInfo {
     pub panels: PanelOrder,
-    pub styles: im::HashMap<PanelPosition, PanelStyle>,
+    pub styles: im::HashMap<PanelContainerPosition, PanelStyle>,
     pub size: PanelSize,
     pub sections: im::HashMap<PanelSection, bool>,
 }
@@ -86,7 +82,7 @@ pub struct PanelInfo {
 #[derive(Clone)]
 pub struct PanelData {
     pub panels: RwSignal<PanelOrder>,
-    pub styles: RwSignal<im::HashMap<PanelPosition, PanelStyle>>,
+    pub styles: RwSignal<im::HashMap<PanelContainerPosition, PanelStyle>>,
     pub size: RwSignal<PanelSize>,
     pub available_size: Memo<Size>,
     pub sections: RwSignal<im::HashMap<PanelSection, RwSignal<bool>>>,
@@ -96,7 +92,7 @@ pub struct PanelData {
 impl PanelData {
     pub fn new(
         cx: Scope,
-        panels: im::HashMap<PanelPosition, im::Vector<PanelKind>>,
+        panels: im::HashMap<PanelContainerPosition, im::Vector<PanelKind>>,
         available_size: Memo<Size>,
         sections: im::HashMap<PanelSection, bool>,
         common: Rc<CommonData>,
@@ -105,7 +101,7 @@ impl PanelData {
 
         let mut styles = im::HashMap::new();
         styles.insert(
-            PanelPosition::LeftTop,
+            PanelContainerPosition::Left,
             PanelStyle {
                 active: 0,
                 shown: true,
@@ -113,15 +109,7 @@ impl PanelData {
             },
         );
         styles.insert(
-            PanelPosition::LeftBottom,
-            PanelStyle {
-                active: 0,
-                shown: false,
-                maximized: false,
-            },
-        );
-        styles.insert(
-            PanelPosition::BottomLeft,
+            PanelContainerPosition::Bottom,
             PanelStyle {
                 active: 0,
                 shown: true,
@@ -129,23 +117,7 @@ impl PanelData {
             },
         );
         styles.insert(
-            PanelPosition::BottomRight,
-            PanelStyle {
-                active: 0,
-                shown: false,
-                maximized: false,
-            },
-        );
-        styles.insert(
-            PanelPosition::RightTop,
-            PanelStyle {
-                active: 0,
-                shown: false,
-                maximized: false,
-            },
-        );
-        styles.insert(
-            PanelPosition::RightBottom,
+            PanelContainerPosition::Right,
             PanelStyle {
                 active: 0,
                 shown: false,
@@ -197,13 +169,12 @@ impl PanelData {
         position: &PanelContainerPosition,
         tracked: bool,
     ) -> bool {
-        self.is_position_shown(&position.first(), tracked)
-            || self.is_position_shown(&position.second(), tracked)
+        self.is_position_shown(&position, tracked)
     }
 
     pub fn is_position_empty(
         &self,
-        position: &PanelPosition,
+        position: &PanelContainerPosition,
         tracked: bool,
     ) -> bool {
         if tracked {
@@ -219,7 +190,7 @@ impl PanelData {
 
     pub fn is_position_shown(
         &self,
-        position: &PanelPosition,
+        position: &PanelContainerPosition,
         tracked: bool,
     ) -> bool {
         let styles = if tracked {
@@ -233,7 +204,7 @@ impl PanelData {
     pub fn panel_position(
         &self,
         kind: &PanelKind,
-    ) -> Option<(usize, PanelPosition)> {
+    ) -> Option<(usize, PanelContainerPosition)> {
         self.panels
             .with_untracked(|panels| panel_position(panels, kind))
     }
@@ -268,15 +239,15 @@ impl PanelData {
             {
                 if &active_panel == kind {
                     self.set_shown(&position, false);
-                    let peer_position = position.peer();
-                    if let Some(order) = self
-                        .panels
-                        .with_untracked(|panels| panels.get(&peer_position).cloned())
-                    {
-                        if order.is_empty() {
-                            self.set_shown(&peer_position, false);
-                        }
-                    }
+                    // let peer_position = position.peer();
+                    // if let Some(order) = self
+                    //     .panels
+                    //     .with_untracked(|panels| panels.get(&peer_position).cloned())
+                    // {
+                    //     if order.is_empty() {
+                    //         self.set_shown(&peer_position, false);
+                    //     }
+                    // }
                 }
             }
         }
@@ -286,7 +257,7 @@ impl PanelData {
     /// `tracked` decides whether it should track the signal or not.
     pub fn active_panel_at_position(
         &self,
-        position: &PanelPosition,
+        position: &PanelContainerPosition,
         tracked: bool,
     ) -> Option<(PanelKind, bool)> {
         let style = if tracked {
@@ -308,7 +279,7 @@ impl PanelData {
             .map(|p| (p, style.shown))
     }
 
-    pub fn set_shown(&self, position: &PanelPosition, shown: bool) {
+    pub fn set_shown(&self, position: &PanelContainerPosition, shown: bool) {
         self.styles.update(|styles| {
             if let Some(style) = styles.get_mut(position) {
                 style.shown = shown;
@@ -338,10 +309,7 @@ impl PanelData {
     pub fn toggle_bottom_maximize(&self) {
         let maximized = !self.panel_bottom_maximized(false);
         self.styles.update(|styles| {
-            if let Some(style) = styles.get_mut(&PanelPosition::BottomLeft) {
-                style.maximized = maximized;
-            }
-            if let Some(style) = styles.get_mut(&PanelPosition::BottomRight) {
+            if let Some(style) = styles.get_mut(&PanelContainerPosition::Bottom) {
                 style.maximized = maximized;
             }
         });
@@ -354,45 +322,35 @@ impl PanelData {
             self.styles.get_untracked()
         };
         styles
-            .get(&PanelPosition::BottomLeft)
+            .get(&PanelContainerPosition::Bottom)
             .map(|p| p.maximized)
             .unwrap_or(false)
-            || styles
-                .get(&PanelPosition::BottomRight)
-                .map(|p| p.maximized)
-                .unwrap_or(false)
     }
 
     pub fn toggle_container_visual(&self, position: &PanelContainerPosition) {
         let is_hidden = !self.is_container_shown(position, false);
         if is_hidden {
             self.styles.update(|styles| {
-                let style = styles.entry(position.first()).or_default();
-                style.shown = true;
-                let style = styles.entry(position.second()).or_default();
+                let style = styles.entry(*position).or_default();
                 style.shown = true;
             });
         } else {
-            if let Some((kind, _)) =
-                self.active_panel_at_position(&position.second(), false)
-            {
-                self.hide_panel(&kind);
-            }
-            if let Some((kind, _)) =
-                self.active_panel_at_position(&position.first(), false)
+            if let Some((kind, _)) = self.active_panel_at_position(&position, false)
             {
                 self.hide_panel(&kind);
             }
             self.styles.update(|styles| {
-                let style = styles.entry(position.first()).or_default();
-                style.shown = false;
-                let style = styles.entry(position.second()).or_default();
+                let style = styles.entry(*position).or_default();
                 style.shown = false;
             });
         }
     }
 
-    pub fn move_panel_to_position(&self, kind: PanelKind, position: &PanelPosition) {
+    pub fn move_panel_to_position(
+        &self,
+        kind: PanelKind,
+        position: &PanelContainerPosition,
+    ) {
         let current_position = self.panel_position(&kind);
         if current_position.as_ref().map(|(_, pos)| pos) == Some(position) {
             return;
@@ -453,7 +411,7 @@ impl PanelData {
 pub fn panel_position(
     order: &PanelOrder,
     kind: &PanelKind,
-) -> Option<(usize, PanelPosition)> {
+) -> Option<(usize, PanelContainerPosition)> {
     for (pos, panels) in order.iter() {
         let index = panels.iter().position(|k| k == kind);
         if let Some(index) = index {

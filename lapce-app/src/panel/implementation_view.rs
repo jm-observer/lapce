@@ -14,7 +14,7 @@ use itertools::Itertools;
 use lapce_rpc::file_line::FileLine;
 use lsp_types::{request::GotoImplementationResponse, Location, SymbolKind};
 
-use super::position::PanelPosition;
+use crate::panel::position::PanelContainerPosition;
 use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons},
@@ -24,7 +24,7 @@ use crate::{
 
 pub fn implementation_panel(
     window_tab_data: Rc<WindowTabData>,
-    _position: PanelPosition,
+    _position: PanelContainerPosition,
 ) -> impl View {
     common_reference_panel(window_tab_data.clone(), _position, move || {
         window_tab_data.main_split.implementations.get()
@@ -33,7 +33,7 @@ pub fn implementation_panel(
 }
 pub fn common_reference_panel(
     window_tab_data: Rc<WindowTabData>,
-    _position: PanelPosition,
+    _position: PanelContainerPosition,
     each_fn: impl Fn() -> ReferencesRoot + 'static,
 ) -> impl View {
     let config = window_tab_data.common.config;

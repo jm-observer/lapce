@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
-use super::{data::PanelOrder, position::PanelPosition};
+use super::data::PanelOrder;
 use crate::config::icon::LapceIcons;
+use crate::panel::position::PanelContainerPosition;
 
 #[derive(
     Clone, Copy, PartialEq, Serialize, Deserialize, Hash, Eq, Debug, EnumIter,
@@ -38,7 +39,10 @@ impl PanelKind {
         }
     }
 
-    pub fn position(&self, order: &PanelOrder) -> Option<(usize, PanelPosition)> {
+    pub fn position(
+        &self,
+        order: &PanelOrder,
+    ) -> Option<(usize, PanelContainerPosition)> {
         for (pos, panels) in order.iter() {
             let index = panels.iter().position(|k| k == self);
             if let Some(index) = index {
@@ -48,19 +52,19 @@ impl PanelKind {
         None
     }
 
-    pub fn default_position(&self) -> PanelPosition {
+    pub fn default_position(&self) -> PanelContainerPosition {
         match self {
-            PanelKind::Terminal => PanelPosition::BottomLeft,
-            PanelKind::FileExplorer => PanelPosition::LeftTop,
-            PanelKind::SourceControl => PanelPosition::LeftTop,
-            PanelKind::Plugin => PanelPosition::LeftTop,
-            PanelKind::Search => PanelPosition::BottomLeft,
-            PanelKind::Problem => PanelPosition::BottomLeft,
-            PanelKind::Debug => PanelPosition::LeftTop,
-            PanelKind::CallHierarchy => PanelPosition::BottomLeft,
-            PanelKind::DocumentSymbol => PanelPosition::RightTop,
-            PanelKind::References => PanelPosition::BottomLeft,
-            PanelKind::Implementation => PanelPosition::BottomLeft,
+            PanelKind::Terminal => PanelContainerPosition::Bottom,
+            PanelKind::FileExplorer => PanelContainerPosition::Left,
+            PanelKind::SourceControl => PanelContainerPosition::Left,
+            PanelKind::Plugin => PanelContainerPosition::Left,
+            PanelKind::Search => PanelContainerPosition::Bottom,
+            PanelKind::Problem => PanelContainerPosition::Bottom,
+            PanelKind::Debug => PanelContainerPosition::Left,
+            PanelKind::CallHierarchy => PanelContainerPosition::Bottom,
+            PanelKind::DocumentSymbol => PanelContainerPosition::Right,
+            PanelKind::References => PanelContainerPosition::Bottom,
+            PanelKind::Implementation => PanelContainerPosition::Bottom,
         }
     }
 

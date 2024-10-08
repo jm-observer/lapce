@@ -12,7 +12,8 @@ use floem::{
 };
 use lsp_types::{DiagnosticRelatedInformation, DiagnosticSeverity};
 
-use super::{data::PanelSection, position::PanelPosition, view::PanelBuilder};
+use super::{data::PanelSection, view::PanelBuilder};
+use crate::panel::position::PanelContainerPosition;
 use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
@@ -26,7 +27,7 @@ use crate::{
 
 pub fn problem_panel(
     window_tab_data: Rc<WindowTabData>,
-    position: PanelPosition,
+    position: PanelContainerPosition,
 ) -> impl View {
     let config = window_tab_data.common.config;
     let is_bottom = position.is_bottom();

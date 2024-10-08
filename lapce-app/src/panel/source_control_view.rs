@@ -17,10 +17,8 @@ use floem::{
 use lapce_core::buffer::rope_text::RopeText;
 use lapce_rpc::source_control::FileDiff;
 
-use super::{
-    data::PanelSection, kind::PanelKind, position::PanelPosition,
-    view::foldable_panel_section,
-};
+use super::{data::PanelSection, kind::PanelKind, view::foldable_panel_section};
+use crate::panel::position::PanelContainerPosition;
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand},
     config::{color::LapceColor, icon::LapceIcons},
@@ -32,7 +30,7 @@ use crate::{
 
 pub fn source_control_panel(
     window_tab_data: Rc<WindowTabData>,
-    _position: PanelPosition,
+    _position: PanelContainerPosition,
 ) -> impl View {
     let config = window_tab_data.common.config;
     let source_control = window_tab_data.source_control.clone();
