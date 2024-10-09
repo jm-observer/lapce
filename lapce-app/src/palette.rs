@@ -1,3 +1,4 @@
+use std::time::SystemTime;
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -110,6 +111,8 @@ pub struct PaletteData {
     pub common: Rc<CommonData>,
     left_diff_path: RwSignal<Option<PathBuf>>,
     pub workspace_document_id: RwSignal<Option<u64>>,
+    pub document_symbol:
+        RwSignal<Option<(PathBuf, im::Vector<PaletteItem>, SystemTime)>>,
 }
 
 impl std::fmt::Debug for PaletteData {
@@ -242,6 +245,7 @@ impl PaletteData {
             common,
             left_diff_path,
             workspace_document_id: cx.create_rw_signal(None),
+            document_symbol: cx.create_rw_signal(None),
         };
 
         {
@@ -698,11 +702,28 @@ impl PaletteData {
                 return;
             }
         };
+        if let Some((old, items, time)) = self.document_symbol.get_untracked() {
+            if old == path
+                && time.elapsed().map(|x| x.as_secs() < 60).unwrap_or_default()
+            {
+                self.items.set(items.clone());
+                return;
+            } else {
+                self.document_symbol.set(None);
+            }
+        }
 
         let set_items = self.items.write_only();
+        let doc_path = path.clone();
+        let document_symbol = self.document_symbol;
         let send = create_ext_action(self.common.scope, move |result| {
             if let Ok(ProxyResponse::GetDocumentSymbols { resp }) = result {
                 let items = Self::format_document_symbol_resp(resp);
+                document_symbol.set(Some((
+                    doc_path,
+                    items.clone(),
+                    SystemTime::now(),
+                )));
                 set_items.set(items);
             } else {
                 set_items.update(|items| items.clear());
