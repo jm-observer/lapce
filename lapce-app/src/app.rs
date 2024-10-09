@@ -568,7 +568,12 @@ impl AppData {
                     )
                 }),
             ))
-            .style(|s| s.flex_col().size_full());
+            .style(move |s| {
+                s.flex_col()
+                    .size_full()
+                    .border(1.0)
+                    .border_color(config.get().color(LapceColor::LAPCE_BORDER))
+            });
         let view_id = view.id();
         app_view_id.set(view_id);
 
@@ -1987,7 +1992,7 @@ fn main_split(window_tab_data: Rc<WindowTabData>) -> impl View {
             .apply_if(is_hidden, |s| s.display(Display::None))
             .width_full()
             .flex_grow(1.0)
-            .flex_basis(0.0)
+        // .flex_basis(0.0)
     })
     .debug_name("Main Split")
 }
@@ -2121,17 +2126,17 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
     let workbench_size = window_tab_data.common.workbench_size;
     let main_split_width = window_tab_data.main_split.width;
     stack((
-        new_left_panel_container_view(
-            window_tab_data.clone(),
-            PanelContainerPosition::Left,
-        ),
         {
             let window_tab_data = window_tab_data.clone();
             stack((
+                new_left_panel_container_view(
+                    window_tab_data.clone(),
+                    PanelContainerPosition::Left,
+                ),
                 main_split(window_tab_data.clone()),
-                new_bottom_panel_container_view(
-                    window_tab_data,
-                    PanelContainerPosition::Bottom,
+                new_right_panel_container_view(
+                    window_tab_data.clone(),
+                    PanelContainerPosition::Right,
                 ),
             ))
             .on_resize(move |rect| {
@@ -2140,11 +2145,11 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
                     main_split_width.set(width);
                 }
             })
-            .style(|s| s.flex_col().flex_grow(1.0))
+            .style(|s| s.flex_row().flex_grow(1.0))
         },
-        new_right_panel_container_view(
+        new_bottom_panel_container_view(
             window_tab_data.clone(),
-            PanelContainerPosition::Right,
+            PanelContainerPosition::Bottom,
         ),
         // panel_container_view(window_tab_data.clone(), PanelContainerPosition::Right),
         window_message_view(window_tab_data.messages, window_tab_data.common.config),
@@ -2155,7 +2160,7 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
             workbench_size.set(size);
         }
     })
-    .style(move |s| s.size_full())
+    .style(move |s| s.size_full().flex_col())
     .debug_name("Workbench")
 }
 

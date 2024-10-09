@@ -58,6 +58,14 @@ impl PanelContainerPosition {
         matches!(self, PanelContainerPosition::Bottom)
     }
 
+    pub fn is_right(&self) -> bool {
+        matches!(self, PanelContainerPosition::Right)
+    }
+
+    pub fn is_left(&self) -> bool {
+        matches!(self, PanelContainerPosition::Left)
+    }
+
     // pub fn first(&self) -> PanelPosition {
     //     match self {
     //         PanelContainerPosition::Left => PanelPosition::LeftTop,
