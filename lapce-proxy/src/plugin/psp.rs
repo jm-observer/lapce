@@ -63,42 +63,45 @@ use super::{
 };
 
 pub enum ResponseHandler<Resp, Error> {
-    Chan(Sender<Result<Resp, Error>>),
+    Chan(Sender<(Id, Result<Resp, Error>)>),
     Callback(Box<dyn RpcCallback<Resp, Error>>),
 }
 
 impl<Resp, Error> ResponseHandler<Resp, Error> {
-    pub fn invoke(self, result: Result<Resp, Error>) {
+    pub fn invoke(self, id: Id, result: Result<Resp, Error>) {
         match self {
             ResponseHandler::Chan(tx) => {
-                if let Err(err) = tx.send(result) {
+                if let Err(err) = tx.send((id, result)) {
                     tracing::error!("{:?}", err);
                 }
             }
-            ResponseHandler::Callback(f) => f.call(result),
+            ResponseHandler::Callback(f) => f.call(id, result),
         }
     }
 }
 
 pub trait ClonableCallback<Resp, Error>:
-    FnOnce(PluginId, Result<Resp, Error>) + Send + DynClone
+    FnOnce(Id, PluginId, Result<Resp, Error>) + Send + DynClone
 {
 }
 
-impl<Resp, Error, F: Send + FnOnce(PluginId, Result<Resp, Error>) + DynClone>
-    ClonableCallback<Resp, Error> for F
+impl<
+        Resp,
+        Error,
+        F: Send + FnOnce(Id, PluginId, Result<Resp, Error>) + DynClone,
+    > ClonableCallback<Resp, Error> for F
 {
 }
 
 pub trait RpcCallback<Resp, Error>: Send {
-    fn call(self: Box<Self>, result: Result<Resp, Error>);
+    fn call(self: Box<Self>, id: Id, result: Result<Resp, Error>);
 }
 
-impl<Resp, Error, F: Send + FnOnce(Result<Resp, Error>)> RpcCallback<Resp, Error>
+impl<Resp, Error, F: Send + FnOnce(Id, Result<Resp, Error>)> RpcCallback<Resp, Error>
     for F
 {
-    fn call(self: Box<F>, result: Result<Resp, Error>) {
-        (*self)(result)
+    fn call(self: Box<F>, id: Id, result: Result<Resp, Error>) {
+        (*self)(id, result)
     }
 }
 
@@ -158,6 +161,7 @@ pub enum PluginServerRpc {
         >,
     },
     FormatSemanticTokens {
+        id: u64,
         tokens: SemanticTokens,
         text: Rope,
         f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
@@ -257,6 +261,7 @@ pub trait PluginServerHandler {
     );
     fn format_semantic_tokens(
         &self,
+        id: u64,
         tokens: SemanticTokens,
         text: Rope,
         f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
@@ -377,12 +382,12 @@ impl PluginServerRpcHandler {
             id,
             ResponseHandler::Chan(tx),
         );
-        rx.recv().unwrap_or_else(|_| {
-            Err(RpcError {
+        rx.recv()
+            .map_err(|_| RpcError {
                 code: 0,
                 message: "io error".to_string(),
-            })
-        })
+            })?
+            .1
     }
     #[allow(clippy::too_many_arguments)]
     pub fn server_request_async<P: Serialize>(
@@ -436,7 +441,7 @@ impl PluginServerRpcHandler {
 
     pub fn handle_server_response(&self, id: Id, result: Result<Value, RpcError>) {
         if let Some(handler) = { self.server_pending.lock().remove(&id) } {
-            handler.invoke(result);
+            handler.invoke(id, result);
         }
     }
 
@@ -469,10 +474,13 @@ impl PluginServerRpcHandler {
                     {
                         self.send_server_request(id, &method, params, rh);
                     } else {
-                        rh.invoke(Err(RpcError {
-                            code: 0,
-                            message: "server not capable".to_string(),
-                        }));
+                        rh.invoke(
+                            id,
+                            Err(RpcError {
+                                code: 0,
+                                message: "server not capable".to_string(),
+                            }),
+                        );
                     }
                 }
                 PluginServerRpc::ServerNotification {
@@ -533,8 +541,13 @@ impl PluginServerRpcHandler {
                         change,
                     );
                 }
-                PluginServerRpc::FormatSemanticTokens { tokens, text, f } => {
-                    handler.format_semantic_tokens(tokens, text, f);
+                PluginServerRpc::FormatSemanticTokens {
+                    id,
+                    tokens,
+                    text,
+                    f,
+                } => {
+                    handler.format_semantic_tokens(id, tokens, text, f);
                 }
                 PluginServerRpc::Handler(notification) => {
                     handler.handle_handler_notification(notification)
@@ -1069,7 +1082,7 @@ impl PluginHostHandler {
                     None,
                     false,
                     lsp_id,
-                    move |_, res| {
+                    move |_, _, res| {
                         // We just directly send it back to the plugin that requested this
                         match res {
                             Ok(res) => {
@@ -1296,6 +1309,7 @@ impl PluginHostHandler {
 
     pub fn format_semantic_tokens(
         &self,
+        id: u64,
         tokens: SemanticTokens,
         text: Rope,
         f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
@@ -1309,7 +1323,7 @@ impl PluginHostHandler {
             code: 0,
             message: "can't get styles".to_string(),
         });
-        f.call(result);
+        f.call(Id::Num(id as i64), result);
     }
 
     pub fn handle_spawned_plugin_loaded(&mut self, plugin_id: PluginId) {

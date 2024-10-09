@@ -185,11 +185,12 @@ impl PluginServerHandler for Plugin {
 
     fn format_semantic_tokens(
         &self,
+        id: u64,
         tokens: lsp_types::SemanticTokens,
         text: Rope,
         f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
     ) {
-        self.host.format_semantic_tokens(tokens, text, f);
+        self.host.format_semantic_tokens(id, tokens, text, f);
     }
 }
 
@@ -223,7 +224,7 @@ impl Plugin {
             None,
             false,
             id,
-            move |value| match value {
+            move |_id, value| match value {
                 Ok(value) => {
                     if let Ok(result) = serde_json::from_value(value) {
                         server_rpc.handle_rpc(PluginServerRpc::Handler(

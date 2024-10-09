@@ -817,11 +817,13 @@ impl TerminalPanelData {
                 }
             });
 
-            self.common
-                .proxy
-                .dap_get_scopes(dap_id, frame_id, move |result| {
+            self.common.proxy.dap_get_scopes(
+                dap_id,
+                frame_id,
+                move |(_, result)| {
                     send(result);
-                });
+                },
+            );
         }
     }
 }

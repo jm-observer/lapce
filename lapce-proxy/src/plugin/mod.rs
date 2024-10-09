@@ -20,6 +20,7 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
 use flate2::read::GzDecoder;
+use jsonrpc_lite::Id;
 use lapce_core::directory::Directory;
 use lapce_rpc::{
     core::CoreRpcHandler,
@@ -109,6 +110,7 @@ pub enum PluginCatalogRpc {
         check: bool,
     },
     FormatSemanticTokens {
+        id: u64,
         plugin_id: PluginId,
         tokens: SemanticTokens,
         text: Rope,
@@ -301,8 +303,9 @@ impl PluginCatalogRpcHandler {
                     tokens,
                     text,
                     f,
+                    id,
                 } => {
-                    plugin.format_semantic_tokens(plugin_id, tokens, text, f);
+                    plugin.format_semantic_tokens(id, plugin_id, tokens, text, f);
                 }
                 PluginCatalogRpc::DidOpenTextDocument { document, id } => {
                     plugin.handle_did_open_text_document(document, id);
@@ -404,7 +407,7 @@ impl PluginCatalogRpcHandler {
             path,
             true,
             id,
-            move |plugin_id, result| {
+            move |_, plugin_id, result| {
                 if got_success.load(Ordering::Acquire) {
                     return;
                 }
@@ -445,7 +448,7 @@ impl PluginCatalogRpcHandler {
         path: Option<PathBuf>,
         check: bool,
         id: u64,
-        f: impl FnOnce(PluginId, Result<Value, RpcError>) + Send + DynClone + 'static,
+        f: impl FnOnce(Id, PluginId, Result<Value, RpcError>) + Send + DynClone + 'static,
     ) {
         let params = serde_json::to_value(params).unwrap();
         let rpc = PluginCatalogRpc::ServerRequest {
@@ -490,6 +493,7 @@ impl PluginCatalogRpcHandler {
 
     pub fn format_semantic_tokens(
         &self,
+        id: u64,
         plugin_id: PluginId,
         tokens: SemanticTokens,
         text: Rope,
@@ -497,6 +501,7 @@ impl PluginCatalogRpcHandler {
     ) {
         if let Err(err) =
             self.plugin_tx.send(PluginCatalogRpc::FormatSemanticTokens {
+                id,
                 plugin_id,
                 tokens,
                 text,
@@ -1223,7 +1228,7 @@ impl PluginCatalogRpcHandler {
             None,
             true,
             id,
-            move |_, result| {
+            move |_, _, result| {
                 let result = match result {
                     Ok(value) => {
                         if let Ok(item) =
@@ -1276,7 +1281,7 @@ impl PluginCatalogRpcHandler {
             Some(path.to_path_buf()),
             true,
             id,
-            move |plugin_id, result| match result {
+            move |_, plugin_id, result| match result {
                 Ok(value) => {
                     if let Ok(resp) = serde_json::from_value::<SignatureHelp>(value)
                     {
@@ -1308,7 +1313,7 @@ impl PluginCatalogRpcHandler {
             None,
             true,
             id,
-            move |_, result| {
+            move |_, _, result| {
                 let result = match result {
                     Ok(value) => {
                         if let Ok(item) = serde_json::from_value::<CodeAction>(value)
@@ -1394,7 +1399,7 @@ impl PluginCatalogRpcHandler {
     pub fn stop_volt(&self, id: u64, volt: VoltInfo) {
         let rpc = PluginCatalogRpc::RemoveVolt {
             volt,
-            f: Box::new(|_id: PluginId, rs: Result<Value, RpcError>| {
+            f: Box::new(|_, _id: PluginId, rs: Result<Value, RpcError>| {
                 if let Err(e) = rs {
                     // maybe should send notification
                     error!("{:?}", e);
@@ -1412,7 +1417,7 @@ impl PluginCatalogRpcHandler {
         let volt_clone = volt.clone();
         let rpc = PluginCatalogRpc::RemoveVolt {
             volt: volt.info(),
-            f: Box::new(|_id: PluginId, rs: Result<Value, RpcError>| {
+            f: Box::new(|_, _id: PluginId, rs: Result<Value, RpcError>| {
                 if let Err(e) = rs {
                     // maybe should send notification
                     error!("{:?}", e);
@@ -1540,7 +1545,7 @@ impl PluginCatalogRpcHandler {
         &self,
         dap_id: DapId,
         reference: usize,
-        f: impl FnOnce(Result<Vec<dap_types::Variable>, RpcError>) + Send + 'static,
+        f: impl FnOnce(Id, Result<Vec<dap_types::Variable>, RpcError>) + Send + 'static,
     ) {
         if let Err(err) = self.plugin_tx.send(PluginCatalogRpc::DapVariable {
             dap_id,
@@ -1556,6 +1561,7 @@ impl PluginCatalogRpcHandler {
         dap_id: DapId,
         frame_id: usize,
         f: impl FnOnce(
+                Id,
                 Result<Vec<(dap_types::Scope, Vec<dap_types::Variable>)>, RpcError>,
             ) + Send
             + 'static,

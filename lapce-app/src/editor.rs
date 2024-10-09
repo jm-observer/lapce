@@ -1291,7 +1291,7 @@ impl EditorData {
             offset,
             path.clone(),
             position,
-            move |result| {
+            move |(_, result)| {
                 if let Ok(ProxyResponse::GetDefinitionResponse {
                     definition, ..
                 }) = result
@@ -1317,7 +1317,7 @@ impl EditorData {
                             proxy.get_references(
                                 path.clone(),
                                 position,
-                                move |result| {
+                                move |(_, result)| {
                                     if let Ok(
                                         ProxyResponse::GetReferencesResponse {
                                             references,
@@ -1396,7 +1396,7 @@ impl EditorData {
         self.common.proxy.show_call_hierarchy(
             path,
             position,
-            create_ext_action(self.scope, move |result| {
+            create_ext_action(self.scope, move |(_, result)| {
                 if let Ok(ProxyResponse::ShowCallHierarchyResponse {
                     items, ..
                 }) = result
@@ -1447,7 +1447,7 @@ impl EditorData {
         let scope = window_tab_data.scope;
         let update_implementation = create_ext_action(self.scope, {
             let window_tab_data = window_tab_data.clone();
-            move |result| {
+            move |(_, result)| {
                 if let Ok(ProxyResponse::ReferencesResolveResponse { items }) =
                     result
                 {
@@ -1463,7 +1463,7 @@ impl EditorData {
         self.common.proxy.get_references(
             path,
             position,
-            create_ext_action(self.scope, move |result| {
+            create_ext_action(self.scope, move |(_, result)| {
                 if let Ok(ProxyResponse::GetReferencesResponse { references }) =
                     result
                 {
@@ -1503,7 +1503,7 @@ impl EditorData {
         let scope = window_tab_data.scope;
         let update_implementation = create_ext_action(self.scope, {
             let window_tab_data = window_tab_data.clone();
-            move |result| {
+            move |(_, result)| {
                 if let Ok(ProxyResponse::ReferencesResolveResponse { items }) =
                     result
                 {
@@ -1520,7 +1520,7 @@ impl EditorData {
             path,
             position,
             create_ext_action(self.scope, {
-                move |result| {
+                move |(_, result)| {
                     if let Ok(ProxyResponse::GotoImplementationResponse {
                         resp,
                         ..
@@ -1685,7 +1685,7 @@ impl EditorData {
             path,
             position,
             trigger_kind,
-            move |res| {
+            move |(_, res)| {
                 if let Ok(ProxyResponse::GetInlineCompletions {
                     completions: items,
                 }) = res
@@ -1744,7 +1744,7 @@ impl EditorData {
                 self.common.proxy.completion_resolve(
                     item.plugin_id,
                     item.item.clone(),
-                    move |result| {
+                    move |(_, result)| {
                         let item =
                             if let Ok(ProxyResponse::CompletionResolveResponse {
                                 item,
@@ -2276,7 +2276,7 @@ impl EditorData {
             path,
             position,
             diagnostics,
-            move |result| {
+            move |(_, result)| {
                 if let Ok(ProxyResponse::GetCodeActionsResponse {
                     plugin_id,
                     resp,
@@ -2363,7 +2363,7 @@ impl EditorData {
             let (tx, rx) = crossbeam_channel::bounded(1);
             let proxy = self.common.proxy.clone();
             std::thread::spawn(move || {
-                proxy.get_document_formatting(path, move |result| {
+                proxy.get_document_formatting(path, move |(_, result)| {
                     if let Err(err) = tx.send(result) {
                         tracing::error!("{:?}", err);
                     }
@@ -2397,7 +2397,7 @@ impl EditorData {
             let (tx, rx) = crossbeam_channel::bounded(1);
             let proxy = self.common.proxy.clone();
             std::thread::spawn(move || {
-                proxy.get_document_formatting(path, move |result| {
+                proxy.get_document_formatting(path, move |(_, result)| {
                     if let Err(err) = tx.send(result) {
                         tracing::error!("{:?}", err);
                     }
@@ -2591,7 +2591,7 @@ impl EditorData {
         });
         self.common
             .proxy
-            .prepare_rename(path, position, move |result| {
+            .prepare_rename(path, position, move |(_, result)| {
                 send(result);
             });
     }
@@ -3015,7 +3015,7 @@ impl EditorData {
                 hover_data.active.set(true);
             }
         });
-        self.common.proxy.get_hover(0, path, position, |resp| {
+        self.common.proxy.get_hover(0, path, position, |(_, resp)| {
             send(resp);
         });
     }

@@ -83,7 +83,7 @@ impl DiffEditorInfo {
                         });
                         common.proxy.get_buffer_head(
                             history.path.clone(),
-                            move |result| {
+                            move |(_, result)| {
                                 send(result);
                             },
                         );

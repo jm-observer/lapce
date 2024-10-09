@@ -160,11 +160,12 @@ impl PluginServerHandler for LspClient {
 
     fn format_semantic_tokens(
         &self,
+        id: u64,
         tokens: SemanticTokens,
         text: Rope,
         f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
     ) {
-        self.host.format_semantic_tokens(tokens, text, f);
+        self.host.format_semantic_tokens(id, tokens, text, f);
     }
 }
 
@@ -248,7 +249,11 @@ impl LspClient {
                 match read_message(&mut reader) {
                     Ok(message_str) => {
                         if !message_str.contains("$/progress") {
-                            tracing::debug!("read from lsp: {}", message_str);
+                            let len = message_str.len().min(90);
+                            tracing::debug!(
+                                "read from lsp: {}",
+                                &message_str[0..len]
+                            );
                         }
                         if let Some(resp) = handle_plugin_server_message(
                             &local_server_rpc,

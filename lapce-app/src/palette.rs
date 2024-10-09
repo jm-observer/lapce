@@ -109,6 +109,7 @@ pub struct PaletteData {
     pub source_control: SourceControlData,
     pub common: Rc<CommonData>,
     left_diff_path: RwSignal<Option<PathBuf>>,
+    pub workspace_document_id: RwSignal<Option<u64>>,
 }
 
 impl std::fmt::Debug for PaletteData {
@@ -240,6 +241,7 @@ impl PaletteData {
             source_control,
             common,
             left_diff_path,
+            workspace_document_id: cx.create_rw_signal(None),
         };
 
         {
@@ -518,7 +520,7 @@ impl PaletteData {
                 new_items.append(items);
                 set_items.set(new_items);
             });
-        self.common.proxy.get_files(move |result| {
+        self.common.proxy.get_files(move |(_, result)| {
             if let Ok(ProxyResponse::GetFilesResponse { items }) = result {
                 send(items);
             }
@@ -707,9 +709,11 @@ impl PaletteData {
             }
         });
 
-        self.common.proxy.get_document_symbols(path, move |result| {
-            send(result);
-        });
+        self.common
+            .proxy
+            .get_document_symbols(path, move |(_, result)| {
+                send(result);
+            });
     }
 
     fn format_document_symbol_resp(
@@ -773,49 +777,75 @@ impl PaletteData {
     fn get_workspace_symbols(&self) {
         let input = self.input.get_untracked().input;
 
+        if input.len() < 2 {
+            return;
+        }
+
         let set_items = self.items.write_only();
-        let send = create_ext_action(self.common.scope, move |result| {
-            if let Ok(ProxyResponse::GetWorkspaceSymbols { symbols }) = result {
-                let items: im::Vector<PaletteItem> = symbols
-                    .iter()
-                    .map(|s| {
-                        // TODO: Should we be using filter text?
-                        let mut filter_text = s.name.clone();
-                        if let Some(container_name) = s.container_name.as_ref() {
-                            filter_text += container_name;
-                        }
-                        PaletteItem {
-                            content: PaletteItemContent::WorkspaceSymbol {
-                                kind: s.kind,
-                                name: s.name.clone(),
-                                location: EditorLocation {
-                                    path: path_from_url(&s.location.uri),
-                                    position: Some(EditorPosition::Position(
-                                        s.location.range.start,
-                                    )),
-                                    scroll_offset: None,
-                                    ignore_unconfirmed: false,
-                                    same_editor_tab: false,
+        let data = self.clone();
+        let send = create_ext_action(self.common.scope, move |(old_id, result)| {
+            if data.reset_workspace_id(old_id) {
+                if let Ok(ProxyResponse::GetWorkspaceSymbols { symbols }) = result {
+                    let items: im::Vector<PaletteItem> = symbols
+                        .iter()
+                        .map(|s| {
+                            // TODO: Should we be using filter text?
+                            let mut filter_text = s.name.clone();
+                            if let Some(container_name) = s.container_name.as_ref() {
+                                filter_text += container_name;
+                            }
+                            PaletteItem {
+                                content: PaletteItemContent::WorkspaceSymbol {
+                                    kind: s.kind,
+                                    name: s.name.clone(),
+                                    location: EditorLocation {
+                                        path: path_from_url(&s.location.uri),
+                                        position: Some(EditorPosition::Position(
+                                            s.location.range.start,
+                                        )),
+                                        scroll_offset: None,
+                                        ignore_unconfirmed: false,
+                                        same_editor_tab: false,
+                                    },
+                                    container_name: s.container_name.clone(),
                                 },
-                                container_name: s.container_name.clone(),
-                            },
-                            filter_text,
-                            score: 0,
-                            indices: Vec::new(),
-                        }
-                    })
-                    .collect();
-                set_items.set(items);
-            } else {
-                set_items.update(|items| items.clear());
+                                filter_text,
+                                score: 0,
+                                indices: Vec::new(),
+                            }
+                        })
+                        .collect();
+                    set_items.set(items);
+                } else {
+                    set_items.update(|items| items.clear());
+                }
             }
         });
 
-        self.common
-            .proxy
-            .get_workspace_symbols(input, move |result| {
-                send(result);
-            });
+        let id =
+            self.common
+                .proxy
+                .get_workspace_symbols(input, move |(id, result)| {
+                    send((id, result));
+                });
+        self.update_workspace_id(id);
+    }
+
+    fn update_workspace_id(&self, id: u64) {
+        if let Some(_old_id) = self.workspace_document_id.get_untracked() {
+            // todo
+            self.common.proxy.lsp_cancel(_old_id);
+        }
+        self.workspace_document_id.set(Some(id));
+    }
+    fn reset_workspace_id(&self, id: u64) -> bool {
+        if let Some(_old_id) = self.workspace_document_id.get_untracked() {
+            if _old_id == id {
+                self.workspace_document_id.set(None);
+                return true;
+            }
+        }
+        false
     }
 
     fn get_ssh_hosts(&self) {

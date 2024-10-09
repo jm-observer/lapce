@@ -12,6 +12,7 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
+use jsonrpc_lite::Id;
 use lapce_rpc::{
     dap_types::{
         self, ConfigurationDone, Continue, ContinueArguments, ContinueResponse,
@@ -229,11 +230,12 @@ impl DapClient {
                     }
                 }
                 // send dap configurations here
-                self.dap_rpc.request_async::<ConfigurationDone>((), |rs| {
-                    if let Err(e) = rs {
-                        tracing::error!("request ConfigurationDone: {:?}", e)
-                    }
-                });
+                self.dap_rpc
+                    .request_async::<ConfigurationDone>((), |_, rs| {
+                        if let Err(e) = rs {
+                            tracing::error!("request ConfigurationDone: {:?}", e)
+                        }
+                    });
             }
             DapEvent::Stopped(stopped) => {
                 let all_threads_stopped =
@@ -518,7 +520,7 @@ impl DapRpcHandler {
             R::COMMAND,
             params,
             ResponseHandler::Callback(Box::new(
-                |result: Result<DapResponse, RpcError>| {
+                |id, result: Result<DapResponse, RpcError>| {
                     let result = match result {
                         Ok(resp) => {
                             if resp.success {
@@ -537,7 +539,7 @@ impl DapRpcHandler {
                         }
                         Err(e) => Err(e),
                     };
-                    Box::new(f).call(result);
+                    Box::new(f).call(id, result);
                 },
             )),
         );
@@ -554,7 +556,8 @@ impl DapRpcHandler {
             .map_err(|_| RpcError {
                 code: 0,
                 message: "io error".to_string(),
-            })??;
+            })?
+            .1?;
         if resp.success {
             let resp: R::Result =
                 serde_json::from_value(resp.body.into()).map_err(|e| RpcError {
@@ -594,7 +597,7 @@ impl DapRpcHandler {
 
     fn handle_server_response(&self, resp: DapResponse) {
         if let Some(rh) = { self.server_pending.lock().remove(&resp.request_seq) } {
-            rh.invoke(Ok(resp));
+            rh.invoke(Id::Num(resp.request_seq as i64), Ok(resp));
         }
     }
 
@@ -799,7 +802,7 @@ impl DapRpcHandler {
             granularity: None,
         };
 
-        self.request_async::<Next>(args, move |_| {});
+        self.request_async::<Next>(args, move |_, _| {});
     }
 
     pub fn step_in(&self, thread_id: ThreadId) {
@@ -809,7 +812,7 @@ impl DapRpcHandler {
             granularity: None,
         };
 
-        self.request_async::<StepIn>(args, move |_| {});
+        self.request_async::<StepIn>(args, move |_, _| {});
     }
 
     pub fn step_out(&self, thread_id: ThreadId) {
@@ -818,6 +821,6 @@ impl DapRpcHandler {
             granularity: None,
         };
 
-        self.request_async::<StepOut>(args, move |_| {});
+        self.request_async::<StepOut>(args, move |_, _| {});
     }
 }

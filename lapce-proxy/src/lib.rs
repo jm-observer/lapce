@@ -93,19 +93,21 @@ pub fn mainloop() {
             match msg {
                 RpcMessage::Request(id, req) => {
                     let writer_tx = writer_tx.clone();
-                    local_proxy_rpc.request_async(req, move |result| match result {
-                        Ok(resp) => {
-                            if let Err(err) =
-                                writer_tx.send(RpcMessage::Response(id, resp))
-                            {
-                                tracing::error!("{:?}", err);
+                    local_proxy_rpc.request_async(req, move |(_, result)| {
+                        match result {
+                            Ok(resp) => {
+                                if let Err(err) =
+                                    writer_tx.send(RpcMessage::Response(id, resp))
+                                {
+                                    tracing::error!("{:?}", err);
+                                }
                             }
-                        }
-                        Err(e) => {
-                            if let Err(err) =
-                                writer_tx.send(RpcMessage::Error(id, e))
-                            {
-                                tracing::error!("{:?}", err);
+                            Err(e) => {
+                                if let Err(err) =
+                                    writer_tx.send(RpcMessage::Error(id, e))
+                                {
+                                    tracing::error!("{:?}", err);
+                                }
                             }
                         }
                     });

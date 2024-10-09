@@ -198,7 +198,7 @@ impl FileExplorerData {
         let config = self.common.config;
         let send = {
             let path = path.to_path_buf();
-            create_ext_action(self.common.scope, move |result| {
+            create_ext_action(self.common.scope, move |(_, result)| {
                 let Ok(ProxyResponse::ReadDirResponse { mut items }) = result else {
                     done(false);
                     return;
@@ -607,7 +607,7 @@ impl FileExplorerData {
                 "Move File to Trash"
             };
             menu = menu.entry(MenuItem::new(trash_text).action(move || {
-                proxy.trash_path(path.clone(), |res| {
+                proxy.trash_path(path.clone(), |(_, res)| {
                     if let Err(err) = res {
                         tracing::warn!("Failed to trash path: {:?}", err);
                     }

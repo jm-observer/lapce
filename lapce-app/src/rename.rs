@@ -144,7 +144,7 @@ impl RenameData {
                 path,
                 position,
                 new_name.to_string(),
-                move |result| {
+                move |(_, result)| {
                     send(result);
                 },
             );

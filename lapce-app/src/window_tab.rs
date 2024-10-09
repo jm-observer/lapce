@@ -1393,7 +1393,7 @@ impl WindowTabData {
                 {
                     match diff {
                         FileDiff::Added(path) => {
-                            self.common.proxy.trash_path(path, Box::new(|_| {}));
+                            self.common.proxy.trash_path(path, Box::new(|(_, _)| {}));
                         }
                         FileDiff::Modified(path) | FileDiff::Deleted(path) => {
                             self.common.proxy.git_discard_files_changes(vec![path]);
@@ -1402,7 +1402,7 @@ impl WindowTabData {
                             self.common
                                 .proxy
                                 .git_discard_files_changes(vec![old_path]);
-                            self.common.proxy.trash_path(new_path, Box::new(|_| {}));
+                            self.common.proxy.trash_path(new_path, Box::new(|(_, _)| {}));
                         }
                     }
                 }
@@ -1545,7 +1545,7 @@ impl WindowTabData {
                             .with_untracked(|buffer| buffer.line_of_offset(offset));
                         self.common.proxy.git_get_remote_file_url(
                             path,
-                            create_ext_action(self.scope, move |result| {
+                            create_ext_action(self.scope, move | (_, result)| {
                                 if let Ok(ProxyResponse::GitGetRemoteFileUrl {
                                               file_url
                                           }) = result
@@ -1735,12 +1735,14 @@ impl WindowTabData {
 
                 let send = create_ext_action(
                     self.scope,
-                    move |response: Result<ProxyResponse, RpcError>| match response {
-                        Ok(_) => {
-                            naming.update(Naming::set_ok);
-                        }
-                        Err(err) => {
-                            naming.update(|naming| naming.set_err(err.message));
+                    move |(_, response): (u64, Result<ProxyResponse, RpcError>)| {
+                        match response {
+                            Ok(_) => {
+                                naming.update(Naming::set_ok);
+                            }
+                            Err(err) => {
+                                naming.update(|naming| naming.set_err(err.message));
+                            }
                         }
                     },
                 );
@@ -1758,63 +1760,68 @@ impl WindowTabData {
 
                 let send = create_ext_action(
                     self.scope,
-                    move |response: Result<ProxyResponse, RpcError>| match response {
-                        Ok(response) => {
-                            // Get the canonicalized new path from the proxy.
-                            let new_path =
-                                if let ProxyResponse::CreatePathResponse { path } =
-                                    response
-                                {
-                                    path
-                                } else {
-                                    send_new_path
-                                };
+                    move |(_, response): (u64, Result<ProxyResponse, RpcError>)| {
+                        match response {
+                            Ok(response) => {
+                                // Get the canonicalized new path from the proxy.
+                                let new_path =
+                                    if let ProxyResponse::CreatePathResponse {
+                                        path,
+                                    } = response
+                                    {
+                                        path
+                                    } else {
+                                        send_new_path
+                                    };
 
-                            // If the renamed item is a file, update any editors the file is open
-                            // in to use the new path.
-                            // If the renamed item is a directory, update any editors in which a
-                            // file the renamed directory is an ancestor of is open to use the
-                            // file's new path.
-                            let renamed_editors_content: Vec<_> = editors
-                                .with_editors_untracked(|editors| {
-                                    editors
-                                        .values()
-                                        .map(|editor| editor.doc().content)
-                                        .filter(|content| {
-                                            content.with_untracked(|content| {
-                                                match content {
-                                                    DocContent::File {
-                                                        path,
-                                                        ..
-                                                    } => path.starts_with(
-                                                        &send_current_path,
-                                                    ),
-                                                    _ => false,
-                                                }
+                                // If the renamed item is a file, update any editors the file is open
+                                // in to use the new path.
+                                // If the renamed item is a directory, update any editors in which a
+                                // file the renamed directory is an ancestor of is open to use the
+                                // file's new path.
+                                let renamed_editors_content: Vec<_> = editors
+                                    .with_editors_untracked(|editors| {
+                                        editors
+                                            .values()
+                                            .map(|editor| editor.doc().content)
+                                            .filter(|content| {
+                                                content.with_untracked(|content| {
+                                                    match content {
+                                                        DocContent::File {
+                                                            path,
+                                                            ..
+                                                        } => path.starts_with(
+                                                            &send_current_path,
+                                                        ),
+                                                        _ => false,
+                                                    }
+                                                })
                                             })
-                                        })
-                                        .collect()
-                                });
+                                            .collect()
+                                    });
 
-                            for content in renamed_editors_content {
-                                content.update(|content| {
-                                    if let DocContent::File { path, .. } = content {
-                                        if let Ok(suffix) =
-                                            path.strip_prefix(&send_current_path)
+                                for content in renamed_editors_content {
+                                    content.update(|content| {
+                                        if let DocContent::File { path, .. } =
+                                            content
                                         {
-                                            *path = new_path.join(suffix);
+                                            if let Ok(suffix) =
+                                                path.strip_prefix(&send_current_path)
+                                            {
+                                                *path = new_path.join(suffix);
+                                            }
                                         }
-                                    }
-                                });
-                            }
+                                    });
+                                }
 
-                            file_explorer.reload();
-                            file_explorer.naming.set(Naming::None);
-                        }
-                        Err(err) => {
-                            file_explorer
-                                .naming
-                                .update(|naming| naming.set_err(err.message));
+                                file_explorer.reload();
+                                file_explorer.naming.set(Naming::None);
+                            }
+                            Err(err) => {
+                                file_explorer
+                                    .naming
+                                    .update(|naming| naming.set_err(err.message));
+                            }
                         }
                     },
                 );
@@ -1830,7 +1837,10 @@ impl WindowTabData {
 
                 let send = create_ext_action(
                     self.scope,
-                    move |response: Result<ProxyResponse, RpcError>| {
+                    move |(_id, response): (
+                        u64,
+                        Result<ProxyResponse, RpcError>,
+                    )| {
                         match response {
                             Ok(response) => {
                                 file_explorer.reload();
@@ -1868,7 +1878,10 @@ impl WindowTabData {
 
                 let send = create_ext_action(
                     self.scope,
-                    move |response: Result<_, RpcError>| {
+                    move |(_id, response): (
+                        u64,
+                        Result<ProxyResponse, RpcError>,
+                    )| {
                         if let Err(err) = response {
                             file_explorer
                                 .naming
@@ -3004,42 +3017,41 @@ impl WindowTabData {
         let root_item = item;
         let path: PathBuf = item.get_untracked().item.uri.to_file_path().unwrap();
         let scope = self.scope;
-        let send =
-            create_ext_action(scope, move |_rs: Result<ProxyResponse, RpcError>| {
-                match _rs {
-                    Ok(ProxyResponse::CallHierarchyIncomingResponse { items }) => {
-                        if let Some(items) = items {
-                            let mut item_children = Vec::new();
-                            for x in items {
-                                let item = Rc::new(x.from);
-                                for range in x.from_ranges {
-                                    item_children.push(scope.create_rw_signal(
-                                        CallHierarchyItemData {
-                                            view_id: floem::ViewId::new(),
-                                            item: item.clone(),
-                                            from_range: range,
-                                            init: false,
-                                            open: scope.create_rw_signal(false),
-                                            children:
-                                                scope.create_rw_signal(Vec::new()),
-                                        },
-                                    ))
-                                }
+        let send = create_ext_action(
+            scope,
+            move |(_id, _rs): (u64, Result<ProxyResponse, RpcError>)| match _rs {
+                Ok(ProxyResponse::CallHierarchyIncomingResponse { items }) => {
+                    if let Some(items) = items {
+                        let mut item_children = Vec::new();
+                        for x in items {
+                            let item = Rc::new(x.from);
+                            for range in x.from_ranges {
+                                item_children.push(scope.create_rw_signal(
+                                    CallHierarchyItemData {
+                                        view_id: floem::ViewId::new(),
+                                        item: item.clone(),
+                                        from_range: range,
+                                        init: false,
+                                        open: scope.create_rw_signal(false),
+                                        children: scope.create_rw_signal(Vec::new()),
+                                    },
+                                ))
                             }
-                            root_item.update(|x| {
-                                x.init = true;
-                                x.children.update(|children| {
-                                    *children = item_children;
-                                })
-                            });
                         }
+                        root_item.update(|x| {
+                            x.init = true;
+                            x.children.update(|children| {
+                                *children = item_children;
+                            })
+                        });
                     }
-                    Err(err) => {
-                        tracing::error!("{:?}", err);
-                    }
-                    Ok(_) => {}
                 }
-            });
+                Err(err) => {
+                    tracing::error!("{:?}", err);
+                }
+                Ok(_) => {}
+            },
+        );
         self.common.proxy.call_hierarchy_incoming(
             path,
             item.get_untracked().item.as_ref().clone(),

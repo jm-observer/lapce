@@ -660,11 +660,13 @@ impl MainSplitData {
                     }
                 });
 
-                self.common
-                    .proxy
-                    .new_buffer(doc.buffer_id, path, move |result| {
+                self.common.proxy.new_buffer(
+                    doc.buffer_id,
+                    path,
+                    move |(_, result)| {
                         send(result);
-                    });
+                    },
+                );
             }
             doc.get_code_lens();
             doc.get_folding_range();
@@ -718,7 +720,7 @@ impl MainSplitData {
                 }
             })
         };
-        self.common.proxy.get_buffer_head(path, move |result| {
+        self.common.proxy.get_buffer_head(path, move |(_, result)| {
             send(result);
         });
 
@@ -2209,16 +2211,18 @@ impl MainSplitData {
         let send = create_ext_action(self.scope, move |edit| {
             main_split.apply_workspace_edit(&edit);
         });
-        self.common
-            .proxy
-            .code_action_resolve(action, plugin_id, move |result| {
+        self.common.proxy.code_action_resolve(
+            action,
+            plugin_id,
+            move |(_, result)| {
                 if let Ok(ProxyResponse::CodeActionResolveResponse { item }) = result
                 {
                     if let Some(edit) = item.edit {
                         send(edit);
                     }
                 }
-            });
+            },
+        );
     }
 
     /// Perform a workspace edit, which are from the LSP (such as code actions, or symbol renaming)
@@ -2471,7 +2475,7 @@ impl MainSplitData {
                     rev,
                     content,
                     true,
-                    Box::new(move |result| {
+                    Box::new(move |(_, result)| {
                         send(result);
                     }),
                 );
@@ -2526,7 +2530,7 @@ impl MainSplitData {
                     rev,
                     content,
                     true,
-                    Box::new(move |result| {
+                    Box::new(move |(_, result)| {
                         send(result);
                     }),
                 );

@@ -144,7 +144,7 @@ impl GlobalSearchData {
                     case_sensitive,
                     whole_word,
                     is_regex,
-                    move |result| {
+                    move |(_, result)| {
                         send(result);
                     },
                 );

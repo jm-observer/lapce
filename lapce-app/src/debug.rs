@@ -386,11 +386,13 @@ impl DapData {
                 });
             }
         });
-        self.common
-            .proxy
-            .dap_variable(self.dap_id, reference, move |result| {
+        self.common.proxy.dap_variable(
+            self.dap_id,
+            reference,
+            move |(_, result)| {
                 send(result);
-            });
+            },
+        );
     }
 }
 

@@ -745,7 +745,7 @@ impl Doc {
                             }
                             doc.save(|| {});
                         });
-                        proxy.get_document_formatting(path, move |result| {
+                        proxy.get_document_formatting(path, move |(_, result)| {
                             send(result);
                         });
                     } else {
@@ -892,36 +892,38 @@ impl Doc {
             }
         });
 
-        self.common.proxy.get_semantic_tokens(path, move |result| {
-            if let Ok(ProxyResponse::GetSemanticTokens { styles }) = result {
-                if styles.styles.is_empty() {
-                    send(None);
-                    return;
-                }
-                if atomic_rev.load(atomic::Ordering::Acquire) != rev {
-                    send(None);
-                    return;
-                }
-                std::thread::spawn(move || {
-                    let mut styles_span = SpansBuilder::new(len);
-                    for style in styles.styles {
-                        if atomic_rev.load(atomic::Ordering::Acquire) != rev {
-                            send(None);
-                            return;
-                        }
-                        styles_span.add_span(
-                            Interval::new(style.start, style.end),
-                            style.style,
-                        );
+        self.common
+            .proxy
+            .get_semantic_tokens(path, move |(_, result)| {
+                if let Ok(ProxyResponse::GetSemanticTokens { styles }) = result {
+                    if styles.styles.is_empty() {
+                        send(None);
+                        return;
                     }
+                    if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                        send(None);
+                        return;
+                    }
+                    std::thread::spawn(move || {
+                        let mut styles_span = SpansBuilder::new(len);
+                        for style in styles.styles {
+                            if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                                send(None);
+                                return;
+                            }
+                            styles_span.add_span(
+                                Interval::new(style.start, style.end),
+                                style.style,
+                            );
+                        }
 
-                    let styles = styles_span.build();
-                    send(Some(styles));
-                });
-            } else {
-                send(None);
-            }
-        });
+                        let styles = styles_span.build();
+                        send(Some(styles));
+                    });
+                } else {
+                    send(None);
+                }
+            });
     }
 
     pub fn get_code_lens(&self) {
@@ -965,7 +967,7 @@ impl Doc {
                     });
                 }
             });
-            self.common.proxy.get_code_lens(path, move |result| {
+            self.common.proxy.get_code_lens(path, move |(_, result)| {
                 send(result);
             });
         }
@@ -1005,9 +1007,11 @@ impl Doc {
                 }
             });
 
-            self.common.proxy.get_document_symbols(path, move |result| {
-                send(result);
-            });
+            self.common
+                .proxy
+                .get_document_symbols(path, move |(_, result)| {
+                    send(result);
+                });
         }
     }
 
@@ -1036,7 +1040,7 @@ impl Doc {
             }
         });
 
-        self.common.proxy.get_inlay_hints(path, move |result| {
+        self.common.proxy.get_inlay_hints(path, move |(_, result)| {
             if let Ok(ProxyResponse::GetInlayHints { mut hints }) = result {
                 // Sort the inlay hints by their position, as the LSP does not guarantee that it will
                 // provide them in the order that they are in within the file
@@ -1127,7 +1131,7 @@ impl Doc {
 
             self.common
                 .proxy
-                .get_lsp_folding_range(path, move |result| {
+                .get_lsp_folding_range(path, move |(_, result)| {
                     send(result);
                 });
         }
@@ -1384,7 +1388,7 @@ impl Doc {
             let path = path.clone();
             let proxy = self.common.proxy.clone();
             std::thread::spawn(move || {
-                proxy.get_buffer_head(path, move |result| {
+                proxy.get_buffer_head(path, move |(_, result)| {
                     send(result);
                 });
             });
@@ -1451,7 +1455,7 @@ impl Doc {
                 }
             });
 
-            self.common.proxy.save(rev, path, true, move |result| {
+            self.common.proxy.save(rev, path, true, move |(_, result)| {
                 send(result);
             })
         }

@@ -586,25 +586,28 @@ impl ProxyHandler for Dispatcher {
                 let proxy_rpc = self.proxy_rpc.clone();
                 let catalog_rpc = self.catalog_rpc.clone();
 
-                let handle_tokens =
-                    move |result: Result<Vec<LineStyle>, RpcError>| match result {
-                        Ok(styles) => {
-                            proxy_rpc.handle_response(
-                                id,
-                                Ok(ProxyResponse::GetSemanticTokens {
-                                    styles: SemanticStyles {
-                                        rev,
-                                        path: local_path,
-                                        styles,
-                                        len,
-                                    },
-                                }),
-                            );
-                        }
-                        Err(e) => {
-                            proxy_rpc.handle_response(id, Err(e));
-                        }
-                    };
+                let handle_tokens = move |_,
+                                          result: Result<
+                    Vec<LineStyle>,
+                    RpcError,
+                >| match result {
+                    Ok(styles) => {
+                        proxy_rpc.handle_response(
+                            id,
+                            Ok(ProxyResponse::GetSemanticTokens {
+                                styles: SemanticStyles {
+                                    rev,
+                                    path: local_path,
+                                    styles,
+                                    len,
+                                },
+                            }),
+                        );
+                    }
+                    Err(e) => {
+                        proxy_rpc.handle_response(id, Err(e));
+                    }
+                };
 
                 let proxy_rpc = self.proxy_rpc.clone();
                 self.catalog_rpc.get_semantic_tokens(
@@ -612,6 +615,7 @@ impl ProxyHandler for Dispatcher {
                     move |plugin_id, result| match result {
                         Ok(result) => {
                             catalog_rpc.format_semantic_tokens(
+                                id,
                                 plugin_id,
                                 result,
                                 text,
@@ -1050,27 +1054,33 @@ impl ProxyHandler for Dispatcher {
             }
             DapVariable { dap_id, reference } => {
                 let proxy_rpc = self.proxy_rpc.clone();
-                self.catalog_rpc
-                    .dap_variable(dap_id, reference, move |result| {
+                self.catalog_rpc.dap_variable(
+                    dap_id,
+                    reference,
+                    move |_, result| {
                         proxy_rpc.handle_response(
                             id,
                             result.map(|resp| ProxyResponse::DapVariableResponse {
                                 varialbes: resp,
                             }),
                         );
-                    });
+                    },
+                );
             }
             DapGetScopes { dap_id, frame_id } => {
                 let proxy_rpc = self.proxy_rpc.clone();
-                self.catalog_rpc
-                    .dap_get_scopes(dap_id, frame_id, move |result| {
+                self.catalog_rpc.dap_get_scopes(
+                    dap_id,
+                    frame_id,
+                    move |_, result| {
                         proxy_rpc.handle_response(
                             id,
                             result.map(|resp| ProxyResponse::DapGetScopesResponse {
                                 scopes: resp,
                             }),
                         );
-                    });
+                    },
+                );
             }
             GetCodeLens { path } => {
                 let proxy_rpc = self.proxy_rpc.clone();

@@ -477,21 +477,24 @@ pub struct ReadDirResponse {
     pub items: HashMap<PathBuf, FileNodeItem>,
 }
 
-pub trait ProxyCallback: Send + FnOnce(Result<ProxyResponse, RpcError>) {}
+pub trait ProxyCallback:
+    Send + FnOnce((u64, Result<ProxyResponse, RpcError>))
+{
+}
 
-impl<F: Send + FnOnce(Result<ProxyResponse, RpcError>)> ProxyCallback for F {}
+impl<F: Send + FnOnce((u64, Result<ProxyResponse, RpcError>))> ProxyCallback for F {}
 
 enum ResponseHandler {
     Callback(Box<dyn ProxyCallback>),
-    Chan(Sender<Result<ProxyResponse, RpcError>>),
+    Chan(Sender<(u64, Result<ProxyResponse, RpcError>)>),
 }
 
 impl ResponseHandler {
-    fn invoke(self, result: Result<ProxyResponse, RpcError>) {
+    fn invoke(self, id: u64, result: Result<ProxyResponse, RpcError>) {
         match self {
-            ResponseHandler::Callback(f) => f(result),
+            ResponseHandler::Callback(f) => f((id, result)),
             ResponseHandler::Chan(tx) => {
-                if let Err(err) = tx.send(result) {
+                if let Err(err) = tx.send((id, result)) {
                     tracing::error!("{:?}", err);
                 }
             }
@@ -547,7 +550,7 @@ impl ProxyRpcHandler {
         }
     }
 
-    fn request_common(&self, request: ProxyRequest, rh: ResponseHandler) {
+    fn request_common(&self, request: ProxyRequest, rh: ResponseHandler) -> u64 {
         let id = self.id.fetch_add(1, Ordering::Relaxed);
 
         self.pending.lock().insert(id, rh);
@@ -555,24 +558,25 @@ impl ProxyRpcHandler {
         if let Err(err) = self.tx.send(ProxyRpc::Request(id, request)) {
             tracing::error!("{:?}", err);
         }
+        id
     }
 
     fn request(&self, request: ProxyRequest) -> Result<ProxyResponse, RpcError> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.request_common(request, ResponseHandler::Chan(tx));
-        rx.recv().unwrap_or_else(|_| {
-            Err(RpcError {
+        rx.recv()
+            .map_err(|_| RpcError {
                 code: 0,
                 message: "io error".to_string(),
-            })
-        })
+            })?
+            .1
     }
 
     pub fn request_async(
         &self,
         request: ProxyRequest,
         f: impl ProxyCallback + 'static,
-    ) {
+    ) -> u64 {
         self.request_common(request, ResponseHandler::Callback(Box::new(f)))
     }
 
@@ -583,7 +587,7 @@ impl ProxyRpcHandler {
     ) {
         let handler = { self.pending.lock().remove(&id) };
         if let Some(handler) = handler {
-            handler.invoke(result);
+            handler.invoke(id, result);
         }
     }
 
@@ -593,8 +597,9 @@ impl ProxyRpcHandler {
         }
     }
 
-    pub fn lsp_cancel(&self, id: i32) {
-        self.notification(ProxyNotification::LspCancel { id });
+    pub fn lsp_cancel(&self, id: u64) {
+        tracing::info!("lsp_cancel {}", id);
+        self.notification(ProxyNotification::LspCancel { id: id as i32 });
     }
 
     pub fn git_init(&self) {
@@ -1040,8 +1045,8 @@ impl ProxyRpcHandler {
         &self,
         query: String,
         f: impl ProxyCallback + 'static,
-    ) {
-        self.request_async(ProxyRequest::GetWorkspaceSymbols { query }, f);
+    ) -> u64 {
+        self.request_async(ProxyRequest::GetWorkspaceSymbols { query }, f)
     }
 
     pub fn prepare_rename(

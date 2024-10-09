@@ -1,3 +1,4 @@
+use jsonrpc_lite::Id;
 use std::{
     borrow::Cow,
     collections::HashMap,
@@ -96,12 +97,13 @@ impl PluginCatalog {
                     path,
                     check,
                     id,
-                    move |result| {
-                        f(plugin_id, result);
+                    move |id, result| {
+                        f(id, plugin_id, result);
                     },
                 );
             } else {
                 f(
+                    Id::Num(id as i64),
                     plugin_id,
                     Err(RpcError {
                         code: 0,
@@ -121,6 +123,7 @@ impl PluginCatalog {
 
                 // make a direct callback with an "error"
                 f(
+                    Id::Num(id as i64),
                     lapce_rpc::plugin::PluginId(0),
                     Err(RpcError {
                         code: 0,
@@ -142,8 +145,8 @@ impl PluginCatalog {
                 path.clone(),
                 check,
                 id,
-                move |result| {
-                    f(plugin_id, result);
+                move |id, result| {
+                    f(id, plugin_id, result);
                 },
             );
         }
@@ -198,8 +201,8 @@ impl PluginCatalog {
                     None,
                     false,
                     request_id,
-                    move |result| {
-                        f(plugin_id, result);
+                    move |id, result| {
+                        f(id, plugin_id, result);
                     },
                 );
                 plugin.shutdown();
@@ -382,6 +385,7 @@ impl PluginCatalog {
 
     pub fn format_semantic_tokens(
         &self,
+        id: u64,
         plugin_id: PluginId,
         tokens: SemanticTokens,
         text: Rope,
@@ -389,15 +393,19 @@ impl PluginCatalog {
     ) {
         if let Some(plugin) = self.plugins.get(&plugin_id) {
             plugin.handle_rpc(PluginServerRpc::FormatSemanticTokens {
+                id,
                 tokens,
                 text,
                 f,
             });
         } else {
-            f.call(Err(RpcError {
-                code: 0,
-                message: "plugin doesn't exist".to_string(),
-            }));
+            f.call(
+                Id::Num(id as i64),
+                Err(RpcError {
+                    code: 0,
+                    message: "plugin doesn't exist".to_string(),
+                }),
+            );
         }
     }
 
@@ -410,15 +418,18 @@ impl PluginCatalog {
         if let Some(dap) = self.daps.get(&dap_id) {
             dap.variables_async(
                 reference,
-                |result: Result<dap_types::VariablesResponse, RpcError>| {
-                    f.call(result.map(|resp| resp.variables))
+                |id, result: Result<dap_types::VariablesResponse, RpcError>| {
+                    f.call(id, result.map(|resp| resp.variables))
                 },
             );
         } else {
-            f.call(Err(RpcError {
-                code: 0,
-                message: "plugin doesn't exist".to_string(),
-            }));
+            f.call(
+                Id::Num(0),
+                Err(RpcError {
+                    code: 0,
+                    message: "plugin doesn't exist".to_string(),
+                }),
+            );
         }
     }
 
@@ -437,7 +448,7 @@ impl PluginCatalog {
             let local_dap = dap.clone();
             dap.scopes_async(
                 frame_id,
-                move |result: Result<dap_types::ScopesResponse, RpcError>| {
+                move |id, result: Result<dap_types::ScopesResponse, RpcError>| {
                     match result {
                         Ok(resp) => {
                             let scopes = resp.scopes.clone();
@@ -446,7 +457,8 @@ impl PluginCatalog {
                                 thread::spawn(move || {
                                     local_dap.variables_async(
                                         scope.variables_reference,
-                                        move |result: Result<
+                                        move |id,
+                                              result: Result<
                                             dap_types::VariablesResponse,
                                             RpcError,
                                         >| {
@@ -473,25 +485,28 @@ impl PluginCatalog {
                                                     )
                                                 })
                                                 .collect();
-                                            f.call(Ok(resp));
+                                            f.call(id, Ok(resp));
                                         },
                                     );
                                 });
                             } else {
-                                f.call(Ok(Vec::new()));
+                                f.call(id, Ok(Vec::new()));
                             }
                         }
                         Err(e) => {
-                            f.call(Err(e));
+                            f.call(id, Err(e));
                         }
                     }
                 },
             );
         } else {
-            f.call(Err(RpcError {
-                code: 0,
-                message: "plugin doesn't exist".to_string(),
-            }));
+            f.call(
+                Id::Num(0),
+                Err(RpcError {
+                    code: 0,
+                    message: "plugin doesn't exist".to_string(),
+                }),
+            );
         }
     }
 
@@ -741,7 +756,7 @@ impl PluginCatalog {
                     dap.set_breakpoints_async(
                         path.clone(),
                         breakpoints,
-                        move |result: Result<SetBreakpointsResponse, RpcError>| {
+                        move |_id, result: Result<SetBreakpointsResponse, RpcError>| {
                             match result {
                                 Ok(resp) => {
                                     core_rpc.dap_breakpoints_resp(
