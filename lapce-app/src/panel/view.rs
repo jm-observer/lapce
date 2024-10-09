@@ -1,5 +1,6 @@
 use std::{rc::Rc, sync::Arc};
 
+use floem::unit::Auto;
 use floem::{
     event::{Event, EventListener, EventPropagation},
     kurbo::Point,
@@ -343,6 +344,7 @@ pub fn new_bottom_panel_container_view(
         move |s| {
             let config = config.get();
             s.flex_col()
+                .margin_top(Auto)
                 .width_pct(100.0)
                 .background(config.color(LapceColor::PANEL_BACKGROUND))
                 .color(config.color(LapceColor::PANEL_FOREGROUND))
@@ -422,6 +424,7 @@ pub fn new_right_panel_container_view(
         move |s| {
             let config = config.get();
             s.flex_row()
+                .margin_left(Auto)
                 .height_pct(100.0)
                 .background(config.color(LapceColor::PANEL_BACKGROUND))
                 .color(config.color(LapceColor::PANEL_FOREGROUND))
@@ -506,7 +509,7 @@ fn drag_line(
                     PanelContainerPosition::Left => {
                         let current_panel_size = panel_size.get_untracked();
                         let new_size = pointer_event.pos.x + current_panel_size.left;
-                        let new_size = new_size.clamp(250.0, 500.0);
+                        let new_size = new_size.max(150.0);
                         if new_size != current_panel_size.left {
                             panel_size.update(|size| {
                                 size.left = new_size;
@@ -517,8 +520,13 @@ fn drag_line(
                         let current_panel_size = panel_size.get_untracked();
                         let new_size =
                             current_panel_size.bottom - pointer_event.pos.y;
-                        let new_size = new_size.clamp(250.0, 500.0);
-                        if new_size != current_panel_size.left {
+                        tracing::info!(
+                            "new_size={} pointer_event.pos.y={}",
+                            new_size,
+                            pointer_event.pos.y
+                        );
+                        let new_size = new_size.max(60.0);
+                        if new_size != current_panel_size.bottom {
                             panel_size.update(|size| {
                                 size.bottom = new_size;
                             })
@@ -528,7 +536,7 @@ fn drag_line(
                         let current_panel_size = panel_size.get_untracked();
                         let new_size =
                             current_panel_size.right - pointer_event.pos.x;
-                        let new_size = new_size.clamp(250.0, 500.0);
+                        let new_size = new_size.max(150.0);
                         if new_size != current_panel_size.right {
                             panel_size.update(|size| {
                                 size.right = new_size;

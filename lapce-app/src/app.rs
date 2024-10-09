@@ -1973,7 +1973,7 @@ fn main_split(window_tab_data: Rc<WindowTabData>) -> impl View {
         .unwrap()
         .read_only();
     let config = window_tab_data.main_split.common.config;
-    let panel = window_tab_data.panel.clone();
+    // let panel = window_tab_data.panel.clone();
     let plugin = window_tab_data.plugin.clone();
     let dragging: RwSignal<Option<(RwSignal<usize>, EditorTabId)>> =
         create_rw_signal(None);
@@ -1985,12 +1985,13 @@ fn main_split(window_tab_data: Rc<WindowTabData>) -> impl View {
     )
     .style(move |s| {
         let config = config.get();
-        let is_hidden = panel.panel_bottom_maximized(true)
-            && panel.is_container_shown(&PanelContainerPosition::Bottom, true);
+        // let is_hidden = panel.panel_bottom_maximized(true)
+        //     && panel.is_container_shown(&PanelContainerPosition::Bottom, true);
         s.border_color(config.color(LapceColor::LAPCE_BORDER))
             .background(config.color(LapceColor::EDITOR_BACKGROUND))
-            .apply_if(is_hidden, |s| s.display(Display::None))
+            // .apply_if(is_hidden, |s| s.display(Display::None))
             .width_full()
+            .height_full()
             .flex_grow(1.0)
         // .flex_basis(0.0)
     })
@@ -2125,6 +2126,7 @@ fn tooltip_tip<V: View + 'static>(
 fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
     let workbench_size = window_tab_data.common.workbench_size;
     let main_split_width = window_tab_data.main_split.width;
+    let panel = window_tab_data.panel.clone();
     stack((
         {
             let window_tab_data = window_tab_data.clone();
@@ -2145,7 +2147,14 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
                     main_split_width.set(width);
                 }
             })
-            .style(|s| s.flex_row().flex_grow(1.0))
+            .style(move |s| {
+                let is_hidden = panel.panel_bottom_maximized(true)
+                    && panel
+                        .is_container_shown(&PanelContainerPosition::Bottom, true);
+                s.flex_row()
+                    .flex_grow(1.0)
+                    .apply_if(is_hidden, |s| s.display(Display::None))
+            })
         },
         new_bottom_panel_container_view(
             window_tab_data.clone(),
