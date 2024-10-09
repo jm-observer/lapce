@@ -520,11 +520,11 @@ fn drag_line(
                         let current_panel_size = panel_size.get_untracked();
                         let new_size =
                             current_panel_size.bottom - pointer_event.pos.y;
-                        tracing::info!(
-                            "new_size={} pointer_event.pos.y={}",
-                            new_size,
-                            pointer_event.pos.y
-                        );
+                        // tracing::info!(
+                        //     "new_size={} pointer_event.pos.y={}",
+                        //     new_size,
+                        //     pointer_event.pos.y
+                        // );
                         let new_size = new_size.max(60.0);
                         if new_size != current_panel_size.bottom {
                             panel_size.update(|size| {
