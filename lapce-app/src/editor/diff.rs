@@ -55,7 +55,7 @@ impl DiffEditorInfo {
             let common = data.common.clone();
             move |content: &DocContent| match content {
                 DocContent::File { path, .. } => {
-                    let (doc, _) = data.get_doc(path.clone(), None);
+                    let (doc, _) = data.get_doc(path.clone(), None, false);
                     doc
                 }
                 DocContent::Local => {

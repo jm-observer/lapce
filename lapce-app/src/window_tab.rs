@@ -2261,6 +2261,9 @@ impl WindowTabData {
                     // todo filter by language
                     self.main_split.docs.with_untracked(|x| {
                         for doc in x.values() {
+                            if doc.content.get_untracked().is_local() {
+                                continue;
+                            }
                             doc.get_code_lens();
                             doc.get_document_symbol();
                             doc.get_semantic_styles();

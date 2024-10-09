@@ -117,7 +117,7 @@ impl EditorInfo {
         match &self.content {
             DocContent::File { path, .. } => {
                 let (doc, new_doc) =
-                    data.get_doc(path.clone(), self.unsaved.clone());
+                    data.get_doc(path.clone(), self.unsaved.clone(), true);
                 let editor = editors.make_from_doc(
                     data.scope,
                     doc,

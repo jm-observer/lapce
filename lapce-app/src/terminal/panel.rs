@@ -526,7 +526,8 @@ impl TerminalPanelData {
     fn get_run_config_by_name(&self, name: &str) -> Option<RunDebugConfig> {
         if let Some(workspace) = self.common.workspace.path.as_deref() {
             let run_toml = workspace.join(".lapce").join("run.toml");
-            let (doc, new_doc) = self.main_split.get_doc(run_toml.clone(), None);
+            let (doc, new_doc) =
+                self.main_split.get_doc(run_toml.clone(), None, false);
             if !new_doc {
                 let content = doc.buffer.with_untracked(|b| b.to_string());
                 match toml::from_str::<RunDebugConfigs>(&content) {

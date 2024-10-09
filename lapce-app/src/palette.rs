@@ -993,7 +993,8 @@ impl PaletteData {
     fn get_run_configs(&self) {
         if let Some(workspace) = self.common.workspace.path.as_deref() {
             let run_toml = workspace.join(".lapce").join("run.toml");
-            let (doc, new_doc) = self.main_split.get_doc(run_toml.clone(), None);
+            let (doc, new_doc) =
+                self.main_split.get_doc(run_toml.clone(), None, false);
             if !new_doc {
                 let content = doc.buffer.with_untracked(|b| b.to_string());
                 self.set_run_configs(content);
@@ -1447,7 +1448,7 @@ impl PaletteData {
                 PaletteItemContent::Reference { location, .. } => {
                     self.has_preview.set(true);
                     let (doc, new_doc) =
-                        self.main_split.get_doc(location.path.clone(), None);
+                        self.main_split.get_doc(location.path.clone(), None, false);
                     self.preview_editor.update_doc(doc);
                     self.preview_editor.go_to_location(
                         location.clone(),
@@ -1487,7 +1488,7 @@ impl PaletteData {
                 PaletteItemContent::WorkspaceSymbol { location, .. } => {
                     self.has_preview.set(true);
                     let (doc, new_doc) =
-                        self.main_split.get_doc(location.path.clone(), None);
+                        self.main_split.get_doc(location.path.clone(), None, false);
                     self.preview_editor.update_doc(doc);
                     self.preview_editor.go_to_location(
                         location.clone(),

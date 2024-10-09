@@ -618,6 +618,7 @@ impl MainSplitData {
         &self,
         path: PathBuf,
         unsaved: Option<String>,
+        lsp_req: bool,
     ) -> (Rc<Doc>, bool) {
         let cx = self.scope;
         let doc = self.docs.with_untracked(|docs| docs.get(&path).cloned());
@@ -668,9 +669,11 @@ impl MainSplitData {
                     },
                 );
             }
-            doc.get_code_lens();
-            doc.get_folding_range();
-            doc.get_document_symbol();
+            if lsp_req {
+                doc.get_code_lens();
+                doc.get_folding_range();
+                doc.get_document_symbol();
+            }
             (doc, true)
         }
     }
@@ -684,7 +687,7 @@ impl MainSplitData {
             self.common.focus.set(Focus::Workbench);
         }
         let path = location.path.clone();
-        let (doc, new_doc) = self.get_doc(path.clone(), None);
+        let (doc, new_doc) = self.get_doc(path.clone(), None, true);
 
         let child = self.get_editor_tab_child(
             EditorTabChildSource::Editor { path, doc },
@@ -699,7 +702,7 @@ impl MainSplitData {
     }
 
     pub fn open_file_changes(&self, path: PathBuf) {
-        let (right, _) = self.get_doc(path.clone(), None);
+        let (right, _) = self.get_doc(path.clone(), None, false);
         let left = Doc::new_history(
             self.scope,
             DocContent::History(DocHistory {
@@ -733,7 +736,7 @@ impl MainSplitData {
 
     pub fn open_diff_files(&self, left_path: PathBuf, right_path: PathBuf) {
         let [left, right] =
-            [left_path, right_path].map(|path| self.get_doc(path, None).0);
+            [left_path, right_path].map(|path| self.get_doc(path, None, false).0);
 
         self.get_editor_tab_child(
             EditorTabChildSource::DiffEditor { left, right },
