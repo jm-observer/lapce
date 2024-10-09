@@ -64,7 +64,8 @@ use serde::{Deserialize, Serialize};
 use tracing_subscriber::{filter::Targets, reload::Handle};
 
 use crate::panel::view::{
-    new_left_panel_container_view, new_right_panel_container_view,
+    new_bottom_panel_container_view, new_left_panel_container_view,
+    new_right_panel_container_view,
 };
 use crate::{
     about, alert,
@@ -2128,10 +2129,10 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
             let window_tab_data = window_tab_data.clone();
             stack((
                 main_split(window_tab_data.clone()),
-                // panel_container_view(
-                //     window_tab_data,
-                //     PanelContainerPosition::Bottom,
-                // ),
+                new_bottom_panel_container_view(
+                    window_tab_data,
+                    PanelContainerPosition::Bottom,
+                ),
             ))
             .on_resize(move |rect| {
                 let width = rect.size().width;
