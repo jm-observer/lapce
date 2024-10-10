@@ -1,5 +1,7 @@
+use std::cmp::Ordering;
 use std::{rc::Rc, sync::Arc};
 
+use floem::reactive::create_signal;
 use floem::{
     event::{Event, EventListener},
     reactive::{
@@ -13,6 +15,7 @@ use floem::{
     },
     View,
 };
+use itertools::Itertools;
 use lapce_core::mode::Modes;
 
 use crate::{
@@ -49,45 +52,60 @@ pub fn keymap_view(editors: Editors, common: Rc<CommonData>) -> impl View {
     let cx = Scope::current();
     let text_input_view = TextInputBuilder::new().build(cx, editors, common.clone());
     let doc = text_input_view.doc_signal();
+    let (read_order, write_order) = create_signal(KeyMapOrder::default());
 
-    let items = move || {
+    let key_map_items = move || {
         let doc = doc.get();
         let pattern = doc.buffer.with(|b| b.to_string().to_lowercase());
         let keypress = keypress.get();
-        let mut items = keypress
-            .commands_with_keymap
-            .iter()
-            .filter_map(|keymap| {
-                let cmd = keypress.commands.get(&keymap.command).cloned()?;
+        let items = keypress.commands_with_keymap.iter().filter_map(|keymap| {
+            let cmd = keypress.commands.get(&keymap.command).cloned()?;
 
-                let cmd_name_contains_pattern =
-                    cmd.kind.str().replace('_', " ").contains(&pattern);
-                let cmd_desc_contains_pattern = cmd
-                    .kind
-                    .desc()
-                    .map(|desc| desc.to_lowercase().contains(&pattern))
-                    .unwrap_or(false);
-                let shortcut_contains_pattern = keymap
-                    .key
-                    .iter()
-                    .any(|k| k.label().trim().to_lowercase().contains(&pattern));
-                let when_contains_pattern = keymap
-                    .when
-                    .as_ref()
-                    .map(|when| when.to_lowercase().contains(&pattern))
-                    .unwrap_or(false);
+            let cmd_name_contains_pattern =
+                cmd.kind.str().replace('_', " ").contains(&pattern);
+            let cmd_desc_contains_pattern = cmd
+                .kind
+                .desc()
+                .map(|desc| desc.to_lowercase().contains(&pattern))
+                .unwrap_or(false);
+            let shortcut_contains_pattern = keymap
+                .key
+                .iter()
+                .any(|k| k.label().trim().to_lowercase().contains(&pattern));
+            let when_contains_pattern = keymap
+                .when
+                .as_ref()
+                .map(|when| when.to_lowercase().contains(&pattern))
+                .unwrap_or(false);
 
-                if cmd_name_contains_pattern
-                    || cmd_desc_contains_pattern
-                    || shortcut_contains_pattern
-                    || when_contains_pattern
-                {
-                    Some((cmd, Some(keymap.clone())))
-                } else {
-                    None
-                }
-            })
-            .collect::<im::Vector<(LapceCommand, Option<KeyMap>)>>();
+            if cmd_name_contains_pattern
+                || cmd_desc_contains_pattern
+                || shortcut_contains_pattern
+                || when_contains_pattern
+            {
+                Some((cmd, Some(keymap.clone())))
+            } else {
+                None
+            }
+        });
+        let mut items = match read_order.get() {
+            KeyMapOrder::None => {
+                items.collect::<im::Vector<(LapceCommand, Option<KeyMap>)>>()
+            }
+            KeyMapOrder::OrderKey => items
+                .sorted_by(|x, y| {
+                    match (
+                        x.1.as_ref().and_then(|x| x.key.first()),
+                        y.1.as_ref().and_then(|x| x.key.first()),
+                    ) {
+                        (Some(x_key), Some(y_key)) => x_key.cmp(y_key),
+                        (Some(_), None) => Ordering::Greater,
+                        (None, Some(_)) => Ordering::Less,
+                        _ => Ordering::Equal,
+                    }
+                })
+                .collect::<im::Vector<(LapceCommand, Option<KeyMap>)>>(),
+        };
         items.extend(keypress.commands_without_keymap.iter().filter_map(|cmd| {
             let match_pattern = cmd.kind.str().replace('_', " ").contains(&pattern)
                 || cmd
@@ -134,7 +152,8 @@ pub fn keymap_view(editors: Editors, common: Rc<CommonData>) -> impl View {
                         .flex_grow(1.0)
                         .border_right(1.0)
                         .border_color(config.get().color(LapceColor::LAPCE_BORDER))
-                }),
+                })
+                .debug_name("command kind"),
                 {
                     let keymap = keymap.clone();
                     dyn_stack(
@@ -175,6 +194,7 @@ pub fn keymap_view(editors: Editors, common: Rc<CommonData>) -> impl View {
                                 config.get().color(LapceColor::LAPCE_BORDER),
                             )
                     })
+                    .debug_name("keymaps")
                 },
                 {
                     let keymap = keymap.clone();
@@ -306,14 +326,18 @@ pub fn keymap_view(editors: Editors, common: Rc<CommonData>) -> impl View {
                     .border_right(1.0)
                     .border_color(config.get().color(LapceColor::LAPCE_BORDER))
             }),
-            text("Key Binding").style(move |s| {
-                s.width(200.0)
-                    .items_center()
-                    .padding_horiz(10.0)
-                    .height_pct(100.0)
-                    .border_right(1.0)
-                    .border_color(config.get().color(LapceColor::LAPCE_BORDER))
-            }),
+            container(text("Key Binding"))
+                .style(move |s| {
+                    s.width(200.0)
+                        .items_center()
+                        .padding_horiz(10.0)
+                        .height_pct(100.0)
+                        .border_right(1.0)
+                        .border_color(config.get().color(LapceColor::LAPCE_BORDER))
+                })
+                .on_click_stop(move |_| {
+                    write_order.update(|x| x.update());
+                }),
             text("Modes").style(move |s| {
                 s.width(200.0)
                     .items_center()
@@ -349,7 +373,7 @@ pub fn keymap_view(editors: Editors, common: Rc<CommonData>) -> impl View {
                 virtual_stack(
                     VirtualDirection::Vertical,
                     VirtualItemSize::Fixed(Box::new(ui_line_height)),
-                    items,
+                    key_map_items,
                     |(i, (cmd, keymap)): &(
                         usize,
                         (LapceCommand, Option<KeyMap>),
@@ -561,4 +585,20 @@ fn keyboard_picker_view(
     });
 
     view
+}
+
+#[derive(Debug, Default, Clone)]
+pub enum KeyMapOrder {
+    #[default]
+    None,
+    OrderKey,
+}
+
+impl KeyMapOrder {
+    pub fn update(&mut self) {
+        match self {
+            KeyMapOrder::None => *self = Self::OrderKey,
+            KeyMapOrder::OrderKey => *self = Self::None,
+        }
+    }
 }

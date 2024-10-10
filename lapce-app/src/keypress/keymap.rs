@@ -22,7 +22,7 @@ pub struct KeyMap {
     pub command: String,
 }
 
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Ord, PartialOrd)]
 pub enum KeyMapKey {
     Pointer(PointerButton),
     Logical(Key),
@@ -39,7 +39,7 @@ impl std::hash::Hash for KeyMapKey {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug, Ord, PartialOrd)]
 pub struct KeyMapPress {
     pub key: KeyMapKey,
     pub mods: Modifiers,
