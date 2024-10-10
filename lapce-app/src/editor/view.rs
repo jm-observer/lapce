@@ -1109,7 +1109,10 @@ impl View for EditorView {
         cx: &mut floem::context::ComputeLayoutCx,
     ) -> Option<Rect> {
         let viewport = cx.current_viewport();
-        if self.viewport.with_untracked(|v| v != &viewport) {
+        if self.viewport.with_untracked(|v| {
+            tracing::debug!("current_viewport={viewport:?} viewport={v:?}");
+            v != &viewport
+        }) {
             self.viewport.set(viewport);
         }
         None
