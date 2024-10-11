@@ -4,6 +4,7 @@ pub mod app;
 pub mod code_action;
 pub mod code_lens;
 pub mod command;
+mod common;
 pub mod completion;
 pub mod config;
 pub mod db;
