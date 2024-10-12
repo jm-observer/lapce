@@ -14,6 +14,7 @@ use itertools::Itertools;
 use lapce_rpc::file_line::FileLine;
 use lsp_types::{request::GotoImplementationResponse, Location, SymbolKind};
 
+use crate::common::common_tab_header;
 use crate::panel::position::PanelContainerPosition;
 use crate::{
     command::InternalCommand,
@@ -26,10 +27,20 @@ pub fn implementation_panel(
     window_tab_data: Rc<WindowTabData>,
     _position: PanelContainerPosition,
 ) -> impl View {
-    common_reference_panel(window_tab_data.clone(), _position, move || {
-        window_tab_data.main_split.implementations.get()
-    })
-    .debug_name("implementation panel")
+    stack((
+        common_tab_header(
+            window_tab_data.clone(),
+            window_tab_data.main_split.implementations.clone(),
+        ),
+        common_reference_panel(window_tab_data.clone(), _position, move || {
+            window_tab_data
+                .main_split
+                .implementations
+                .get_active_content()
+        })
+        .debug_name("implementation panel"),
+    ))
+    .style(|x| x.flex_col().width_full().height_full())
 }
 pub fn common_reference_panel(
     window_tab_data: Rc<WindowTabData>,

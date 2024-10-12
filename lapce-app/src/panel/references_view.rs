@@ -1,10 +1,9 @@
 use std::rc::Rc;
 
-use floem::reactive::RwSignal;
 use floem::views::stack;
-use floem::{reactive::SignalGet, views::Decorators, View};
+use floem::{views::Decorators, View};
 
-use crate::common::{common_tab_header, Tabs};
+use crate::common::common_tab_header;
 use crate::panel::position::PanelContainerPosition;
 use crate::{
     panel::implementation_view::common_reference_panel, window_tab::WindowTabData,

@@ -1,15 +1,13 @@
 use crate::app::clickable_icon;
-use crate::command::{InternalCommand, LapceWorkbenchCommand};
 use crate::config::color::LapceColor;
 use crate::config::icon::LapceIcons;
 use crate::config::ui::{TabCloseButton, TabSeparatorHeight};
 use crate::config::LapceConfig;
 use crate::panel::implementation_view::ReferencesRoot;
 use crate::window_tab::WindowTabData;
-use floem::event::*;
 use floem::kurbo::{Rect, Size};
 use floem::reactive::*;
-use floem::style::{AlignItems, CursorStyle};
+use floem::style::CursorStyle;
 use floem::taffy::{
     style_helpers::{self, auto, fr},
     Line,
@@ -20,7 +18,6 @@ use floem::views::*;
 use floem::*;
 use std::rc::Rc;
 use std::sync::Arc;
-use tracing::debug;
 
 /// The top bar of an Editor tab. Includes the tab forward/back buttons, the tab scroll bar and the new split and tab close all button.
 pub fn common_tab_header(
@@ -461,16 +458,6 @@ impl Tabs {
         });
     }
     fn tabs(&self) -> impl IntoIterator<Item = (Tab, CloseManager)> + 'static {
-        self.tabs
-            .get()
-            .into_iter()
-            .map(|x| (x, self.close_manager))
-            .collect::<Vec<_>>()
-    }
-
-    fn active_tab_content(
-        &self,
-    ) -> impl IntoIterator<Item = (Tab, CloseManager)> + 'static {
         self.tabs
             .get()
             .into_iter()
