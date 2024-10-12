@@ -34,6 +34,7 @@ use serde_json::Value;
 use tracing::{event, Level};
 
 use crate::common::Tabs;
+use crate::panel::implementation_view::ReferencesRoot;
 use crate::{
     alert::AlertButton,
     code_lens::CodeLensData,
@@ -400,8 +401,8 @@ pub struct MainSplitData {
     pub docs: RwSignal<im::HashMap<PathBuf, Rc<Doc>>>,
     pub scratch_docs: RwSignal<im::HashMap<String, Rc<Doc>>>,
     pub diagnostics: RwSignal<im::HashMap<PathBuf, DiagnosticData>>,
-    pub references: Tabs,
-    pub implementations: Tabs,
+    pub references: Tabs<ReferencesRoot>,
+    pub implementations: Tabs<ReferencesRoot>,
     pub active_editor: Memo<Option<EditorData>>,
     pub find_editor: EditorData,
     pub replace_editor: EditorData,

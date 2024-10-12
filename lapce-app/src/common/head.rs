@@ -3,7 +3,6 @@ use crate::config::color::LapceColor;
 use crate::config::icon::LapceIcons;
 use crate::config::ui::{TabCloseButton, TabSeparatorHeight};
 use crate::config::LapceConfig;
-use crate::panel::implementation_view::ReferencesRoot;
 use crate::window_tab::WindowTabData;
 use floem::kurbo::{Rect, Size};
 use floem::reactive::*;
@@ -20,9 +19,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 /// The top bar of an Editor tab. Includes the tab forward/back buttons, the tab scroll bar and the new split and tab close all button.
-pub fn common_tab_header(
+pub fn common_tab_header<T: Clone + Default + 'static>(
     window_tab_data: Rc<WindowTabData>,
-    tabs: Tabs,
+    tabs: Tabs<T>,
 ) -> impl View {
     let config = window_tab_data.common.config;
 
@@ -117,8 +116,8 @@ pub fn common_tab_header(
                 let tabs = tabs.clone();
                 dyn_stack(
                     move || tabs.tabs(),
-                    |(tab, _close_manager): &(Tab, CloseManager)| tab.key(),
-                    |(tab, close_manager): (Tab, CloseManager)| {
+                    |(tab, _close_manager): &(Tab<T>, CloseManager<T>)| tab.key(),
+                    |(tab, close_manager): (Tab<T>, CloseManager<T>)| {
                         tab.view_content(close_manager)
                     },
                 )
@@ -190,20 +189,20 @@ fn tooltip_tip<V: View + 'static>(
 }
 
 #[derive(Clone)]
-pub struct Tabs {
+pub struct Tabs<T: Clone + Default + 'static> {
     pub config: ReadSignal<Arc<LapceConfig>>,
-    pub close_manager: CloseManager,
+    pub close_manager: CloseManager<T>,
     pub active: RwSignal<Option<ViewId>>,
-    pub tabs: RwSignal<Vec<Tab>>,
+    pub tabs: RwSignal<Vec<Tab<T>>>,
     pub cx: Scope,
 }
 
 #[derive(Clone, Copy)]
-pub struct CloseManager {
-    pub tabs: RwSignal<Vec<Tab>>,
+pub struct CloseManager<T: Clone + Default + 'static> {
+    pub tabs: RwSignal<Vec<Tab<T>>>,
 }
 
-impl CloseManager {
+impl<T: Clone + Default + 'static> CloseManager<T> {
     fn close(&self, id: ViewId) {
         self.tabs.update(|x| {
             let Some(index) = x.iter().enumerate().find_map(|item| {
@@ -221,19 +220,19 @@ impl CloseManager {
 }
 
 #[derive(Clone)]
-pub struct Tab {
+pub struct Tab<T: Clone + Default + 'static> {
     pub id: ViewId,
     pub content: String,
     pub active: RwSignal<Option<ViewId>>,
     pub config: ReadSignal<Arc<LapceConfig>>,
     pub rect: RwSignal<Rect>,
-    pub references: RwSignal<ReferencesRoot>,
+    pub references: RwSignal<T>,
 }
 
-impl Tab {
+impl<T: Clone + Default + 'static> Tab<T> {
     fn view_tab_close_button(
         &self,
-        close_manager: CloseManager,
+        close_manager: CloseManager<T>,
     ) -> impl View + 'static {
         let config = self.config;
         let id = self.id;
@@ -307,7 +306,7 @@ impl Tab {
                 })
         })
     }
-    fn view_content(&self, close_manager: CloseManager) -> impl View + 'static {
+    fn view_content(&self, close_manager: CloseManager<T>) -> impl View + 'static {
         let config = self.config;
         let active = self.active;
         let rect = self.rect;
@@ -375,12 +374,6 @@ impl Tab {
     fn content_tip(&self) -> (String, String) {
         (self.content.clone(), "tip".to_owned())
     }
-}
-
-impl Tab {
-    // fn icon_str(&self) -> String {
-    //     LapceIcons::TAB_PREVIOUS.to_owned()
-    // }
 
     fn config(&self) -> ReadSignal<Arc<LapceConfig>> {
         self.config
@@ -422,7 +415,7 @@ impl Tab {
 
 // }
 
-impl Tabs {
+impl<T: Clone + Default + 'static> Tabs<T> {
     pub fn new(config: ReadSignal<Arc<LapceConfig>>, cx: Scope) -> Self {
         let active = cx.create_rw_signal(None);
         let tabs = cx.create_rw_signal(Vec::new());
@@ -437,7 +430,7 @@ impl Tabs {
         }
     }
 
-    pub fn push_tab(&self, content: String, references: ReferencesRoot) {
+    pub fn push_tab(&self, content: String, references: T) {
         let id = ViewId::new();
         let active = self.active;
         let config = self.config;
@@ -457,11 +450,11 @@ impl Tabs {
             self.active.set(Some(id));
         });
     }
-    fn tabs(&self) -> impl IntoIterator<Item = (Tab, CloseManager)> + 'static {
+    fn tabs(&self) -> impl IntoIterator<Item = (Tab<T>, CloseManager<T>)> + 'static {
         self.tabs
             .get()
             .into_iter()
-            .map(|x| (x, self.close_manager))
+            .map(|x| (x, self.close_manager.clone()))
             .collect::<Vec<_>>()
     }
 
@@ -515,7 +508,7 @@ impl Tabs {
         });
     }
 
-    pub fn get_active_tab(&self) -> Option<(usize, Tab)> {
+    pub fn get_active_tab(&self) -> Option<(usize, Tab<T>)> {
         self.tabs.with(|x| {
             if let Some(active) = self.active.get() {
                 if x.is_empty() {
@@ -534,7 +527,7 @@ impl Tabs {
         })
     }
 
-    pub fn get_active_content(&self) -> ReferencesRoot {
+    pub fn get_active_content(&self) -> T {
         self.get_active_tab()
             .map(|x| x.1.references.get())
             .unwrap_or_default()
