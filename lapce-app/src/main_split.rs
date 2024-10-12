@@ -33,6 +33,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tracing::{event, Level};
 
+use crate::common::Tabs;
 use crate::{
     alert::AlertButton,
     code_lens::CodeLensData,
@@ -400,7 +401,7 @@ pub struct MainSplitData {
     pub docs: RwSignal<im::HashMap<PathBuf, Rc<Doc>>>,
     pub scratch_docs: RwSignal<im::HashMap<String, Rc<Doc>>>,
     pub diagnostics: RwSignal<im::HashMap<PathBuf, DiagnosticData>>,
-    pub references: RwSignal<ReferencesRoot>,
+    pub references: Tabs,
     pub implementations: RwSignal<crate::panel::implementation_view::ReferencesRoot>,
     pub active_editor: Memo<Option<EditorData>>,
     pub find_editor: EditorData,
@@ -434,7 +435,7 @@ impl MainSplitData {
             cx.create_rw_signal(im::HashMap::new());
         let scratch_docs = cx.create_rw_signal(im::HashMap::new());
         let locations = cx.create_rw_signal(im::Vector::new());
-        let references = cx.create_rw_signal(ReferencesRoot::default());
+        let references = Tabs::new(common.config, cx);
         let implementations = cx.create_rw_signal(
             crate::panel::implementation_view::ReferencesRoot::default(),
         );

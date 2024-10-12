@@ -1438,12 +1438,16 @@ impl EditorData {
         };
 
         let offset = self.cursor().with_untracked(|c| c.offset());
-        let (_start_position, position) = doc.buffer.with_untracked(|buffer| {
-            let start_offset = buffer.prev_code_boundary(offset);
-            let start_position = buffer.offset_to_position(start_offset);
-            let position = buffer.offset_to_position(offset);
-            (start_position, position)
-        });
+        let (_start_position, position, symbol) =
+            doc.buffer.with_untracked(|buffer| {
+                let start_offset = buffer.prev_code_boundary(offset);
+                let end_offset = buffer.next_code_boundary(offset);
+                let start_position = buffer.offset_to_position(start_offset);
+                let position = buffer.offset_to_position(offset);
+                let symbol =
+                    buffer.slice_to_cow(start_offset..end_offset).to_string();
+                (start_position, position, symbol)
+            });
         let scope = window_tab_data.scope;
         let update_implementation = create_ext_action(self.scope, {
             let window_tab_data = window_tab_data.clone();
@@ -1454,7 +1458,7 @@ impl EditorData {
                     window_tab_data
                         .main_split
                         .references
-                        .update(|x| *x = init_implementation_root(items, scope));
+                        .push_tab(symbol, init_implementation_root(items, scope));
                     window_tab_data.show_panel(PanelKind::References);
                 }
             }

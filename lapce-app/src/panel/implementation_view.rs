@@ -176,9 +176,9 @@ pub fn common_reference_panel(
                 })
             },
         )
-        .style(|s| s.flex_col().absolute().min_width_full()),
+        .style(|s| s.flex_col().min_width_full()),
     )
-    .style(|s| s.absolute().size_full())
+    .style(|s| s.flex_grow(1.0).size_full())
 }
 
 pub fn map_to_location(resp: Option<GotoImplementationResponse>) -> Vec<Location> {

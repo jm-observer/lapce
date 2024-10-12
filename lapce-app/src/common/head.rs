@@ -4,6 +4,7 @@ use crate::config::color::LapceColor;
 use crate::config::icon::LapceIcons;
 use crate::config::ui::{TabCloseButton, TabSeparatorHeight};
 use crate::config::LapceConfig;
+use crate::panel::implementation_view::ReferencesRoot;
 use crate::window_tab::WindowTabData;
 use floem::event::*;
 use floem::kurbo::{Rect, Size};
@@ -138,7 +139,7 @@ pub fn common_tab_header(
                 move || {
                     resize_signal.track();
                     if let Some(rect) = tabs.get_active_rect() {
-                        rect
+                        rect.get()
                     } else {
                         Rect::ZERO
                     }
@@ -197,6 +198,7 @@ pub struct Tabs {
     pub close_manager: CloseManager,
     pub active: RwSignal<Option<ViewId>>,
     pub tabs: RwSignal<Vec<Tab>>,
+    pub cx: Scope,
 }
 
 #[derive(Clone, Copy)]
@@ -228,6 +230,7 @@ pub struct Tab {
     pub active: RwSignal<Option<ViewId>>,
     pub config: ReadSignal<Arc<LapceConfig>>,
     pub rect: RwSignal<Rect>,
+    pub references: RwSignal<ReferencesRoot>,
 }
 
 impl Tab {
@@ -423,47 +426,9 @@ impl Tab {
 // }
 
 impl Tabs {
-    pub fn new(config: ReadSignal<Arc<LapceConfig>>) -> Self {
-        let active = RwSignal::new(None);
-
-        let tabs = vec![
-            Tab {
-                id: ViewId::new(),
-                content: "111111111111111111111111".to_string(),
-                active: active,
-                config: config,
-                rect: RwSignal::new(Rect::ZERO),
-            },
-            Tab {
-                id: ViewId::new(),
-                content: "5555555555555".to_string(),
-                active: active,
-                config: config,
-                rect: RwSignal::new(Rect::ZERO),
-            },
-            Tab {
-                id: ViewId::new(),
-                content: "2222222222222222".to_string(),
-                active: active,
-                config: config,
-                rect: RwSignal::new(Rect::ZERO),
-            },
-            Tab {
-                id: ViewId::new(),
-                content: "333333333333333333333333333".to_string(),
-                active: active,
-                config: config,
-                rect: RwSignal::new(Rect::ZERO),
-            },
-            Tab {
-                id: ViewId::new(),
-                content: "44444444444444444".to_string(),
-                active: active,
-                config: config,
-                rect: RwSignal::new(Rect::ZERO),
-            },
-        ];
-        let tabs = RwSignal::new(tabs);
+    pub fn new(config: ReadSignal<Arc<LapceConfig>>, cx: Scope) -> Self {
+        let active = cx.create_rw_signal(None);
+        let tabs = cx.create_rw_signal(Vec::new());
         let close_manager = CloseManager { tabs };
 
         Self {
@@ -471,9 +436,41 @@ impl Tabs {
             tabs,
             close_manager,
             active,
+            cx,
         }
     }
+
+    pub fn push_tab(&self, content: String, references: ReferencesRoot) {
+        let id = ViewId::new();
+        let active = self.active;
+        let config = self.config;
+        let rect = self.cx.create_rw_signal(Rect::ZERO);
+        let references = self.cx.create_rw_signal(references);
+        // let content = format!("{:?}{}", id, content);
+        let tab = Tab {
+            id,
+            content,
+            active,
+            config,
+            rect,
+            references,
+        };
+        batch(|| {
+            self.tabs.update(|x| x.push(tab));
+            self.active.set(Some(id));
+        });
+    }
     fn tabs(&self) -> impl IntoIterator<Item = (Tab, CloseManager)> + 'static {
+        self.tabs
+            .get()
+            .into_iter()
+            .map(|x| (x, self.close_manager))
+            .collect::<Vec<_>>()
+    }
+
+    fn active_tab_content(
+        &self,
+    ) -> impl IntoIterator<Item = (Tab, CloseManager)> + 'static {
         self.tabs
             .get()
             .into_iter()
@@ -531,7 +528,7 @@ impl Tabs {
         });
     }
 
-    pub fn get_active_rect(&self) -> Option<Rect> {
+    pub fn get_active_tab(&self) -> Option<(usize, Tab)> {
         self.tabs.with(|x| {
             if let Some(active) = self.active.get() {
                 if x.is_empty() {
@@ -539,7 +536,7 @@ impl Tabs {
                 }
                 x.iter().enumerate().find_map(|item| {
                     if item.1.id == active {
-                        Some(item.1.rect.get_untracked())
+                        Some((item.0, item.1.clone()))
                     } else {
                         None
                     }
@@ -548,6 +545,16 @@ impl Tabs {
                 None
             }
         })
+    }
+
+    pub fn get_active_content(&self) -> ReferencesRoot {
+        self.get_active_tab()
+            .map(|x| x.1.references.get())
+            .unwrap_or_default()
+    }
+
+    pub fn get_active_rect(&self) -> Option<RwSignal<Rect>> {
+        self.get_active_tab().map(|x| x.1.rect)
     }
 
     fn get_pre_next_id(&self) -> (Option<ViewId>, Option<ViewId>) {

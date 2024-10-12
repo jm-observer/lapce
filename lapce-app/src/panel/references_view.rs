@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use floem::reactive::RwSignal;
+use floem::views::stack;
 use floem::{reactive::SignalGet, views::Decorators, View};
 
 use crate::common::{common_tab_header, Tabs};
@@ -13,10 +14,15 @@ pub fn references_panel(
     window_tab_data: Rc<WindowTabData>,
     _position: PanelContainerPosition,
 ) -> impl View {
-    let config = window_tab_data.common.config;
-    common_tab_header(window_tab_data, Tabs::new(config))
-    // common_reference_panel(window_tab_data.clone(), _position, move || {
-    //     window_tab_data.main_split.references.get()
-    // })
-    // .debug_name("references panel")
+    stack((
+        common_tab_header(
+            window_tab_data.clone(),
+            window_tab_data.main_split.references.clone(),
+        ),
+        common_reference_panel(window_tab_data.clone(), _position, move || {
+            window_tab_data.main_split.references.get_active_content()
+        })
+        .debug_name("references panel"),
+    ))
+    .style(|x| x.flex_col().width_full().height_full())
 }
