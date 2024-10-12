@@ -34,6 +34,7 @@ use serde_json::Value;
 use tracing::{event, Level};
 
 use crate::common::Tabs;
+use crate::panel::call_hierarchy_view::CallHierarchyData;
 use crate::panel::implementation_view::ReferencesRoot;
 use crate::{
     alert::AlertButton,
@@ -411,6 +412,7 @@ pub struct MainSplitData {
     pub width: RwSignal<f64>,
     pub code_lens: RwSignal<CodeLensData>,
     pub common: Rc<CommonData>,
+    pub hierarchy: Tabs<CallHierarchyData>,
 }
 
 impl std::fmt::Debug for MainSplitData {
@@ -437,6 +439,7 @@ impl MainSplitData {
         let locations = cx.create_rw_signal(im::Vector::new());
         let references = Tabs::new(common.config, cx);
         let implementations = Tabs::new(common.config, cx);
+        let hierarchy = Tabs::new(common.config, cx);
         let current_location = cx.create_rw_signal(0);
         let diagnostics = cx.create_rw_signal(im::HashMap::new());
         let find_editor = editors.make_local(cx, common.clone());
@@ -498,6 +501,7 @@ impl MainSplitData {
             common,
             references,
             implementations,
+            hierarchy,
         }
     }
 

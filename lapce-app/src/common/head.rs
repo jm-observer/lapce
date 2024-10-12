@@ -19,7 +19,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 /// The top bar of an Editor tab. Includes the tab forward/back buttons, the tab scroll bar and the new split and tab close all button.
-pub fn common_tab_header<T: Clone + Default + 'static>(
+pub fn common_tab_header<T: Clone + 'static>(
     window_tab_data: Rc<WindowTabData>,
     tabs: Tabs<T>,
 ) -> impl View {
@@ -189,7 +189,7 @@ fn tooltip_tip<V: View + 'static>(
 }
 
 #[derive(Clone)]
-pub struct Tabs<T: Clone + Default + 'static> {
+pub struct Tabs<T: Clone + 'static> {
     pub config: ReadSignal<Arc<LapceConfig>>,
     pub close_manager: CloseManager<T>,
     pub active: RwSignal<Option<ViewId>>,
@@ -198,11 +198,11 @@ pub struct Tabs<T: Clone + Default + 'static> {
 }
 
 #[derive(Clone, Copy)]
-pub struct CloseManager<T: Clone + Default + 'static> {
+pub struct CloseManager<T: Clone + 'static> {
     pub tabs: RwSignal<Vec<Tab<T>>>,
 }
 
-impl<T: Clone + Default + 'static> CloseManager<T> {
+impl<T: Clone + 'static> CloseManager<T> {
     fn close(&self, id: ViewId) {
         self.tabs.update(|x| {
             let Some(index) = x.iter().enumerate().find_map(|item| {
@@ -220,7 +220,7 @@ impl<T: Clone + Default + 'static> CloseManager<T> {
 }
 
 #[derive(Clone)]
-pub struct Tab<T: Clone + Default + 'static> {
+pub struct Tab<T: Clone + 'static> {
     pub id: ViewId,
     pub content: String,
     pub active: RwSignal<Option<ViewId>>,
@@ -229,7 +229,7 @@ pub struct Tab<T: Clone + Default + 'static> {
     pub references: RwSignal<T>,
 }
 
-impl<T: Clone + Default + 'static> Tab<T> {
+impl<T: Clone + 'static> Tab<T> {
     fn view_tab_close_button(
         &self,
         close_manager: CloseManager<T>,
@@ -415,7 +415,7 @@ impl<T: Clone + Default + 'static> Tab<T> {
 
 // }
 
-impl<T: Clone + Default + 'static> Tabs<T> {
+impl<T: Clone + 'static> Tabs<T> {
     pub fn new(config: ReadSignal<Arc<LapceConfig>>, cx: Scope) -> Self {
         let active = cx.create_rw_signal(None);
         let tabs = cx.create_rw_signal(Vec::new());
@@ -527,10 +527,8 @@ impl<T: Clone + Default + 'static> Tabs<T> {
         })
     }
 
-    pub fn get_active_content(&self) -> T {
-        self.get_active_tab()
-            .map(|x| x.1.references.get())
-            .unwrap_or_default()
+    pub fn get_active_content(&self) -> Option<T> {
+        self.get_active_tab().map(|x| x.1.references.get())
     }
 
     pub fn get_active_rect(&self) -> Option<RwSignal<Rect>> {

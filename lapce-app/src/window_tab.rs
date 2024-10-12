@@ -244,7 +244,6 @@ pub struct WindowTabData {
     pub source_control: SourceControlData,
     pub rename: RenameData,
     pub global_search: GlobalSearchData,
-    pub call_hierarchy_data: CallHierarchyData,
     pub about_data: AboutData,
     pub alert_data: AlertBoxData,
     pub layout_rect: RwSignal<Rect>,
@@ -623,11 +622,6 @@ impl WindowTabData {
             plugin,
             rename,
             global_search,
-            call_hierarchy_data: CallHierarchyData {
-                root: cx.create_rw_signal(None),
-                common: common.clone(),
-                scroll_to_line: cx.create_rw_signal(None),
-            },
             about_data,
             alert_data,
             layout_rect: cx.create_rw_signal(Rect::ZERO),
@@ -2174,8 +2168,8 @@ impl WindowTabData {
                     self.palette.run(PaletteKind::RunAndDebug);
                 }
             }
-            InternalCommand::CallHierarchyIncoming { item_id } => {
-                self.call_hierarchy_incoming(item_id);
+            InternalCommand::CallHierarchyIncoming { item_id, root_id } => {
+                self.call_hierarchy_incoming(root_id, item_id);
             }
         }
     }
@@ -3011,11 +3005,21 @@ impl WindowTabData {
             });
     }
 
-    pub fn call_hierarchy_incoming(&self, item_id: ViewId) {
-        let Some(root) = self.call_hierarchy_data.root.get_untracked() else {
+    pub fn call_hierarchy_incoming(&self, root_id: ViewId, item_id: ViewId) {
+        let Some(item) = self.main_split.hierarchy.tabs.with_untracked(|x| {
+            x.iter().find_map(move |item| {
+                let refe = item.references.get_untracked();
+                if refe.root_id == root_id {
+                    Some(refe)
+                } else {
+                    None
+                }
+            })
+        }) else {
             return;
         };
-        let Some(item) = CallHierarchyItemData::find_by_id(root, item_id) else {
+        let Some(item) = CallHierarchyItemData::find_by_id(item.root, item_id)
+        else {
             return;
         };
         let root_item = item;
@@ -3032,6 +3036,7 @@ impl WindowTabData {
                             for range in x.from_ranges {
                                 item_children.push(scope.create_rw_signal(
                                     CallHierarchyItemData {
+                                        root_id,
                                         view_id: floem::ViewId::new(),
                                         item: item.clone(),
                                         from_range: range,

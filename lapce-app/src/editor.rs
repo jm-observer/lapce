@@ -62,6 +62,8 @@ use self::{
     diff::DiffInfo,
     location::{EditorLocation, EditorPosition},
 };
+use crate::common::Tab;
+use crate::panel::call_hierarchy_view::CallHierarchyData;
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand},
     completion::CompletionStatus,
@@ -1402,22 +1404,38 @@ impl EditorData {
                 }) = result
                 {
                     if let Some(item) = items.and_then(|x| x.into_iter().next()) {
-                        let root = scope.create_rw_signal(CallHierarchyItemData {
-                            view_id: ViewId::new(),
+                        let root_id = ViewId::new();
+                        let name = item.name.clone();
+                        let root = CallHierarchyItemData {
+                            root_id,
+                            view_id: root_id,
                             item: Rc::new(item),
                             from_range: range,
                             init: false,
                             open: scope.create_rw_signal(true),
                             children: scope.create_rw_signal(Vec::with_capacity(0)),
-                        });
-                        let item = root;
-                        window_tab_data.call_hierarchy_data.root.update(|x| {
-                            *x = Some(root);
-                        });
+                        };
+                        let root = window_tab_data
+                            .main_split
+                            .hierarchy
+                            .cx
+                            .create_rw_signal(root);
+                        window_tab_data.main_split.hierarchy.push_tab(
+                            name,
+                            CallHierarchyData {
+                                root,
+                                root_id,
+                                scroll_to_line: None,
+                            },
+                        );
+                        // call_hierarchy_data.root.update(|x| {
+                        //     *x = Some(root);
+                        // });
                         window_tab_data.show_panel(PanelKind::CallHierarchy);
                         window_tab_data.common.internal_command.send(
                             InternalCommand::CallHierarchyIncoming {
-                                item_id: item.get_untracked().view_id,
+                                item_id: root_id,
+                                root_id,
                             },
                         );
                     }

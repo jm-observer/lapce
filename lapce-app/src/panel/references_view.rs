@@ -19,7 +19,11 @@ pub fn references_panel(
             window_tab_data.main_split.references.clone(),
         ),
         common_reference_panel(window_tab_data.clone(), _position, move || {
-            window_tab_data.main_split.references.get_active_content()
+            window_tab_data
+                .main_split
+                .references
+                .get_active_content()
+                .unwrap_or_default()
         })
         .debug_name("references panel"),
     ))

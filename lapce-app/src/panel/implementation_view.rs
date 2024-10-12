@@ -37,6 +37,7 @@ pub fn implementation_panel(
                 .main_split
                 .implementations
                 .get_active_content()
+                .unwrap_or_default()
         })
         .debug_name("implementation panel"),
     ))

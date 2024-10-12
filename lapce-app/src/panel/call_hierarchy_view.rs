@@ -12,24 +12,25 @@ use floem::{
 use lsp_types::{CallHierarchyItem, Range};
 
 use crate::common::common_tab_header;
-use crate::panel::implementation_view::common_reference_panel;
 use crate::panel::position::PanelContainerPosition;
 use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons},
     editor::location::EditorLocation,
-    window_tab::{CommonData, WindowTabData},
+    window_tab::WindowTabData,
 };
 
 #[derive(Clone, Debug)]
 pub struct CallHierarchyData {
-    pub root: RwSignal<Option<RwSignal<CallHierarchyItemData>>>,
-    pub common: Rc<CommonData>,
-    pub scroll_to_line: RwSignal<Option<f64>>,
+    pub root: RwSignal<CallHierarchyItemData>,
+    pub root_id: ViewId,
+    // pub common: Rc<CommonData>,
+    pub scroll_to_line: Option<f64>,
 }
 
 #[derive(Debug, Clone)]
 pub struct CallHierarchyItemData {
+    pub root_id: ViewId,
     pub view_id: ViewId,
     pub item: Rc<CallHierarchyItem>,
     pub from_range: Range,
@@ -132,10 +133,16 @@ pub fn show_hierarchy_panel(
     stack((
         common_tab_header(
             window_tab_data.clone(),
-            window_tab_data.main_split.references.clone(),
+            window_tab_data.main_split.hierarchy.clone(),
         ),
-        common_reference_panel(window_tab_data.clone(), _position, move || {
-            window_tab_data.main_split.references.get_active_content()
+        _show_hierarchy_panel(window_tab_data.clone(), _position, move || {
+            VirtualList::new(
+                window_tab_data
+                    .main_split
+                    .hierarchy
+                    .get_active_content()
+                    .map(|x| x.root),
+            )
         })
         .debug_name("references panel"),
     ))
@@ -144,16 +151,16 @@ pub fn show_hierarchy_panel(
 pub fn _show_hierarchy_panel(
     window_tab_data: Rc<WindowTabData>,
     _position: PanelContainerPosition,
+    each_fn: impl Fn() -> VirtualList + 'static,
 ) -> impl View {
-    let call_hierarchy_data = window_tab_data.call_hierarchy_data.clone();
-    let config = call_hierarchy_data.common.config;
-    let ui_line_height = call_hierarchy_data.common.ui_line_height;
-    let scroll_to_line = call_hierarchy_data.scroll_to_line;
+    let config = window_tab_data.common.config;
+    let ui_line_height = window_tab_data.common.ui_line_height;
+    let scroll_to_line: RwSignal<Option<f64>> = RwSignal::new(None);
     scroll(
         virtual_stack(
             VirtualDirection::Vertical,
             VirtualItemSize::Fixed(Box::new(move || ui_line_height.get())),
-            move || VirtualList::new(call_hierarchy_data.root.get()),
+            each_fn,
             move |(_, _, item)| item.get_untracked().view_id,
             move |(_, level, rw_data)| {
                 let data = rw_data.get_untracked();
@@ -184,9 +191,11 @@ pub fn _show_hierarchy_panel(
                                 *x = !*x;
                             });
                             if !rw_data.get_untracked().init {
+                                let data = rw_data.get_untracked();
                                 window_tab_data.common.internal_command.send(
                                     InternalCommand::CallHierarchyIncoming {
-                                        item_id: rw_data.get_untracked().view_id,
+                                        root_id: data.root_id,
+                                        item_id: data.view_id,
                                     },
                                 );
                             }
@@ -237,8 +246,9 @@ pub fn _show_hierarchy_panel(
                     let data = rw_data;
                     move |_| {
                         if !rw_data.get_untracked().init {
+                            let data = rw_data.get_untracked();
                             window_tab_data.common.internal_command.send(
-                                InternalCommand::CallHierarchyIncoming { item_id: rw_data.get_untracked().view_id },
+                                InternalCommand::CallHierarchyIncoming { item_id: data.view_id, root_id: data.root_id },
                             );
                         }
                         let data = data.get_untracked();
@@ -260,7 +270,7 @@ pub fn _show_hierarchy_panel(
         )
         .style(|s| s.flex_col().absolute().min_width_full()),
     )
-    .style(|s| s.absolute().size_full())
+    .style(|s| s.size_full())
     .scroll_to(move || {
         if let Some(line) = scroll_to_line.get() {
             let line_height = ui_line_height.get();

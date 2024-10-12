@@ -793,6 +793,7 @@ pub enum InternalCommand {
         terminal_index: usize,
     },
     CallHierarchyIncoming {
+        root_id: ViewId,
         item_id: ViewId,
     },
     StopTerminal {
