@@ -77,7 +77,7 @@ use crate::{
     main_split::{MainSplitData, SplitData, SplitDirection, SplitMoveDirection},
     palette::{kind::PaletteKind, PaletteData, PaletteStatus, DEFAULT_RUN_TOML},
     panel::{
-        call_hierarchy_view::{CallHierarchyData, CallHierarchyItemData},
+        call_hierarchy_view::CallHierarchyItemData,
         data::{default_panel_order, PanelData, PanelSection},
         document_symbol::MatchDocumentSymbol,
         kind::PanelKind,

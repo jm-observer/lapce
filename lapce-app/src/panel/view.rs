@@ -1,6 +1,5 @@
 use std::{rc::Rc, sync::Arc};
 
-use floem::unit::Auto;
 use floem::{
     event::{Event, EventListener, EventPropagation},
     kurbo::Point,
@@ -36,7 +35,7 @@ use crate::{
     window_tab::{DragContent, WindowTabData},
 };
 
-const PANEL_PICKER_SIZE: f32 = 40.0;
+pub(crate) const PANEL_PICKER_SIZE: f32 = 40.0;
 
 pub fn foldable_panel_section(
     header: impl View + 'static,
@@ -214,69 +213,54 @@ pub fn new_left_panel_container_view(
     let panel = window_tab_data.panel.clone();
     let config = window_tab_data.common.config;
     let dragging = window_tab_data.common.dragging;
+    let panel = panel.clone();
+    let panels = move || {
+        panel
+            .panels
+            .with(|p| p.get(&position).cloned().unwrap_or_default())
+    };
+    let active_fn = move || {
+        panel
+            .styles
+            .with(|s| s.get(&position).map(|s| s.active).unwrap_or(0))
+    };
+    let window_tab_data = window_tab_data.clone();
     stack((
-        {
-            new_panel_picker(window_tab_data.clone(), position)
-                .debug_name("panel first picker")
-                .style(move |s| {
-                    s.border_color(config.get().color(LapceColor::LAPCE_BORDER))
-                        .flex_col()
-                        .border_right(1.0)
-                        .padding(5.0)
-                        .width(PANEL_PICKER_SIZE)
-                        .height_pct(100.0)
-                })
-        },
-        {
-            let panel = panel.clone();
-            let panels = move || {
-                panel
-                    .panels
-                    .with(|p| p.get(&position).cloned().unwrap_or_default())
-            };
-            let active_fn = move || {
-                panel
-                    .styles
-                    .with(|s| s.get(&position).map(|s| s.active).unwrap_or(0))
-            };
-            let window_tab_data = window_tab_data.clone();
-            stack((
-                tab(
-                    active_fn,
-                    panels,
-                    |p| *p,
-                    move |kind| {
-                        panel_view_by_kind(kind, window_tab_data.clone(), position)
-                    },
-                )
-                .style(|s| s.flex_grow(1.0).height_pct(100.0)),
-                drag_line(position, panel.clone(), config),
-            ))
-            .style(move |s| {
-                s.flex_row()
-                    .width(panel.size.get().left as f32)
-                    .height_pct(100.0)
-                    .border_color(config.get().color(LapceColor::LAPCE_BORDER))
-                    .border_right(1.0)
-                    .apply_if(
-                        !panel.is_position_shown(&position, true)
-                            || panel.is_position_empty(&position, true),
-                        |s| s.hide(),
-                    )
-            })
-            .debug_name("panel left view")
-        },
+        tab(
+            active_fn,
+            panels,
+            |p| *p,
+            move |kind| panel_view_by_kind(kind, window_tab_data.clone(), position),
+        )
+        .style(|s| s.flex_grow(1.0).height_pct(100.0)),
+        drag_line(position, panel.clone(), config),
     ))
     .style({
+        let panel = panel.clone();
         move |s| {
-            let config = config.get();
             s.flex_row()
+                .width(panel.size.get().left as f32)
                 .height_pct(100.0)
-                .background(config.color(LapceColor::PANEL_BACKGROUND))
-                .color(config.color(LapceColor::PANEL_FOREGROUND))
+                .border_color(config.get().color(LapceColor::LAPCE_BORDER))
+                .border_right(1.0)
+                .apply_if(
+                    !panel.is_position_shown(&position, true)
+                        || panel.is_position_empty(&position, true),
+                    |s| s.hide(),
+                )
         }
     })
-    .debug_name(position.debug_name())
+    .debug_name("panel left view")
+    // .style({
+    //     move |s| {
+    //         let config = config.get();
+    //         s.flex_row()
+    //             .height_pct(100.0)
+    //             .background(config.color(LapceColor::PANEL_BACKGROUND))
+    //             .color(config.color(LapceColor::PANEL_FOREGROUND))
+    //     }
+    // })
+    // .debug_name(position.debug_name())
     .event(move |x| drag_event(x, config, dragging, panel.clone(), position))
 }
 
@@ -287,70 +271,45 @@ pub fn new_bottom_panel_container_view(
     let panel = window_tab_data.panel.clone();
     let config = window_tab_data.common.config;
     let dragging = window_tab_data.common.dragging;
+    // stack((
+    let panel = panel.clone();
+    let panels = move || {
+        panel
+            .panels
+            .with(|p| p.get(&position).cloned().unwrap_or_default())
+    };
+    let active_fn = move || {
+        panel
+            .styles
+            .with(|s| s.get(&position).map(|s| s.active).unwrap_or(0))
+    };
+    let window_tab_data = window_tab_data.clone();
     stack((
-        {
-            let panel = panel.clone();
-            let panels = move || {
-                panel
-                    .panels
-                    .with(|p| p.get(&position).cloned().unwrap_or_default())
-            };
-            let active_fn = move || {
-                panel
-                    .styles
-                    .with(|s| s.get(&position).map(|s| s.active).unwrap_or(0))
-            };
-            let window_tab_data = window_tab_data.clone();
-            stack((
-                drag_line(position, panel.clone(), config),
-                tab(
-                    active_fn,
-                    panels,
-                    |p| *p,
-                    move |kind| {
-                        panel_view_by_kind(kind, window_tab_data.clone(), position)
-                    },
-                )
-                .style(|s| s.flex_grow(1.0).width_pct(100.0)),
-            ))
-            .style(move |s| {
-                s.flex_col()
-                    .height(panel.size.get().bottom as f32)
-                    .width_pct(100.0)
-                    .border_color(config.get().color(LapceColor::LAPCE_BORDER))
-                    .border_top(1.0)
-                    .apply_if(
-                        !panel.is_position_shown(&position, true)
-                            || panel.is_position_empty(&position, true),
-                        |s| s.hide(),
-                    )
-            })
-            .debug_name("panel bottom view")
-        },
-        {
-            new_panel_picker(window_tab_data.clone(), position)
-                .debug_name("panel bottom picker")
-                .style(move |s| {
-                    s.flex_row()
-                        .padding(5.0)
-                        .height(PANEL_PICKER_SIZE)
-                        .width_pct(100.0)
-                        .border_top(1.0)
-                        .border_color(config.get().color(LapceColor::LAPCE_BORDER))
-                })
-        },
+        drag_line(position, panel.clone(), config),
+        tab(
+            active_fn,
+            panels,
+            |p| *p,
+            move |kind| panel_view_by_kind(kind, window_tab_data.clone(), position),
+        )
+        .style(|s| s.flex_grow(1.0).width_pct(100.0)),
     ))
     .style({
+        let panel = panel.clone();
         move |s| {
-            let config = config.get();
             s.flex_col()
-                .margin_top(Auto)
+                .height(panel.size.get().bottom as f32)
                 .width_pct(100.0)
-                .background(config.color(LapceColor::PANEL_BACKGROUND))
-                .color(config.color(LapceColor::PANEL_FOREGROUND))
+                .border_color(config.get().color(LapceColor::LAPCE_BORDER))
+                .border_top(1.0)
+                .apply_if(
+                    !panel.is_position_shown(&position, true)
+                        || panel.is_position_empty(&position, true),
+                    |s| s.hide(),
+                )
         }
     })
-    .debug_name(position.debug_name())
+    .debug_name("panel bottom view")
     .event(move |x| drag_event(x, config, dragging, panel.clone(), position))
 }
 
@@ -362,75 +321,58 @@ pub fn new_right_panel_container_view(
     let config = window_tab_data.common.config;
     let dragging = window_tab_data.common.dragging;
     let position = container_position;
-    stack((
-        {
-            let panel = panel.clone();
-            {
-                let panel = window_tab_data.panel.clone();
-                let config = window_tab_data.common.config;
-                let panels = move || {
-                    panel
-                        .panels
-                        .with(|p| p.get(&position).cloned().unwrap_or_default())
-                };
-                let active_fn = move || {
-                    panel
-                        .styles
-                        .with(|s| s.get(&position).map(|s| s.active).unwrap_or(0))
-                };
-                stack((
-                    drag_line(position, panel.clone(), config),
-                    tab(active_fn, panels, |p| *p, {
-                        let window_tab_data = window_tab_data.clone();
-                        move |kind| {
-                            panel_view_by_kind(
-                                kind,
-                                window_tab_data.clone(),
-                                position,
-                            )
-                        }
-                    })
-                    .style(|s| s.flex_grow(1.0).height_pct(100.0)),
-                ))
-                .style(move |s| s.flex_row().width(panel.size.get().right as f32))
-            }
-            .style(move |s| {
-                s.flex_grow(1.0)
-                    .height_pct(100.0)
-                    .border_left(1.0)
-                    .border_color(config.get().color(LapceColor::LAPCE_BORDER))
-                    .apply_if(
-                        !panel.is_position_shown(&position, true)
-                            || panel.is_position_empty(&position, true),
-                        |s| s.hide(),
-                    )
+    let panel = panel.clone();
+    {
+        let panel = window_tab_data.panel.clone();
+        let config = window_tab_data.common.config;
+        let panels = move || {
+            panel
+                .panels
+                .with(|p| p.get(&position).cloned().unwrap_or_default())
+        };
+        let active_fn = move || {
+            panel
+                .styles
+                .with(|s| s.get(&position).map(|s| s.active).unwrap_or(0))
+        };
+        stack((
+            drag_line(position, panel.clone(), config),
+            tab(active_fn, panels, |p| *p, {
+                let window_tab_data = window_tab_data.clone();
+                move |kind| {
+                    panel_view_by_kind(kind, window_tab_data.clone(), position)
+                }
             })
-            .debug_name("panel right view")
-        },
-        {
-            new_panel_picker(window_tab_data.clone(), position)
-                .debug_name("panel right picker")
-                .style(move |s| {
-                    s.border_color(config.get().color(LapceColor::LAPCE_BORDER))
-                        .border_left(1.0)
-                        .flex_col()
-                        .padding(5.0)
-                        .width(PANEL_PICKER_SIZE)
-                        .height_pct(100.0)
-                })
-        },
-    ))
+            .style(|s| s.flex_grow(1.0).height_pct(100.0)),
+        ))
+        .style(move |s| s.flex_row().width(panel.size.get().right as f32))
+    }
     .style({
+        let panel = panel.clone();
         move |s| {
-            let config = config.get();
-            s.flex_row()
-                .margin_left(Auto)
+            s.flex_grow(1.0)
                 .height_pct(100.0)
-                .background(config.color(LapceColor::PANEL_BACKGROUND))
-                .color(config.color(LapceColor::PANEL_FOREGROUND))
+                .border_left(1.0)
+                .border_color(config.get().color(LapceColor::LAPCE_BORDER))
+                .apply_if(
+                    !panel.is_position_shown(&position, true)
+                        || panel.is_position_empty(&position, true),
+                    |s| s.hide(),
+                )
         }
     })
-    .debug_name(container_position.debug_name())
+    .debug_name("panel right view")
+    // .style({
+    //     move |s| {
+    //         let config = config.get();
+    //         s.flex_row()
+    //             .margin_left(Auto)
+    //             .height_pct(100.0)
+    //             .background(config.color(LapceColor::PANEL_BACKGROUND))
+    //             .color(config.color(LapceColor::PANEL_FOREGROUND))
+    //     }
+    // })
+    // .debug_name(container_position.debug_name())
     .event(move |x| drag_event(x, config, dragging, panel.clone(), position))
 }
 
@@ -584,7 +526,7 @@ fn drag_line(
     })
 }
 
-fn new_panel_picker(
+pub(crate) fn new_panel_picker(
     window_tab_data: Rc<WindowTabData>,
     position: PanelContainerPosition,
 ) -> impl View {
@@ -667,9 +609,11 @@ fn new_panel_picker(
                         )
                 }),
             )))
-            .style(|s| s.padding(2.0))
+            .style(|s| s.padding(4.0))
         },
     )
+    .style(move |s| s.flex_row().padding(1.0))
+    .event(move |x| drag_event(x, config, dragging, panel.clone(), position))
 }
 
 fn drag_event<T: IntoView>(

@@ -26,88 +26,6 @@ pub fn common_tab_header<T: Clone + 'static>(
     let config = window_tab_data.common.config;
 
     let resize_signal = create_rw_signal(());
-    // let _view_fn = move |tab: Tab| {
-    //     let child_view = {
-    //         let icon = tab.tab_icon();
-    //         let content = tab.content();
-    //         let close_icon = tab.close_icon();
-    //         stack((icon, content, close_icon)).style(move |s| {
-    //             s.items_center()
-    //                 .justify_center()
-    //                 // .border_left(if i.get() == 0 { 1.0 } else { 0.0 })
-    //                 .border_right(1.0)
-    //                 .border_color(config.get().color(LapceColor::LAPCE_BORDER))
-    //                 .padding_horiz(6.)
-    //                 .gap(6.)
-    //                 .grid()
-    //                 .grid_template_columns(vec![auto(), fr(1.), auto()])
-    //                 .apply_if(
-    //                     config.get().ui.tab_separator_height
-    //                         == TabSeparatorHeight::Full,
-    //                     |s| s.height_full(),
-    //                 )
-    //         })
-    //     };
-    //
-    //     let header_content_size = create_rw_signal(Size::ZERO);
-    //     let drag_over_left: RwSignal<Option<bool>> = create_rw_signal(None);
-    //     stack((
-    //         child_view
-    //             .on_event(EventListener::PointerDown, move |_event| {
-    //                 EventPropagation::Stop
-    //             })
-    //             .on_resize(move |rect| {
-    //                 header_content_size.set(rect.size());
-    //             })
-    //             .style(|s| s.align_items(Some(AlignItems::Center))),
-    //         empty()
-    //             .style(move |s| {
-    //                 // let i = i.get();
-    //                 let drag_over_left = drag_over_left.get();
-    //                 s.absolute()
-    //                     // .margin_left(if i == 0 { 0.0 } else { -2.0 })
-    //                     .height_full()
-    //                     .width(
-    //                         header_content_size.get().width as f32, // + if i == 0 { 1.0 } else { 3.0 },
-    //                     )
-    //                     .apply_if(drag_over_left.is_none(), |s| s.hide())
-    //                     .apply_if(drag_over_left.is_some(), |s| {
-    //                         if let Some(drag_over_left) = drag_over_left {
-    //                             if drag_over_left {
-    //                                 s.border_left(3.0)
-    //                             } else {
-    //                                 s.border_right(3.0)
-    //                             }
-    //                         } else {
-    //                             s
-    //                         }
-    //                     })
-    //                     .border_color(
-    //                         config
-    //                             .get()
-    //                             .color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE)
-    //                             .with_alpha_factor(0.5),
-    //                     )
-    //             })
-    //             .debug_name("Active Tab Indicator"),
-    //     ))
-    //     .on_resize(move |_rect| {
-    //         debug!("on_resize")
-    //         // layout_rect.set(rect);
-    //     })
-    //     .style(move |s| {
-    //         let config = config.get();
-    //         s.height_full()
-    //             .flex_col()
-    //             .items_center()
-    //             .justify_center()
-    //             .cursor(CursorStyle::Pointer)
-    //             .hover(|s| s.background(config.color(LapceColor::HOVER_BACKGROUND)))
-    //     })
-    //     .debug_name("Tab and Active Indicator")
-    // };
-
-    // let content_size = create_rw_signal(Size::ZERO);
     let scroll_offset = create_rw_signal(Rect::ZERO);
     stack((
         tabs.view_next_previoius().style(|s| s.flex_shrink(0.)),
@@ -160,7 +78,7 @@ pub fn common_tab_header<T: Clone + 'static>(
             .max_width_full()
             .border_bottom(1.0)
             .border_color(config.color(LapceColor::LAPCE_BORDER))
-            .background(config.color(LapceColor::PANEL_BACKGROUND))
+            // .background(config.color(LapceColor::PANEL_BACKGROUND))
             .height(config.ui.header_height() as i32)
     })
     .debug_name("Tab Header")
@@ -383,37 +301,6 @@ impl<T: Clone + 'static> Tab<T> {
         self.content.clone()
     }
 }
-
-// trait TabData {
-//     fn icon_str(&self) -> String;
-//
-//     fn config(&self) -> ReadSignal<Arc<LapceConfig>>;
-//     fn content(&self) -> impl View + 'static {
-//         let config = self.config();
-//         let (content, tip) = self.content_tip();
-//         tooltip(
-//             label(move || content.clone()).style(move |s| s.selectable(false)),
-//             move || tooltip_tip(config, text(tip.clone())),
-//         )
-//         .style(move |s| {
-//             let tab_close_button = config.get().ui.tab_close_button;
-//             s.apply_if(tab_close_button == TabCloseButton::Left, |s| {
-//                 s.grid_column(Line {
-//                     start: style_helpers::line(2),
-//                     end: style_helpers::span(1),
-//                 })
-//             })
-//             .apply_if(tab_close_button == TabCloseButton::Off, |s| {
-//                 s.padding_right(4.)
-//             })
-//         })
-//     }
-//
-
-//     fn key(&self) -> String;
-//
-
-// }
 
 impl<T: Clone + 'static> Tabs<T> {
     pub fn new(config: ReadSignal<Arc<LapceConfig>>, cx: Scope) -> Self {

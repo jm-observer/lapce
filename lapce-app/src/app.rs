@@ -12,6 +12,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use crossbeam_channel::Sender;
+use floem::unit::PxPctAuto::Auto;
 use floem::{
     action::show_context_menu,
     event::{Event, EventListener, EventPropagation},
@@ -66,7 +67,7 @@ use tracing_subscriber::{filter::Targets, reload::Handle};
 
 use crate::panel::view::{
     new_bottom_panel_container_view, new_left_panel_container_view,
-    new_right_panel_container_view,
+    new_panel_picker, new_right_panel_container_view, PANEL_PICKER_SIZE,
 };
 use crate::{
     about, alert,
@@ -2127,41 +2128,83 @@ fn tooltip_tip<V: View + 'static>(
 fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
     let workbench_size = window_tab_data.common.workbench_size;
     let main_split_width = window_tab_data.main_split.width;
+    let config = window_tab_data.common.config;
     let panel = window_tab_data.panel.clone();
     stack((
-        {
-            let window_tab_data = window_tab_data.clone();
+        stack((
+            new_panel_picker(window_tab_data.clone(), PanelContainerPosition::Left)
+                .debug_name("panel left picker")
+                .style(move |s| {
+                    s.border_color(config.get().color(LapceColor::LAPCE_BORDER))
+                        .flex_col()
+                        .border_right(1.0)
+                        .width(PANEL_PICKER_SIZE)
+                        .height_pct(100.0)
+                }),
             stack((
-                new_left_panel_container_view(
+                {
+                    let window_tab_data = window_tab_data.clone();
+                    let panel = panel.clone();
+                    stack((
+                        new_left_panel_container_view(
+                            window_tab_data.clone(),
+                            PanelContainerPosition::Left,
+                        ),
+                        main_split(window_tab_data.clone()),
+                        new_right_panel_container_view(
+                            window_tab_data.clone(),
+                            PanelContainerPosition::Right,
+                        ),
+                    ))
+                    .on_resize(move |rect| {
+                        let width = rect.size().width;
+                        if main_split_width.get_untracked() != width {
+                            main_split_width.set(width);
+                        }
+                    })
+                    .style(move |s| {
+                        let is_hidden = panel.panel_bottom_maximized(true)
+                            && panel.is_container_shown(
+                                &PanelContainerPosition::Bottom,
+                                true,
+                            );
+                        s.flex_row()
+                            .flex_grow(1.0)
+                            .apply_if(is_hidden, |s| s.display(Display::None))
+                    })
+                },
+                new_bottom_panel_container_view(
                     window_tab_data.clone(),
-                    PanelContainerPosition::Left,
-                ),
-                main_split(window_tab_data.clone()),
-                new_right_panel_container_view(
-                    window_tab_data.clone(),
-                    PanelContainerPosition::Right,
-                ),
+                    PanelContainerPosition::Bottom,
+                )
+                .style(move |s| {
+                    let is_maximized = panel.panel_bottom_maximized(true);
+                    s.apply_if(is_maximized, |s| s.height_full())
+                }),
             ))
-            .on_resize(move |rect| {
-                let width = rect.size().width;
-                if main_split_width.get_untracked() != width {
-                    main_split_width.set(width);
-                }
-            })
+            .style(move |s| s.flex_col().padding(1.0).width_full()),
+            new_panel_picker(window_tab_data.clone(), PanelContainerPosition::Right)
+                .debug_name("panel right picker")
+                .style(move |s| {
+                    s.border_color(config.get().color(LapceColor::LAPCE_BORDER))
+                        .border_left(1.0)
+                        .margin_left(Auto)
+                        .flex_col()
+                        .width(PANEL_PICKER_SIZE)
+                        .height_pct(100.0)
+                }),
+        ))
+        .style(move |s| s.flex_row().flex_grow(1.0)),
+        new_panel_picker(window_tab_data.clone(), PanelContainerPosition::Bottom)
+            .debug_name("panel bottom picker")
             .style(move |s| {
-                let is_hidden = panel.panel_bottom_maximized(true)
-                    && panel
-                        .is_container_shown(&PanelContainerPosition::Bottom, true);
                 s.flex_row()
-                    .flex_grow(1.0)
-                    .apply_if(is_hidden, |s| s.display(Display::None))
-            })
-        },
-        new_bottom_panel_container_view(
-            window_tab_data.clone(),
-            PanelContainerPosition::Bottom,
-        ),
-        // panel_container_view(window_tab_data.clone(), PanelContainerPosition::Right),
+                    .height(PANEL_PICKER_SIZE)
+                    .margin_top(Auto)
+                    .width_pct(100.0)
+                    .border_top(1.0)
+                    .border_color(config.get().color(LapceColor::LAPCE_BORDER))
+            }),
         window_message_view(window_tab_data.messages, window_tab_data.common.config),
     ))
     .on_resize(move |rect| {

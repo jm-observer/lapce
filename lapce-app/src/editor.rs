@@ -62,7 +62,6 @@ use self::{
     diff::DiffInfo,
     location::{EditorLocation, EditorPosition},
 };
-use crate::common::Tab;
 use crate::panel::call_hierarchy_view::CallHierarchyData;
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand},
