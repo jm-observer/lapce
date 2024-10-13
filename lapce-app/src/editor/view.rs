@@ -1581,9 +1581,8 @@ fn editor_gutter_breakpoints(
         .style(|s| s.size_pct(100.0, 100.0)),
     )
     .style(move |s| {
-        s.absolute()
-            .size_pct(100.0, 100.0)
-            .background(config.get().color(LapceColor::EDITOR_BACKGROUND))
+        s.absolute().size_pct(100.0, 100.0)
+        // .background(config.get().color(LapceColor::EDITOR_BACKGROUND))
     })
 }
 
@@ -1926,7 +1925,11 @@ fn editor_gutter(
         )
         .style(move |s| s.absolute().size_pct(100.0, 100.0)),
     ))
-    .style(|s| s.height_pct(100.0))
+    .style(move |s| {
+        let config = config.get();
+        s.height_pct(100.0)
+            .background(config.color(LapceColor::PANEL_BACKGROUND))
+    })
     .debug_name("Editor Gutter")
 }
 

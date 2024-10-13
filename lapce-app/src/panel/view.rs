@@ -65,7 +65,7 @@ pub fn foldable_panel_section(
                 .padding_vert(6.0)
                 .width_pct(100.0)
                 .cursor(CursorStyle::Pointer)
-                .background(config.get().color(LapceColor::EDITOR_BACKGROUND))
+                .background(config.get().color(LapceColor::PANEL_BACKGROUND))
         })
         .on_click_stop(move |_| {
             open.update(|open| *open = !*open);
@@ -612,7 +612,11 @@ pub(crate) fn new_panel_picker(
             .style(|s| s.padding(4.0))
         },
     )
-    .style(move |s| s.flex_row().padding(1.0))
+    .style(move |s| {
+        s.flex_row()
+            .padding(1.0)
+            .background(config.get().color(LapceColor::PANEL_BACKGROUND))
+    })
     .event(move |x| drag_event(x, config, dragging, panel.clone(), position))
 }
 

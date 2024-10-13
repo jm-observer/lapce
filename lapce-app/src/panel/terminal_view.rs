@@ -256,6 +256,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
             .items_center()
             .border_bottom(1.0)
             .border_color(config.color(LapceColor::LAPCE_BORDER))
+            .background(config.color(LapceColor::PANEL_BACKGROUND))
     })
 }
 

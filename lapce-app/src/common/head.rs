@@ -78,7 +78,7 @@ pub fn common_tab_header<T: Clone + 'static>(
             .max_width_full()
             .border_bottom(1.0)
             .border_color(config.color(LapceColor::LAPCE_BORDER))
-            // .background(config.color(LapceColor::PANEL_BACKGROUND))
+            .background(config.color(LapceColor::PANEL_BACKGROUND))
             .height(config.ui.header_height() as i32)
     })
     .debug_name("Tab Header")
