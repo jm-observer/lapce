@@ -339,21 +339,22 @@ impl FoldingRange {
             start_character,
             end_line,
             end_character,
-            kind,
             collapsed_text,
+            ..
         } = value;
-        let status = if kind
-            .as_ref()
-            .map(|x| {
-                x == &lsp_types::FoldingRangeKind::Imports
-                // || x == &lsp_types::FoldingRangeKind::Comment
-            })
-            .unwrap_or_default()
-        {
-            FoldingRangeStatus::Fold
-        } else {
-            FoldingRangeStatus::Unfold
-        };
+        // let status = if kind
+        //     .as_ref()
+        //     .map(|x| {
+        //         x == &lsp_types::FoldingRangeKind::Imports
+        //         // || x == &lsp_types::FoldingRangeKind::Comment
+        //     })
+        //     .unwrap_or_default()
+        // {
+        //     FoldingRangeStatus::Fold
+        // } else {
+        //     FoldingRangeStatus::Unfold
+        // };
+        let status = FoldingRangeStatus::Unfold;
         Self {
             start: FoldingPosition {
                 line: start_line,
