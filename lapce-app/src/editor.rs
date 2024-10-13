@@ -56,6 +56,7 @@ use lsp_types::{
 };
 use nucleo::Utf32Str;
 use serde::{Deserialize, Serialize};
+use tracing::info;
 use view::StickyHeaderInfo;
 
 use self::{
@@ -3543,10 +3544,8 @@ pub(crate) fn compute_screen_lines(
     // Get the start and end (visual) lines that are visible in the viewport
     let min_val = (y0 / line_height as f64).floor() as usize;
     let min_vline = VLine(min_val);
-    let mut max_val = (y1 / line_height as f64).floor() as usize;
-    if max_val.saturating_sub(line_height) > min_val {
-        max_val = max_val.saturating_sub(line_height);
-    }
+    let max_val = (y1 / line_height as f64).floor() as usize;
+
     let max_vline = VLine(max_val);
 
     let cache_rev = doc.cache_rev.get();
