@@ -41,6 +41,7 @@ use floem::{
 use itertools::Itertools;
 use lapce_xi_rope::find::CaseMatching;
 use lsp_types::CodeLens;
+use tracing::info;
 
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText, Buffer},
@@ -144,12 +145,14 @@ pub struct EditorView {
     inner_node: Option<NodeId>,
     viewport: RwSignal<Rect>,
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
+    tracing: bool,
 }
 
 pub fn editor_view(
     e_data: EditorData,
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
+    tracing: bool,
 ) -> EditorView {
     let id = ViewId::new();
     let is_active = create_memo(move |_| is_active(true));
@@ -262,6 +265,7 @@ pub fn editor_view(
         inner_node: None,
         viewport,
         debug_breakline,
+        tracing,
     }
     .on_event(EventListener::ImePreedit, move |event| {
         if !is_active.get_untracked() {
@@ -1128,7 +1132,9 @@ impl View for EditorView {
         let find_focus = self.editor.find_focus;
         let is_active =
             self.is_active.get_untracked() && !find_focus.get_untracked();
-
+        if self.tracing {
+            tracing::debug!("paint");
+        }
         // We repeatedly get the screen lines because we don't currently carefully manage the
         // paint functions to avoid potentially needing to recompute them, which could *maybe*
         // make them invalid.
@@ -2080,14 +2086,13 @@ fn editor_content(
 
     scroll({
         let editor_content_view =
-            editor_view(e_data.get_untracked(), debug_breakline, is_active).style(
-                move |s| {
+            editor_view(e_data.get_untracked(), debug_breakline, is_active, true)
+                .style(move |s| {
                     s.absolute()
                         .margin_left(1.0)
                         .min_size_full()
                         .cursor(CursorStyle::Text)
-                },
-            );
+                });
 
         let id = editor_content_view.id();
         editor.editor_view_id.set(Some(id));
