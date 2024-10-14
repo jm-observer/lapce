@@ -85,11 +85,8 @@ use crate::{
     history::DocumentHistory,
     keypress::KeyPressFocus,
     main_split::Editors,
-    panel::{
-        document_symbol::{
-            DocumentSymbolViewData, SymbolData, SymbolInformationItemData,
-        },
-        kind::PanelKind,
+    panel::document_symbol::{
+        DocumentSymbolViewData, SymbolData, SymbolInformationItemData,
     },
     window_tab::{CommonData, Focus, SignalManager},
     workspace::LapceWorkspace,

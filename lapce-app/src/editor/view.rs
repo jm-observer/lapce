@@ -41,7 +41,6 @@ use floem::{
 use itertools::Itertools;
 use lapce_xi_rope::find::CaseMatching;
 use lsp_types::CodeLens;
-use tracing::info;
 
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText, Buffer},

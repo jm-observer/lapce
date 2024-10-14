@@ -56,7 +56,6 @@ use lsp_types::{
 };
 use nucleo::Utf32Str;
 use serde::{Deserialize, Serialize};
-use tracing::info;
 use view::StickyHeaderInfo;
 
 use self::{
@@ -2860,10 +2859,10 @@ impl EditorData {
         let hover_delay = self.common.config.get_untracked().editor.hover_delay;
         if hover_delay > 0 {
             if is_inside {
-                let start_offset = self
+                let end_offset = self
                     .doc()
                     .buffer
-                    .with_untracked(|buffer| buffer.prev_code_boundary(offset));
+                    .with_untracked(|buffer| buffer.next_code_boundary(offset));
 
                 let editor = self.clone();
                 let mouse_hover_timer = self.common.mouse_hover_timer;
@@ -2872,7 +2871,7 @@ impl EditorData {
                         if mouse_hover_timer.try_get_untracked() == Some(token)
                             && editor.editor_tab_id.try_get_untracked().is_some()
                         {
-                            editor.update_hover(start_offset);
+                            editor.update_hover(end_offset);
                         }
                     });
                 mouse_hover_timer.set(timer_token);
@@ -3035,10 +3034,12 @@ impl EditorData {
         let send = create_ext_action(self.scope, move |resp| {
             if let Ok(ProxyResponse::HoverResponse { hover, .. }) = resp {
                 let content = parse_hover_resp(hover, &config.get_untracked());
-                hover_data.content.set(content);
-                hover_data.offset.set(offset);
-                hover_data.editor_id.set(editor_id);
-                hover_data.active.set(true);
+                batch(|| {
+                    hover_data.content.set(content);
+                    hover_data.offset.set(offset);
+                    hover_data.editor_id.set(editor_id);
+                    hover_data.active.set(true);
+                });
             }
         });
         self.common.proxy.get_hover(0, path, position, |(_, resp)| {

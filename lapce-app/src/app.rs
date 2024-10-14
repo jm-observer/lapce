@@ -3042,10 +3042,12 @@ fn hover(window_tab_data: Rc<WindowTabData>) -> impl View {
     .style(move |s| {
         let active = window_tab_data.common.hover.active.get();
         if !active {
+            tracing::info!("deactivate hover");
             s.hide()
         } else {
             let config = config.get();
             if let Some(origin) = window_tab_data.hover_origin() {
+                tracing::info!("activate hover {:?}", origin);
                 s.absolute()
                     .margin_left(origin.x as f32)
                     .margin_top(origin.y as f32)
