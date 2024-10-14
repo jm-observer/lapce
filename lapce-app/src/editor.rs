@@ -2850,7 +2850,7 @@ impl EditorData {
                 let start_offset = self
                     .doc()
                     .buffer
-                    .with_untracked(|buffer| buffer.prev_code_boundary(offset));
+                    .with_untracked(|buffer| buffer.next_code_boundary(offset));
                 if current_offset != start_offset {
                     self.common.hover.active.set(false);
                 }
