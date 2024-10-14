@@ -25,7 +25,7 @@ use floem::{
         view::{
             DiffSection, DiffSectionKind, LineInfo, ScreenLines, ScreenLinesBase,
         },
-        visual_line::{ConfigId, Lines, TextLayoutProvider, VLine, VLineInfo},
+        visual_line::{ConfigId, Lines, VLine, VLineInfo},
         Editor,
     },
     ViewId,
@@ -3533,7 +3533,7 @@ pub(crate) fn compute_screen_lines(
     view_kind: ReadSignal<EditorViewKind>,
     doc: &Doc,
     lines: &Lines,
-    text_prov: impl TextLayoutProvider + Clone,
+    text_prov: &Editor,
     config_id: ConfigId,
 ) -> ScreenLines {
     // TODO: this should probably be a get since we need to depend on line-height
@@ -3557,9 +3557,7 @@ pub(crate) fn compute_screen_lines(
     doc.loaded.track();
 
     let min_info = once_cell::sync::Lazy::new(|| {
-        lines
-            .iter_vlines(text_prov.clone(), false, min_vline)
-            .next()
+        lines.iter_vlines(text_prov, false, min_vline).next()
     });
 
     match view_kind.get() {
