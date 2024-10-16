@@ -652,7 +652,7 @@ impl MainSplitData {
                         read_only,
                     }) = result
                     {
-                        local_doc.init_content(Rope::from(content), lsp_req);
+                        local_doc.init_content(Rope::from(content));
                         if read_only {
                             local_doc.content.update(|content| {
                                 if let DocContent::File { read_only, .. } = content {
@@ -723,7 +723,7 @@ impl MainSplitData {
             create_ext_action(self.scope, move |result| {
                 if let Ok(ProxyResponse::BufferHeadResponse { content, .. }) = result
                 {
-                    left.init_content(Rope::from(content), false);
+                    left.init_content(Rope::from(content));
                 }
             })
         };

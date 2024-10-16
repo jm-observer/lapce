@@ -443,7 +443,7 @@ impl Doc {
     }
 
     //// Initialize the content with some text, this marks the document as loaded.
-    pub fn init_content(&self, content: Rope, lsp_req: bool) {
+    pub fn init_content(&self, content: Rope) {
         batch(|| {
             self.syntax.with_untracked(|syntax| {
                 self.buffer.update(|buffer| {
@@ -454,9 +454,7 @@ impl Doc {
                 });
             });
             self.loaded.set(true);
-            if lsp_req {
-                self.on_update(None);
-            }
+            self.on_update(None);
             self.init_parser();
             self.init_diagnostics();
             self.retrieve_head();

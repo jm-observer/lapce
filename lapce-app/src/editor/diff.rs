@@ -78,7 +78,7 @@ impl DiffEditorInfo {
                                 ..
                             }) = result
                             {
-                                doc.init_content(Rope::from(content), false);
+                                doc.init_content(Rope::from(content));
                             }
                         });
                         common.proxy.get_buffer_head(
