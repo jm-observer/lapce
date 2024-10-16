@@ -470,6 +470,10 @@ impl EditorView {
                             .info(rvline)
                             .filter(|_| Some(rvline.line) != breakline)
                         {
+                            // tracing::info!(
+                            //     "end={end} rvline={rvline:?} info={:?}",
+                            //     info
+                            // );
                             let rect = Rect::from_origin_size(
                                 (viewport.x0, info.vline_y),
                                 (viewport.width(), line_height),
@@ -2158,11 +2162,20 @@ fn editor_content(
         let vline = e_data.editor.vline_of_rvline(rvline);
         let vline = e_data.visual_line(vline.get());
         let height = resize.get().height();
-        Rect::from_origin_size(
+        let rect = Rect::from_origin_size(
             (x, (vline * line_height) as f64),
             (width, line_height as f64),
         )
-        .inflate(10.0, height / 3.0)
+        .inflate(10.0, height / 3.0);
+        if offset == 111 {
+            println!("111");
+        }
+
+        tracing::info!(
+            "{:?} height()={} offset={offset} {rect:?} x={x} width={width} rvline={rvline:?} vline={vline} cursor={cursor:?}",
+            e_data.doc().content.get_untracked().path(), height
+        );
+        rect
     })
     .style(|s| s.size_full().set(PropagatePointerWheel, false))
     .debug_name("Editor Content")

@@ -419,6 +419,7 @@ impl EditorData {
     }
 
     fn run_edit_command(&self, cmd: &EditCommand) -> CommandExecuted {
+        tracing::info!("{:?}", cmd);
         let doc = self.doc();
         let text = self.editor.rope_text();
         let is_local = doc.content.with_untracked(|content| content.is_local());
@@ -429,6 +430,7 @@ impl EditorData {
             .with_untracked(|config| config.editor.smart_tab);
         let doc_before_edit = text.text().clone();
         let mut cursor = self.editor.cursor.get_untracked();
+        let old_cursor = cursor.clone();
         let mut register = self.common.register.get_untracked();
 
         let yank_data =
@@ -446,7 +448,7 @@ impl EditorData {
                 register.add_delete(data);
             }
         }
-
+        tracing::info!("cursor={cursor:?} old_cursor={old_cursor:?}");
         self.editor.cursor.set(cursor);
         self.editor.register.set(register);
 
@@ -2094,7 +2096,7 @@ impl EditorData {
 
     pub fn do_edit(
         &self,
-        selection: &Selection,
+        old_selection: &Selection,
         edits: &[(impl AsRef<Selection>, &str)],
     ) {
         let mut cursor = self.cursor().get_untracked();
@@ -2104,7 +2106,9 @@ impl EditorData {
                 Some(e) => e,
                 None => return,
             };
-        let selection = selection.apply_delta(&delta, true, InsertDrift::Default);
+        let selection =
+            old_selection.apply_delta(&delta, true, InsertDrift::Default);
+        tracing::info!("{selection:?} old {old_selection:?}");
         let old_cursor = cursor.mode.clone();
         doc.buffer.update(|buffer| {
             cursor.update_selection(buffer, selection);
@@ -2126,6 +2130,7 @@ impl EditorData {
                         buffer.offset_of_position(&edit.range.start),
                         buffer.offset_of_position(&edit.range.end),
                     );
+                    tracing::info!("{edit:?} {selection:?}");
                     (selection, edit.new_text.as_str())
                 })
                 .collect::<Vec<_>>();
@@ -2379,6 +2384,7 @@ impl EditorData {
                 {
                     let current_rev = editor.doc().rev();
                     if current_rev == rev {
+                        tracing::info!("{:?}", edits);
                         editor.do_text_edit(&edits);
                     }
                 }
