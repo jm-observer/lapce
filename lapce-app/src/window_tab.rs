@@ -2523,16 +2523,17 @@ impl WindowTabData {
         let viewport = viewport.get();
         let hover_size = self.common.hover.layout_rect.get().size();
         let layout_rect = self.layout_rect.get().size();
+        let offset = 4.0;
 
         // top right corner of word
         let mut origin = window_origin
             + Vec2::new(
-                point_below.x - viewport.x0 - 8.0,
-                (point_above.y - viewport.y0) - hover_size.height + 8.0,
+                point_below.x - viewport.x0 - offset,
+                (point_above.y - viewport.y0) - hover_size.height + offset,
             );
         if origin.y < 0.0 {
             // bottom right corner of word
-            origin.y = window_origin.y + point_below.y - viewport.y0 - 8.0;
+            origin.y = window_origin.y + point_below.y - viewport.y0 - offset;
         }
         if origin.x + hover_size.width + 1.0 > layout_rect.width {
             // On the far left side within the window.

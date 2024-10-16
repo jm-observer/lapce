@@ -2128,6 +2128,7 @@ fn editor_content(
             e_data.cancel_completion();
             e_data.cancel_inline_completion();
         }
+        e_data.get_untracked().common.hover.active.set(false);
         current_scroll.set(rect);
     })
     .scroll_to(move || scroll_to.get().map(|s| s.to_point()))
