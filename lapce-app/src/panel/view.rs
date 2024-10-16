@@ -495,34 +495,35 @@ fn drag_line(
     .style(move |s| {
         let is_dragging = drag_start.get().is_some();
         let config = config.get();
-        s.apply_if(position == PanelContainerPosition::Bottom, |s| {
-            s.width_pct(100.0).height(4.0)
-        })
-        .apply_if(
-            position == PanelContainerPosition::Left
-                || position == PanelContainerPosition::Right,
-            |s| s.width(4.0).height_pct(100.0),
-        )
-        .apply_if(is_dragging, |s| {
-            s.background(config.color(LapceColor::EDITOR_CARET))
-                .apply_if(position == PanelContainerPosition::Bottom, |s| {
-                    s.cursor(CursorStyle::RowResize)
-                })
-                .apply_if(position != PanelContainerPosition::Bottom, |s| {
-                    s.cursor(CursorStyle::ColResize)
-                })
-                .z_index(2)
-        })
-        .hover(|s| {
-            s.background(config.color(LapceColor::EDITOR_CARET))
-                .apply_if(position == PanelContainerPosition::Bottom, |s| {
-                    s.cursor(CursorStyle::RowResize)
-                })
-                .apply_if(position != PanelContainerPosition::Bottom, |s| {
-                    s.cursor(CursorStyle::ColResize)
-                })
-                .z_index(2)
-        })
+        s.background(config.color(LapceColor::PANEL_BACKGROUND))
+            .apply_if(position == PanelContainerPosition::Bottom, |s| {
+                s.width_pct(100.0).height(4.0)
+            })
+            .apply_if(
+                position == PanelContainerPosition::Left
+                    || position == PanelContainerPosition::Right,
+                |s| s.width(4.0).height_pct(100.0),
+            )
+            .apply_if(is_dragging, |s| {
+                s.background(config.color(LapceColor::EDITOR_CARET))
+                    .apply_if(position == PanelContainerPosition::Bottom, |s| {
+                        s.cursor(CursorStyle::RowResize)
+                    })
+                    .apply_if(position != PanelContainerPosition::Bottom, |s| {
+                        s.cursor(CursorStyle::ColResize)
+                    })
+                    .z_index(2)
+            })
+            .hover(|s| {
+                s.background(config.color(LapceColor::EDITOR_CARET))
+                    .apply_if(position == PanelContainerPosition::Bottom, |s| {
+                        s.cursor(CursorStyle::RowResize)
+                    })
+                    .apply_if(position != PanelContainerPosition::Bottom, |s| {
+                        s.cursor(CursorStyle::ColResize)
+                    })
+                    .z_index(2)
+            })
     })
 }
 
