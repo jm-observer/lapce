@@ -4,6 +4,7 @@ use std::{
     rc::Rc,
 };
 
+use floem::reactive::batch;
 use floem::{
     action::save_as,
     ext_event::create_ext_action,
@@ -1154,10 +1155,14 @@ impl MainSplitData {
                             .content
                             .with_untracked(|content| content.path() == Some(path));
                         if !same_path {
-                            editor.update_doc(doc.clone());
-                            editor.cursor().set(Cursor::origin(
-                                self.common.config.with_untracked(|c| c.core.modal),
-                            ));
+                            batch(|| {
+                                editor.update_doc(doc.clone());
+                                editor.cursor().set(Cursor::origin(
+                                    self.common
+                                        .config
+                                        .with_untracked(|c| c.core.modal),
+                                ));
+                            })
                         }
                     }
 

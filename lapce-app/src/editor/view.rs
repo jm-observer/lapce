@@ -2,6 +2,7 @@ use std::{
     cmp, collections::BTreeMap, ops::DerefMut, path::PathBuf, rc::Rc, sync::Arc,
 };
 
+use floem::reactive::batch;
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
     context::{PaintCx, StyleCx},
@@ -1112,10 +1113,7 @@ impl View for EditorView {
         cx: &mut floem::context::ComputeLayoutCx,
     ) -> Option<Rect> {
         let viewport = cx.current_viewport();
-        if self.viewport.with_untracked(|v| {
-            tracing::debug!("current_viewport={viewport:?} viewport={v:?}");
-            v != &viewport
-        }) {
+        if self.viewport.with_untracked(|v| v != &viewport) {
             self.viewport.set(viewport);
         }
         None
@@ -2053,27 +2051,18 @@ fn editor_content(
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> impl View {
-    let (
-        cursor,
-        scroll_delta,
-        scroll_to,
-        window_origin,
-        viewport,
-        sticky_header_height,
-        config,
-        editor,
-    ) = e_data.with_untracked(|editor| {
-        (
-            editor.cursor().read_only(),
-            editor.scroll_delta().read_only(),
-            editor.scroll_to(),
-            editor.window_origin(),
-            editor.viewport(),
-            editor.sticky_header_height,
-            editor.common.config,
-            editor.editor.clone(),
-        )
-    });
+    let (cursor, scroll_delta, scroll_to, window_origin, viewport, config, editor) =
+        e_data.with_untracked(|editor| {
+            (
+                editor.cursor().read_only(),
+                editor.scroll_delta().read_only(),
+                editor.scroll_to(),
+                editor.window_origin(),
+                editor.viewport(),
+                editor.common.config,
+                editor.editor.clone(),
+            )
+        });
 
     {
         create_effect(move |_| {
@@ -2085,7 +2074,7 @@ fn editor_content(
     }
 
     let current_scroll = create_rw_signal(Rect::ZERO);
-
+    let resize = create_rw_signal(Rect::ZERO);
     scroll({
         let editor_content_view =
             editor_view(e_data.get_untracked(), debug_breakline, is_active, true)
@@ -2143,6 +2132,12 @@ fn editor_content(
     })
     .scroll_to(move || scroll_to.get().map(|s| s.to_point()))
     .scroll_delta(move || scroll_delta.get())
+    .on_resize(move |x| {
+        batch(|| {
+            viewport.set(x);
+            resize.set(x);
+        });
+    })
     .ensure_visible(move || {
         let e_data = e_data.get_untracked();
         let cursor = cursor.get();
@@ -2161,37 +2156,12 @@ fn editor_content(
         // TODO: is there a good way to avoid the calculation of the vline here?
         let vline = e_data.editor.vline_of_rvline(rvline);
         let vline = e_data.visual_line(vline.get());
-        let rect = Rect::from_origin_size(
+        let height = resize.get().height();
+        Rect::from_origin_size(
             (x, (vline * line_height) as f64),
             (width, line_height as f64),
         )
-        .inflate(10.0, 0.0);
-
-        let viewport = viewport.get_untracked();
-        let smallest_distance = (viewport.y0 - rect.y0)
-            .abs()
-            .min((viewport.y1 - rect.y0).abs())
-            .min((viewport.y0 - rect.y1).abs())
-            .min((viewport.y1 - rect.y1).abs());
-        let biggest_distance = (viewport.y0 - rect.y0)
-            .abs()
-            .max((viewport.y1 - rect.y0).abs())
-            .max((viewport.y0 - rect.y1).abs())
-            .max((viewport.y1 - rect.y1).abs());
-        let jump_to_middle = biggest_distance > viewport.height()
-            && smallest_distance > viewport.height() / 2.0;
-
-        if jump_to_middle {
-            rect.inflate(0.0, viewport.height() / 2.0)
-        } else {
-            let cursor_surrounding_lines =
-                e_data.editor.es.with(|s| s.cursor_surrounding_lines());
-            let mut rect = rect;
-            rect.y0 -= (cursor_surrounding_lines * line_height) as f64
-                + sticky_header_height.get_untracked();
-            rect.y1 += (cursor_surrounding_lines * line_height) as f64;
-            rect
-        }
+        .inflate(10.0, height / 3.0)
     })
     .style(|s| s.size_full().set(PropagatePointerWheel, false))
     .debug_name("Editor Content")
