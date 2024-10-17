@@ -2167,11 +2167,8 @@ fn editor_content(
             (width, line_height as f64),
         )
         .inflate(10.0, height / 3.0);
-        if offset == 111 {
-            println!("111");
-        }
 
-        tracing::info!(
+        tracing::debug!(
             "{:?} height()={} offset={offset} {rect:?} x={x} width={width} rvline={rvline:?} vline={vline} cursor={cursor:?}",
             e_data.doc().content.get_untracked().path(), height
         );

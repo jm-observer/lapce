@@ -1749,6 +1749,7 @@ dependencies = [
  "serde",
  "strum",
  "strum_macros",
+ "tracing 0.2.0",
 ]
 
 [[package]]
