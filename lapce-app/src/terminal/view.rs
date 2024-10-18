@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::{sync::Arc, time::SystemTime};
 
 use alacritty_terminal::{
@@ -126,7 +127,8 @@ pub fn terminal_view(
     });
 
     // for rust
-    let reg = regex::Regex::new("[\\w\\\\/-]+\\.(rs)?(toml)?:\\d+(:\\d+)?").unwrap();
+    let reg =
+        regex::Regex::new(r"([:\.\w\\/-]+\.(rs|toml)?):(\d+)(:(\d+))?").unwrap();
 
     TerminalView {
         id,
@@ -181,32 +183,41 @@ impl TerminalView {
         selection.include_all();
         if let Some(selection) = selection.to_range(&raw.term) {
             let content = raw.term.bounds_to_string(selection.start, selection.end);
-            if let Some(match_str) =
-                self.hyper_regs.iter().find_map(|x| x.find(&content))
+
+            if let Some(rs) =
+                self.hyper_regs.iter().find_map(|x| x.captures(&content))
             {
-                let hyperlink = match_str.as_str();
-                let content: Vec<&str> = hyperlink.split(':').collect();
-                let (file, line, col) = (
-                    content.first()?,
-                    content.get(1).and_then(|x: &&str| x.parse::<u32>().ok())?,
-                    content
-                        .get(2)
-                        .and_then(|x: &&str| x.parse::<u32>().ok())
-                        .unwrap_or(0),
-                );
-                let parent_path = self.workspace.path.as_ref()?;
-                self.internal_command.send(InternalCommand::JumpToLocation {
-                    location: EditorLocation {
-                        path: parent_path.join(file),
-                        position: Some(EditorPosition::Position(Position::new(
-                            line.saturating_sub(1),
-                            col.saturating_sub(1),
-                        ))),
-                        scroll_offset: None,
-                        ignore_unconfirmed: false,
-                        same_editor_tab: false,
-                    },
-                });
+                match (rs.get(1), rs.get(3), rs.get(5)) {
+                    (Some(path), Some(line), col) => {
+                        let mut file: PathBuf = path.as_str().into();
+                        let line = line.as_str().parse::<u32>().ok()?;
+                        let col = col
+                            .and_then(|x| x.as_str().parse::<u32>().ok())
+                            .unwrap_or(0);
+
+                        if !file.exists() {
+                            tracing::info!("{file:?} is not exists");
+                            file = self.workspace.path.as_ref()?.join(file);
+                        }
+                        self.internal_command.send(
+                            InternalCommand::JumpToLocation {
+                                location: EditorLocation {
+                                    path: file,
+                                    position: Some(EditorPosition::Position(
+                                        Position::new(
+                                            line.saturating_sub(1),
+                                            col.saturating_sub(1),
+                                        ),
+                                    )),
+                                    scroll_offset: None,
+                                    ignore_unconfirmed: false,
+                                    same_editor_tab: false,
+                                },
+                            },
+                        );
+                    }
+                    _ => {}
+                }
                 return Some(());
             }
         }
