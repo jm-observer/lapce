@@ -50,6 +50,7 @@ pub(super) fn logging() -> (Handle<Targets>, Option<WorkerGuard>) {
                     .with_line_number(true)
                     .with_target(true)
                     .with_thread_names(true)
+                    .with_file(true)
                     .with_filter(log_filter_targets),
             )
             .init();

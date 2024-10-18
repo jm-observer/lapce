@@ -1731,7 +1731,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "taffy",
- "tracing 0.2.0",
+ "tracing 0.2.0 (git+https://github.com/tokio-rs/tracing?rev=908cc432a5994f6e17c8f36e13c217dc40085704)",
  "unicode-segmentation",
  "wasm-bindgen-futures",
  "web-time",
@@ -1749,7 +1749,7 @@ dependencies = [
  "serde",
  "strum",
  "strum_macros",
- "tracing 0.2.0",
+ "tracing 0.2.0 (git+https://github.com/tokio-rs/tracing?rev=908cc432a5994f6e17c8f36e13c217dc40085704)",
 ]
 
 [[package]]
@@ -3010,7 +3010,7 @@ dependencies = [
  "thiserror",
  "toml 0.8.19",
  "toml_edit 0.20.7",
- "tracing 0.2.0",
+ "tracing 0.2.0 (git+https://github.com/jm-observer/tracing)",
  "tracing-appender",
  "tracing-log",
  "tracing-subscriber",
@@ -3045,7 +3045,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "thiserror",
- "tracing 0.2.0",
+ "tracing 0.2.0 (git+https://github.com/jm-observer/tracing)",
  "tree-sitter",
 ]
 
@@ -3086,7 +3086,7 @@ dependencies = [
  "serde_json",
  "tar",
  "toml 0.8.19",
- "tracing 0.2.0",
+ "tracing 0.2.0 (git+https://github.com/jm-observer/tracing)",
  "tracing-log",
  "trash",
  "url",
@@ -3111,7 +3111,7 @@ dependencies = [
  "parking_lot",
  "serde",
  "serde_json",
- "tracing 0.2.0",
+ "tracing 0.2.0 (git+https://github.com/jm-observer/tracing)",
  "url",
 ]
 
@@ -5416,14 +5416,24 @@ version = "0.2.0"
 source = "git+https://github.com/tokio-rs/tracing?rev=908cc432a5994f6e17c8f36e13c217dc40085704#908cc432a5994f6e17c8f36e13c217dc40085704"
 dependencies = [
  "pin-project-lite",
- "tracing-attributes 0.2.0",
- "tracing-core 0.2.0",
+ "tracing-attributes 0.2.0 (git+https://github.com/tokio-rs/tracing?rev=908cc432a5994f6e17c8f36e13c217dc40085704)",
+ "tracing-core 0.2.0 (git+https://github.com/tokio-rs/tracing?rev=908cc432a5994f6e17c8f36e13c217dc40085704)",
+]
+
+[[package]]
+name = "tracing"
+version = "0.2.0"
+source = "git+https://github.com/jm-observer/tracing#0f0d0940f94ebbfc435465edf6d07df0b8589993"
+dependencies = [
+ "pin-project-lite",
+ "tracing-attributes 0.2.0 (git+https://github.com/jm-observer/tracing)",
+ "tracing-core 0.2.0 (git+https://github.com/jm-observer/tracing)",
 ]
 
 [[package]]
 name = "tracing-appender"
 version = "0.2.0"
-source = "git+https://github.com/tokio-rs/tracing?rev=908cc432a5994f6e17c8f36e13c217dc40085704#908cc432a5994f6e17c8f36e13c217dc40085704"
+source = "git+https://github.com/jm-observer/tracing#0f0d0940f94ebbfc435465edf6d07df0b8589993"
 dependencies = [
  "crossbeam-channel",
  "thiserror",
@@ -5453,6 +5463,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-attributes"
+version = "0.2.0"
+source = "git+https://github.com/jm-observer/tracing#0f0d0940f94ebbfc435465edf6d07df0b8589993"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.79",
+]
+
+[[package]]
 name = "tracing-core"
 version = "0.1.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5470,25 +5490,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-core"
+version = "0.2.0"
+source = "git+https://github.com/jm-observer/tracing#0f0d0940f94ebbfc435465edf6d07df0b8589993"
+dependencies = [
+ "once_cell",
+]
+
+[[package]]
 name = "tracing-log"
 version = "0.2.0"
-source = "git+https://github.com/tokio-rs/tracing?rev=908cc432a5994f6e17c8f36e13c217dc40085704#908cc432a5994f6e17c8f36e13c217dc40085704"
+source = "git+https://github.com/jm-observer/tracing#0f0d0940f94ebbfc435465edf6d07df0b8589993"
 dependencies = [
  "log",
  "once_cell",
- "tracing-core 0.2.0",
+ "tracing-core 0.2.0 (git+https://github.com/jm-observer/tracing)",
 ]
 
 [[package]]
 name = "tracing-subscriber"
 version = "0.3.0"
-source = "git+https://github.com/tokio-rs/tracing?rev=908cc432a5994f6e17c8f36e13c217dc40085704#908cc432a5994f6e17c8f36e13c217dc40085704"
+source = "git+https://github.com/jm-observer/tracing#0f0d0940f94ebbfc435465edf6d07df0b8589993"
 dependencies = [
  "nu-ansi-term",
  "sharded-slab",
  "smallvec",
  "thread_local",
- "tracing-core 0.2.0",
+ "tracing-core 0.2.0 (git+https://github.com/jm-observer/tracing)",
  "tracing-log",
 ]
 

@@ -163,6 +163,7 @@ impl DapClient {
         args: &[String],
         cwd: Option<&PathBuf>,
     ) -> Result<Child> {
+        tracing::info!("{} {:?} {:?}", server, args, cwd);
         let mut process = Command::new(server);
         if let Some(cwd) = cwd {
             process.current_dir(cwd);

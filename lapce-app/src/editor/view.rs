@@ -2166,7 +2166,7 @@ fn editor_content(
             (x, (vline * line_height) as f64),
             (width, line_height as f64),
         )
-        .inflate(10.0, height / 3.0);
+        .inflate(10.0, height / 10.0);
 
         tracing::debug!(
             "{:?} height()={} offset={offset} {rect:?} x={x} width={width} rvline={rvline:?} vline={vline} cursor={cursor:?}",
