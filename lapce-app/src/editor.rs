@@ -2101,6 +2101,8 @@ impl EditorData {
     ) {
         let mut cursor = self.cursor().get_untracked();
         let doc = self.doc();
+
+        let rev_offset = doc.buffer.with_untracked(|x| x.len()) - cursor.offset();
         let (text, delta, inval_lines) =
             match doc.do_raw_edit(edits, EditType::Completion) {
                 Some(e) => e,
@@ -2108,10 +2110,11 @@ impl EditorData {
             };
         let selection =
             old_selection.apply_delta(&delta, true, InsertDrift::Default);
-        tracing::info!("{selection:?} old {old_selection:?}");
+
         let old_cursor = cursor.mode.clone();
         doc.buffer.update(|buffer| {
             cursor.update_selection(buffer, selection);
+            cursor.set_offset(buffer.len() - rev_offset, false, false);
             buffer.set_cursor_before(old_cursor);
             buffer.set_cursor_after(cursor.mode.clone());
         });
