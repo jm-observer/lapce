@@ -188,7 +188,7 @@ impl PluginServerHandler for Plugin {
         id: u64,
         tokens: lsp_types::SemanticTokens,
         text: Rope,
-        f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
+        f: Box<dyn RpcCallback<(Vec<LineStyle>, Option<String>), RpcError>>,
     ) {
         self.host.format_semantic_tokens(id, tokens, text, f);
     }

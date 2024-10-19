@@ -389,7 +389,7 @@ impl PluginCatalog {
         plugin_id: PluginId,
         tokens: SemanticTokens,
         text: Rope,
-        f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
+        f: Box<dyn RpcCallback<(Vec<LineStyle>, Option<String>), RpcError>>,
     ) {
         if let Some(plugin) = self.plugins.get(&plugin_id) {
             plugin.handle_rpc(PluginServerRpc::FormatSemanticTokens {

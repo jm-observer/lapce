@@ -3717,13 +3717,13 @@ pub(crate) fn compute_screen_lines(
                         }
 
                         let start_rvline =
-                            lines.rvline_of_line(&text_prov, range.start);
+                            lines.rvline_of_line(text_prov, range.start);
 
                         // TODO: this wouldn't need to produce vlines if screen lines didn't
                         // require them.
                         let iter = lines
                             .iter_rvlines_init(
-                                &text_prov,
+                                text_prov,
                                 cache_rev,
                                 config_id,
                                 start_rvline,
@@ -3789,11 +3789,11 @@ pub(crate) fn compute_screen_lines(
                             continue;
                         }
 
-                        let start_rvline = lines.rvline_of_line(&text_prov, start);
+                        let start_rvline = lines.rvline_of_line(text_prov, start);
 
                         let mut iter = lines
                             .iter_rvlines_init(
-                                &text_prov,
+                                text_prov,
                                 cache_rev,
                                 config_id,
                                 start_rvline,

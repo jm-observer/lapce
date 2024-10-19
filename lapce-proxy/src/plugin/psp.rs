@@ -19,6 +19,7 @@ use lapce_rpc::{
     RpcError,
 };
 use lapce_xi_rope::{Rope, RopeDelta};
+use lsp_types::request::SemanticTokensFullDeltaRequest;
 use lsp_types::{
     notification::{
         Cancel, DidChangeTextDocument, DidOpenTextDocument, DidSaveTextDocument,
@@ -39,7 +40,8 @@ use lsp_types::{
     DidSaveTextDocumentParams, DocumentSelector, FoldingRangeProviderCapability,
     HoverProviderCapability, ImplementationProviderCapability, InitializeResult,
     LogMessageParams, MessageType, OneOf, ProgressParams, PublishDiagnosticsParams,
-    Range, Registration, RegistrationParams, SemanticTokens, SemanticTokensLegend,
+    Range, Registration, RegistrationParams, SemanticTokens,
+    SemanticTokensFullOptions, SemanticTokensLegend,
     SemanticTokensServerCapabilities, ServerCapabilities, ShowMessageParams,
     TextDocumentContentChangeEvent, TextDocumentIdentifier,
     TextDocumentSaveRegistrationOptions, TextDocumentSyncCapability,
@@ -164,7 +166,7 @@ pub enum PluginServerRpc {
         id: u64,
         tokens: SemanticTokens,
         text: Rope,
-        f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
+        f: Box<dyn RpcCallback<(Vec<LineStyle>, Option<String>), RpcError>>,
     },
 }
 
@@ -264,7 +266,7 @@ pub trait PluginServerHandler {
         id: u64,
         tokens: SemanticTokens,
         text: Rope,
-        f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
+        f: Box<dyn RpcCallback<(Vec<LineStyle>, Option<String>), RpcError>>,
     );
 }
 
@@ -832,6 +834,26 @@ impl PluginHostHandler {
             SemanticTokensFullRequest::METHOD => {
                 self.server_capabilities.semantic_tokens_provider.is_some()
             }
+            SemanticTokensFullDeltaRequest::METHOD => {
+                if let Some(provider) =
+                    &self.server_capabilities.semantic_tokens_provider
+                {
+                    if let Some(SemanticTokensFullOptions::Delta { delta: Some(delta) }) = match provider {
+                        SemanticTokensServerCapabilities::SemanticTokensOptions(options) => {
+                            &options.full
+                        }
+                        SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(options) => {
+                            &options.semantic_tokens_options.full
+                        }
+                    }{
+                        *delta
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
             InlayHintRequest::METHOD => {
                 self.server_capabilities.inlay_hint_provider.is_some()
             }
@@ -1312,7 +1334,7 @@ impl PluginHostHandler {
         id: u64,
         tokens: SemanticTokens,
         text: Rope,
-        f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
+        f: Box<dyn RpcCallback<(Vec<LineStyle>, Option<String>), RpcError>>,
     ) {
         let result = format_semantic_styles(
             &text,
@@ -1401,7 +1423,7 @@ fn format_semantic_styles(
     text: &Rope,
     semantic_tokens_provider: Option<&SemanticTokensServerCapabilities>,
     tokens: &SemanticTokens,
-) -> Option<Vec<LineStyle>> {
+) -> Option<(Vec<LineStyle>, Option<String>)> {
     let semantic_tokens_provider = semantic_tokens_provider?;
     let semantic_legends = semantic_tokens_legend(semantic_tokens_provider);
 
@@ -1439,7 +1461,7 @@ fn format_semantic_styles(
         });
     }
 
-    Some(highlights)
+    Some((highlights, tokens.result_id.clone()))
 }
 
 fn semantic_tokens_legend(

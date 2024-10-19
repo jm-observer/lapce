@@ -187,36 +187,31 @@ impl TerminalView {
             if let Some(rs) =
                 self.hyper_regs.iter().find_map(|x| x.captures(&content))
             {
-                match (rs.get(1), rs.get(3), rs.get(5)) {
-                    (Some(path), Some(line), col) => {
-                        let mut file: PathBuf = path.as_str().into();
-                        let line = line.as_str().parse::<u32>().ok()?;
-                        let col = col
-                            .and_then(|x| x.as_str().parse::<u32>().ok())
-                            .unwrap_or(0);
+                if let (Some(path), Some(line), col) =
+                    (rs.get(1), rs.get(3), rs.get(5))
+                {
+                    let mut file: PathBuf = path.as_str().into();
+                    let line = line.as_str().parse::<u32>().ok()?;
+                    let col = col
+                        .and_then(|x| x.as_str().parse::<u32>().ok())
+                        .unwrap_or(0);
 
-                        if !file.exists() {
-                            tracing::info!("{file:?} is not exists");
-                            file = self.workspace.path.as_ref()?.join(file);
-                        }
-                        self.internal_command.send(
-                            InternalCommand::JumpToLocation {
-                                location: EditorLocation {
-                                    path: file,
-                                    position: Some(EditorPosition::Position(
-                                        Position::new(
-                                            line.saturating_sub(1),
-                                            col.saturating_sub(1),
-                                        ),
-                                    )),
-                                    scroll_offset: None,
-                                    ignore_unconfirmed: false,
-                                    same_editor_tab: false,
-                                },
-                            },
-                        );
+                    if !file.exists() {
+                        tracing::info!("{file:?} is not exists");
+                        file = self.workspace.path.as_ref()?.join(file);
                     }
-                    _ => {}
+                    self.internal_command.send(InternalCommand::JumpToLocation {
+                        location: EditorLocation {
+                            path: file,
+                            position: Some(EditorPosition::Position(Position::new(
+                                line.saturating_sub(1),
+                                col.saturating_sub(1),
+                            ))),
+                            scroll_offset: None,
+                            ignore_unconfirmed: false,
+                            same_editor_tab: false,
+                        },
+                    });
                 }
                 return Some(());
             }

@@ -176,6 +176,7 @@ pub struct Doc {
     pub buffer: RwSignal<Buffer>,
     pub syntax: RwSignal<Syntax>,
     semantic_styles: RwSignal<Option<Spans<Style>>>,
+    semantic_previous_rs_id: RwSignal<Option<String>>,
     /// Inlay hints for the document
     pub inlay_hints: RwSignal<Option<Spans<InlayHint>>>,
     /// Current completion lens text, if any.
@@ -264,6 +265,7 @@ impl Doc {
             code_lens: cx.create_rw_signal(im::HashMap::new()),
             document_symbol_data: DocumentSymbolViewData::new(cx),
             folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
+            semantic_previous_rs_id: cx.create_rw_signal(None),
         }
     }
 
@@ -315,6 +317,7 @@ impl Doc {
             code_lens: cx.create_rw_signal(im::HashMap::new()),
             document_symbol_data: DocumentSymbolViewData::new(cx),
             folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
+            semantic_previous_rs_id: cx.create_rw_signal(None),
         }
     }
 
@@ -366,6 +369,7 @@ impl Doc {
             code_lens: cx.create_rw_signal(im::HashMap::new()),
             document_symbol_data: DocumentSymbolViewData::new(cx),
             folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
+            semantic_previous_rs_id: cx.create_rw_signal(None),
         }
     }
 
@@ -867,11 +871,11 @@ impl Doc {
     }
 
     /// Request semantic styles for the buffer from the LSP through the proxy.
-    pub fn get_semantic_styles(&self) {
+    // pub fn get_semantic_styles(&self) {
+    pub fn get_semantic_full_styles(&self) {
         if !self.loaded() {
             return;
         }
-
         let path =
             if let DocContent::File { path, .. } = self.content.get_untracked() {
                 path
@@ -884,32 +888,34 @@ impl Doc {
             .with_untracked(|b| (b.atomic_rev(), b.rev(), b.len()));
 
         let doc = self.clone();
-        let send = create_ext_action(self.scope, move |styles| {
+        let send = create_ext_action(self.scope, move |(styles, result_id)| {
             if let Some(styles) = styles {
                 if doc.buffer.with_untracked(|b| b.rev()) == rev {
                     doc.semantic_styles.set(Some(styles));
+                    doc.semantic_previous_rs_id.set(result_id);
                     doc.clear_style_cache();
                 }
             }
         });
-
         self.common
             .proxy
             .get_semantic_tokens(path, move |(_, result)| {
-                if let Ok(ProxyResponse::GetSemanticTokens { styles }) = result {
+                if let Ok(ProxyResponse::GetSemanticTokens { styles, result_id }) =
+                    result
+                {
                     if styles.styles.is_empty() {
-                        send(None);
+                        send((None, result_id));
                         return;
                     }
                     if atomic_rev.load(atomic::Ordering::Acquire) != rev {
-                        send(None);
+                        send((None, result_id));
                         return;
                     }
                     std::thread::spawn(move || {
                         let mut styles_span = SpansBuilder::new(len);
                         for style in styles.styles {
                             if atomic_rev.load(atomic::Ordering::Acquire) != rev {
-                                send(None);
+                                send((None, result_id));
                                 return;
                             }
                             styles_span.add_span(
@@ -919,12 +925,75 @@ impl Doc {
                         }
 
                         let styles = styles_span.build();
-                        send(Some(styles));
+                        send((Some(styles), result_id));
                     });
                 } else {
-                    send(None);
+                    send((None, None));
                 }
             });
+    }
+
+    /// Request semantic styles for the buffer from the LSP through the proxy.
+    pub fn get_semantic_styles(&self) {
+        let Some(id) = self.semantic_previous_rs_id.get_untracked() else {
+            self.get_semantic_full_styles();
+            return;
+        };
+        let path =
+            if let DocContent::File { path, .. } = self.content.get_untracked() {
+                path
+            } else {
+                return;
+            };
+        // let (atomic_rev, rev, len) = self
+        //     .buffer
+        //     .with_untracked(|b| (b.atomic_rev(), b.rev(), b.len()));
+        //
+        // let doc = self.clone();
+        // let send = create_ext_action(self.scope, move |styles| {
+        //     if let Some(styles) = styles {
+        //         if doc.buffer.with_untracked(|b| b.rev()) == rev {
+        //             doc.semantic_styles.set(Some(styles));
+        //             doc.clear_style_cache();
+        //         }
+        //     }
+        // });
+
+        self.common.proxy.get_semantic_tokens_delta(
+            path,
+            id,
+            move |(_, _result)| {
+                tracing::warn!("todo");
+                // if let Ok(ProxyResponse::GetSemanticTokens { styles }) = result {
+                //     if styles.styles.is_empty() {
+                //         send(None);
+                //         return;
+                //     }
+                //     if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                //         send(None);
+                //         return;
+                //     }
+                //     std::thread::spawn(move || {
+                //         let mut styles_span = SpansBuilder::new(len);
+                //         for style in styles.styles {
+                //             if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                //                 send(None);
+                //                 return;
+                //             }
+                //             styles_span.add_span(
+                //                 Interval::new(style.start, style.end),
+                //                 style.style,
+                //             );
+                //         }
+
+                //         let styles = styles_span.build();
+                //         send(Some(styles));
+                //     });
+                // } else {
+                //     send(None);
+                // }
+            },
+        );
     }
 
     pub fn get_code_lens(&self) {

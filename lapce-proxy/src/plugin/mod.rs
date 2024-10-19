@@ -41,7 +41,8 @@ use lsp_types::{
         GotoTypeDefinitionParams, GotoTypeDefinitionResponse, HoverRequest,
         InlayHintRequest, InlineCompletionRequest, PrepareRenameRequest, References,
         Rename, Request, ResolveCompletionItem, SelectionRangeRequest,
-        SemanticTokensFullRequest, SignatureHelpRequest, WorkspaceSymbolRequest,
+        SemanticTokensFullDeltaRequest, SemanticTokensFullRequest,
+        SignatureHelpRequest, WorkspaceSymbolRequest,
     },
     CallHierarchyClientCapabilities, CallHierarchyIncomingCall,
     CallHierarchyIncomingCallsParams, CallHierarchyItem, CallHierarchyPrepareParams,
@@ -62,7 +63,9 @@ use lsp_types::{
     PartialResultParams, Position, PrepareRenameResponse,
     PublishDiagnosticsClientCapabilities, Range, ReferenceContext, ReferenceParams,
     RenameParams, SelectionRange, SelectionRangeParams, SemanticTokens,
-    SemanticTokensClientCapabilities, SemanticTokensParams,
+    SemanticTokensClientCapabilities, SemanticTokensClientCapabilitiesRequests,
+    SemanticTokensDeltaParams, SemanticTokensFullDeltaResult,
+    SemanticTokensFullOptions, SemanticTokensParams,
     ShowMessageRequestClientCapabilities, SignatureHelp,
     SignatureHelpClientCapabilities, SignatureHelpParams,
     SignatureInformationSettings, SymbolInformation, TextDocumentClientCapabilities,
@@ -114,7 +117,7 @@ pub enum PluginCatalogRpc {
         plugin_id: PluginId,
         tokens: SemanticTokens,
         text: Rope,
-        f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
+        f: Box<dyn RpcCallback<(Vec<LineStyle>, Option<String>), RpcError>>,
     },
     DapVariable {
         dap_id: DapId,
@@ -497,7 +500,7 @@ impl PluginCatalogRpcHandler {
         plugin_id: PluginId,
         tokens: SemanticTokens,
         text: Rope,
-        f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
+        f: Box<dyn RpcCallback<(Vec<LineStyle>, Option<String>), RpcError>>,
     ) {
         if let Err(err) =
             self.plugin_tx.send(PluginCatalogRpc::FormatSemanticTokens {
@@ -1093,6 +1096,36 @@ impl PluginCatalogRpcHandler {
             text_document: TextDocumentIdentifier { uri },
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
+        };
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            id,
+            cb,
+        );
+    }
+
+    pub fn get_semantic_tokens_delta(
+        &self,
+        path: &Path,
+        previous_result_id: String,
+        cb: impl FnOnce(PluginId, Result<SemanticTokensFullDeltaResult, RpcError>)
+            + Clone
+            + Send
+            + 'static,
+        id: u64,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = SemanticTokensFullDeltaRequest::METHOD;
+        let params = SemanticTokensDeltaParams {
+            text_document: TextDocumentIdentifier { uri },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+            previous_result_id,
         };
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
@@ -1811,6 +1844,12 @@ fn client_capabilities() -> ClientCapabilities {
                 ..Default::default()
             }),
             semantic_tokens: Some(SemanticTokensClientCapabilities {
+                requests: SemanticTokensClientCapabilitiesRequests {
+                    range: None,
+                    full: Some(SemanticTokensFullOptions::Delta {
+                        delta: Some(true),
+                    }),
+                },
                 ..Default::default()
             }),
             type_definition: Some(GotoCapability {

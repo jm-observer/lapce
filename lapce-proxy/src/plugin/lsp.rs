@@ -163,7 +163,7 @@ impl PluginServerHandler for LspClient {
         id: u64,
         tokens: SemanticTokens,
         text: Rope,
-        f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
+        f: Box<dyn RpcCallback<(Vec<LineStyle>, Option<String>), RpcError>>,
     ) {
         self.host.format_semantic_tokens(id, tokens, text, f);
     }

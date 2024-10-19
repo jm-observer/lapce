@@ -588,24 +588,27 @@ impl ProxyHandler for Dispatcher {
 
                 let handle_tokens = move |_,
                                           result: Result<
-                    Vec<LineStyle>,
+                    (Vec<LineStyle>, Option<String>),
                     RpcError,
-                >| match result {
-                    Ok(styles) => {
-                        proxy_rpc.handle_response(
-                            id,
-                            Ok(ProxyResponse::GetSemanticTokens {
-                                styles: SemanticStyles {
-                                    rev,
-                                    path: local_path,
-                                    styles,
-                                    len,
-                                },
-                            }),
-                        );
-                    }
-                    Err(e) => {
-                        proxy_rpc.handle_response(id, Err(e));
+                >| {
+                    match result {
+                        Ok((styles, result_id)) => {
+                            proxy_rpc.handle_response(
+                                id,
+                                Ok(ProxyResponse::GetSemanticTokens {
+                                    styles: SemanticStyles {
+                                        rev,
+                                        path: local_path,
+                                        styles,
+                                        len,
+                                    },
+                                    result_id,
+                                }),
+                            );
+                        }
+                        Err(e) => {
+                            proxy_rpc.handle_response(id, Err(e));
+                        }
                     }
                 };
 
@@ -621,6 +624,62 @@ impl ProxyHandler for Dispatcher {
                                 text,
                                 Box::new(handle_tokens),
                             );
+                        }
+                        Err(e) => {
+                            proxy_rpc.handle_response(id, Err(e));
+                        }
+                    },
+                    id,
+                );
+            }
+            GetSemanticTokensDelta {
+                path,
+                previous_result_id,
+            } => {
+                // let buffer = self.buffers.get(&path).unwrap();
+                // let text = buffer.rope.clone();
+                // let rev = buffer.rev;
+                // let len = buffer.len();
+                // let local_path = path.clone();
+                // let proxy_rpc = self.proxy_rpc.clone();
+                // let catalog_rpc = self.catalog_rpc.clone();
+
+                // let _handle_tokens = move |_,
+                //                            result: Result<
+                //     Vec<LineStyle>,
+                //     RpcError,
+                // >| match result {
+                //     Ok(styles) => {
+                //         proxy_rpc.handle_response(
+                //             id,
+                //             Ok(ProxyResponse::GetSemanticTokens {
+                //                 styles: SemanticStyles {
+                //                     rev,
+                //                     path: local_path,
+                //                     styles,
+                //                     len,
+                //                 },
+                //             }),
+                //         );
+                //     }
+                //     Err(e) => {
+                //         proxy_rpc.handle_response(id, Err(e));
+                //     }
+                // };
+
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.get_semantic_tokens_delta(
+                    &path,
+                    previous_result_id,
+                    move |_plugin_id, result| match result {
+                        Ok(_result) => {
+                            // catalog_rpc.format_semantic_tokens(
+                            //     id,
+                            //     plugin_id,
+                            //     result,
+                            //     text,
+                            //     Box::new(handle_tokens),
+                            // );
                         }
                         Err(e) => {
                             proxy_rpc.handle_response(id, Err(e));

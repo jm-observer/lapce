@@ -134,6 +134,10 @@ pub enum ProxyRequest {
     GetSemanticTokens {
         path: PathBuf,
     },
+    GetSemanticTokensDelta {
+        path: PathBuf,
+        previous_result_id: String,
+    },
     LspFoldingRange {
         path: PathBuf,
     },
@@ -441,6 +445,7 @@ pub enum ProxyResponse {
     },
     GetSemanticTokens {
         styles: SemanticStyles,
+        result_id: Option<String>,
     },
     PrepareRename {
         resp: PrepareRenameResponse,
@@ -1031,6 +1036,21 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(ProxyRequest::GetSemanticTokens { path }, f);
+    }
+
+    pub fn get_semantic_tokens_delta(
+        &self,
+        path: PathBuf,
+        previous_result_id: String,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            ProxyRequest::GetSemanticTokensDelta {
+                path,
+                previous_result_id,
+            },
+            f,
+        );
     }
 
     pub fn get_document_symbols(
