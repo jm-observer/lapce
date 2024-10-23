@@ -2104,7 +2104,15 @@ impl EditorData {
         let mut cursor = self.cursor().get_untracked();
         let doc = self.doc();
 
-        let rev_offset = doc.buffer.with_untracked(|x| x.len()) - cursor.offset();
+        let rev_offset = doc.buffer.with_untracked(|x| {
+            x.text()
+                .slice_to_cow(0..cursor.offset())
+                .chars()
+                .filter(|c| !c.is_whitespace())
+                .count()
+        });
+
+        // let rev_offset = doc.buffer.with_untracked(|x| x.len()) - cursor.offset();
         let (text, delta, inval_lines) =
             match doc.do_raw_edit(edits, EditType::Completion) {
                 Some(e) => e,
@@ -2116,7 +2124,17 @@ impl EditorData {
         let old_cursor = cursor.mode.clone();
         doc.buffer.update(|buffer| {
             cursor.update_selection(buffer, selection);
-            cursor.set_offset(buffer.len() - rev_offset, false, false);
+            let rope = buffer.text();
+            let offset = rope
+                .slice_to_cow(0..rope.len())
+                .chars()
+                .enumerate() // 迭代字符并获取其索引
+                .filter(|(_, c)| !c.is_whitespace()) // 过滤掉空白字符
+                .nth(rev_offset - 1) // 获取第n个非空字符（从0开始索引，所以需要n-1）
+                .map(|(index, _)| index + 1)
+                .unwrap_or_default();
+
+            cursor.set_offset(offset, false, false);
             buffer.set_cursor_before(old_cursor);
             buffer.set_cursor_after(cursor.mode.clone());
         });
