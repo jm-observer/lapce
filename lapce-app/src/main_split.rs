@@ -690,6 +690,22 @@ impl MainSplitData {
         if self.common.focus.get_untracked() != Focus::Workbench {
             self.common.focus.set(Focus::Workbench);
         }
+        let mut off_top_line = None;
+        if let Some(tab) = self.get_active_editor_untracked() {
+            let cursor = tab.editor.cursor.get_untracked();
+            if let Some(min_visual_line) =
+                tab.editor.screen_lines.with_untracked(|x| {
+                    x.lines
+                        .iter()
+                        .min_by(|x, y| x.line.cmp(&y.line))
+                        .map(|x| x.line)
+                })
+            {
+                tab.editor.cursor.get_untracked().offset();
+                let line = tab.editor.line_of_offset(cursor.offset());
+                off_top_line = Some(line.saturating_sub(min_visual_line).max(5))
+            }
+        }
         let path = location.path.clone();
         let (doc, new_doc) = self.get_doc(path.clone(), None, true);
 
@@ -700,7 +716,10 @@ impl MainSplitData {
         );
         if let EditorTabChild::Editor(editor_id) = child {
             if let Some(editor) = self.editors.editor_untracked(editor_id) {
-                editor.go_to_location(location, new_doc, edits);
+                batch(|| {
+                    editor.offset_line_from_top.set(off_top_line);
+                    editor.go_to_location(location, new_doc, edits);
+                });
             }
         }
     }
@@ -2999,6 +3018,23 @@ impl MainSplitData {
         })?;
         match child {
             EditorTabChild::Editor(editor_id) => self.editors.editor(editor_id),
+            _ => None,
+        }
+    }
+
+    pub fn get_active_editor_untracked(&self) -> Option<EditorData> {
+        let active_editor_tab = self.active_editor_tab.get_untracked()?;
+        let editor_tabs = self.editor_tabs;
+        let editor_tab = editor_tabs.with_untracked(|editor_tabs| {
+            editor_tabs.get(&active_editor_tab).copied()
+        })?;
+        let (_, _, child) = editor_tab.with_untracked(|editor_tab| {
+            editor_tab.children.get(editor_tab.active).cloned()
+        })?;
+        match child {
+            EditorTabChild::Editor(editor_id) => {
+                self.editors.editor_untracked(editor_id)
+            }
             _ => None,
         }
     }

@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::{
     cmp, collections::BTreeMap, ops::DerefMut, path::PathBuf, rc::Rc, sync::Arc,
 };
@@ -1063,8 +1064,10 @@ impl View for EditorView {
             let viewport_size = self.viewport.get_untracked().size();
 
             let screen_lines = e_data.screen_lines().get_untracked();
-            for (line, _) in screen_lines.iter_lines_y() {
+            let mut line_unique = HashSet::new();
+            for (line, ..) in screen_lines.iter_lines_y() {
                 // fill in text layout cache so that max width is correct.
+                line_unique.insert(line);
                 editor.text_layout(line);
             }
 
@@ -1081,9 +1084,9 @@ impl View for EditorView {
             } else {
                 width
             };
-            let last_vline = editor.last_vline().get();
-            let last_vline = e_data.visual_line(last_vline);
-            let last_line_height = line_height * (last_vline + 1) as f64;
+            let lines =
+                editor.last_line() + screen_lines.lines.len() - line_unique.len();
+            let last_line_height = line_height * (lines + 1) as f64;
             let height = last_line_height.max(line_height);
             let height = if !is_local {
                 height.max(viewport_size.height)
@@ -2147,6 +2150,7 @@ fn editor_content(
         let e_data = e_data.get_untracked();
         let cursor = cursor.get();
         let offset = cursor.offset();
+        let offset_line_from_top = e_data.offset_line_from_top.get_untracked();
         e_data.doc_signal().track();
         e_data.kind.track();
 
@@ -2162,14 +2166,18 @@ fn editor_content(
         let vline = e_data.editor.vline_of_rvline(rvline);
         let vline = e_data.visual_line(vline.get());
         let height = resize.get().height();
-        let rect = Rect::from_origin_size(
+        let mut rect = Rect::from_origin_size(
             (x, (vline * line_height) as f64),
             (width, line_height as f64),
         )
-        .inflate(10.0, height / 10.0);
-
+        .inflate(10.0, 0.0);
+        if let Some(offset_line_from_top) = offset_line_from_top {
+            let offset_height = (offset_line_from_top * line_height) as f64;
+            rect.y0 -= offset_height;
+            rect.y1 = rect.y1 + height - offset_height ;
+        }
         tracing::debug!(
-            "{:?} height()={} offset={offset} {rect:?} x={x} width={width} rvline={rvline:?} vline={vline} cursor={cursor:?}",
+            "{:?} height()={} {rect:?} offset_line_from_top={offset_line_from_top:?} vline={vline} offset={offset}",
             e_data.doc().content.get_untracked().path(), height
         );
         rect
