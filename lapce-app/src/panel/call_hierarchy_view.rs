@@ -144,7 +144,7 @@ pub fn show_hierarchy_panel(
                     .map(|x| x.root),
             )
         })
-        .debug_name("references panel"),
+        .debug_name("show hierarchy panel"),
     ))
     .style(|x| x.flex_col().width_full().height_full())
 }
