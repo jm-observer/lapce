@@ -2148,9 +2148,9 @@ fn editor_content(
     })
     .ensure_visible(move || {
         let e_data = e_data.get_untracked();
-        let cursor = cursor.get();
+        let cursor = cursor.get_untracked();
         let offset = cursor.offset();
-        let offset_line_from_top = e_data.offset_line_from_top.get_untracked();
+        let offset_line_from_top = e_data.offset_line_from_top.get();
         e_data.doc_signal().track();
         e_data.kind.track();
 
