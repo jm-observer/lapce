@@ -3457,6 +3457,7 @@ impl KeyPressFocus for EditorData {
                 );
             }
         } else {
+            self.common.hover.active.set(false);
             // normal editor receive char
             if self.get_mode() == Mode::Insert {
                 let mut cursor = self.cursor().get_untracked();
