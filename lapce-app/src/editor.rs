@@ -421,7 +421,7 @@ impl EditorData {
     }
 
     fn run_edit_command(&self, cmd: &EditCommand) -> CommandExecuted {
-        tracing::info!("{:?}", cmd);
+        tracing::debug!("{:?}", cmd);
         let doc = self.doc();
         let text = self.editor.rope_text();
         let is_local = doc.content.with_untracked(|content| content.is_local());
@@ -432,7 +432,6 @@ impl EditorData {
             .with_untracked(|config| config.editor.smart_tab);
         let doc_before_edit = text.text().clone();
         let mut cursor = self.editor.cursor.get_untracked();
-        let old_cursor = cursor.clone();
         let mut register = self.common.register.get_untracked();
 
         let yank_data =
@@ -450,7 +449,6 @@ impl EditorData {
                 register.add_delete(data);
             }
         }
-        tracing::info!("cursor={cursor:?} old_cursor={old_cursor:?}");
         self.editor.cursor.set(cursor);
         self.editor.register.set(register);
 

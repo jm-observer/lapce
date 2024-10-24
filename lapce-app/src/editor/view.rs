@@ -816,7 +816,8 @@ impl EditorView {
 
                 let rect = Rect::new(x0, y0, x1, y1);
 
-                cx.stroke(&rect, config.color(LapceColor::EDITOR_FOREGROUND), 1.0);
+                // cx.stroke(&rect, config.color(LapceColor::EDITOR_FOREGROUND), 6.0);
+                cx.fill(&rect, config.color(LapceColor::EDITOR_DIM), 0.0);
             }
         }
     }

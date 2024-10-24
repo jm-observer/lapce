@@ -546,7 +546,7 @@ impl MainSplitData {
         }
     }
 
-    fn save_current_jump_location(&self) -> bool {
+    pub fn save_current_jump_location(&self) -> bool {
         if let Some(editor) = self.active_editor.get_untracked() {
             let (cursor, viewport) = (editor.cursor(), editor.viewport());
             let path = editor

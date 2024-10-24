@@ -2290,27 +2290,27 @@ fn syntax_prev_unmatched(
 }
 
 fn should_blink(
-    _focus: SignalManager<Focus>,
-    _keyboard_focus: RwSignal<Option<ViewId>>,
+    focus: SignalManager<Focus>,
+    keyboard_focus: RwSignal<Option<ViewId>>,
 ) -> impl Fn() -> bool {
     move || {
-        // let Some(focus) = focus.try_get_untracked() else {
-        //     return false;
-        // };
-        // if matches!(
-        //     focus,
-        //     Focus::Workbench
-        //         | Focus::Palette
-        //         | Focus::Panel(PanelKind::Plugin)
-        //         | Focus::Panel(PanelKind::Search)
-        //         | Focus::Panel(PanelKind::SourceControl)
-        // ) {
-        //     return true;
-        // }
-        //
-        // if keyboard_focus.get_untracked().is_some() {
-        //     return true;
-        // }
+        let Some(focus) = focus.try_get_untracked() else {
+            return false;
+        };
+        if matches!(
+            focus,
+            Focus::Workbench
+                | Focus::Palette
+                | Focus::Panel(crate::panel::kind::PanelKind::Plugin)
+                | Focus::Panel(crate::panel::kind::PanelKind::Search)
+                | Focus::Panel(crate::panel::kind::PanelKind::SourceControl)
+        ) {
+            return true;
+        }
+
+        if keyboard_focus.get_untracked().is_some() {
+            return true;
+        }
         false
     }
 }
