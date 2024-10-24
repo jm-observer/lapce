@@ -880,16 +880,17 @@ impl Doc {
 
     /// Request semantic styles for the buffer from the LSP through the proxy.
     pub fn get_semantic_styles(&self) {
-        let Some(id) = self.semantic_previous_rs_id.get_untracked() else {
-            self.get_semantic_full_styles();
-            return;
-        };
-        let path =
-            if let DocContent::File { path, .. } = self.content.get_untracked() {
-                path
-            } else {
-                return;
-            };
+        self.get_semantic_full_styles();
+        // let Some(id) = self.semantic_previous_rs_id.get_untracked() else {
+        //     self.get_semantic_full_styles();
+        //     return;
+        // };
+        // let path =
+        //     if let DocContent::File { path, .. } = self.content.get_untracked() {
+        //         path
+        //     } else {
+        //         return;
+        //     };
         // let (atomic_rev, rev, len) = self
         //     .buffer
         //     .with_untracked(|b| (b.atomic_rev(), b.rev(), b.len()));
@@ -904,41 +905,41 @@ impl Doc {
         //     }
         // });
 
-        self.common.proxy.get_semantic_tokens_delta(
-            path,
-            id,
-            move |(_, _result)| {
-                tracing::warn!("todo");
-                // if let Ok(ProxyResponse::GetSemanticTokens { styles }) = result {
-                //     if styles.styles.is_empty() {
-                //         send(None);
-                //         return;
-                //     }
-                //     if atomic_rev.load(atomic::Ordering::Acquire) != rev {
-                //         send(None);
-                //         return;
-                //     }
-                //     std::thread::spawn(move || {
-                //         let mut styles_span = SpansBuilder::new(len);
-                //         for style in styles.styles {
-                //             if atomic_rev.load(atomic::Ordering::Acquire) != rev {
-                //                 send(None);
-                //                 return;
-                //             }
-                //             styles_span.add_span(
-                //                 Interval::new(style.start, style.end),
-                //                 style.style,
-                //             );
-                //         }
+        // self.common.proxy.get_semantic_tokens_delta(
+        //     path,
+        //     id,
+        //     move |(_, _result)| {
+        //         tracing::warn!("todo");
+        // if let Ok(ProxyResponse::GetSemanticTokens { styles }) = result {
+        //     if styles.styles.is_empty() {
+        //         send(None);
+        //         return;
+        //     }
+        //     if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+        //         send(None);
+        //         return;
+        //     }
+        //     std::thread::spawn(move || {
+        //         let mut styles_span = SpansBuilder::new(len);
+        //         for style in styles.styles {
+        //             if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+        //                 send(None);
+        //                 return;
+        //             }
+        //             styles_span.add_span(
+        //                 Interval::new(style.start, style.end),
+        //                 style.style,
+        //             );
+        //         }
 
-                //         let styles = styles_span.build();
-                //         send(Some(styles));
-                //     });
-                // } else {
-                //     send(None);
-                // }
-            },
-        );
+        //         let styles = styles_span.build();
+        //         send(Some(styles));
+        //     });
+        // } else {
+        //     send(None);
+        // }
+        // },
+        // );
     }
 
     pub fn get_code_lens(&self) {
