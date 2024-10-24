@@ -62,6 +62,7 @@ impl InlineCompletionItem {
             InsertTextFormat::PLAIN_TEXT => editor.do_edit(
                 &selection,
                 &[(selection.clone(), self.insert_text.as_str())],
+                false,
             ),
             InsertTextFormat::SNIPPET => {
                 editor.completion_apply_snippet(

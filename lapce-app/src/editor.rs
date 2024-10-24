@@ -474,7 +474,7 @@ impl EditorData {
             self.snippet.set(None);
             self.quit_on_screen_find();
         }
-
+        self.check_auto_save();
         CommandExecuted::Yes
     }
 
@@ -1089,7 +1089,9 @@ impl EditorData {
                 }
             }
             FocusCommand::InlineCompletionSelect => {
+                // todo!("check to save");
                 self.select_inline_completion();
+                self.check_auto_save();
             }
             FocusCommand::InlineCompletionNext => {
                 self.next_inline_completion();
@@ -1599,6 +1601,7 @@ impl EditorData {
         if let Err(err) = item.apply(self, start_offset) {
             tracing::error!("{:?}", err);
         }
+        self.check_auto_save();
     }
 
     fn next_inline_completion(&self) {
@@ -1927,6 +1930,7 @@ impl EditorData {
     }
 
     fn apply_completion_item(&self, item: &CompletionItem) -> anyhow::Result<()> {
+        tracing::debug!("apply_completion_item {:?}", item);
         let doc = self.doc();
         let buffer = doc.buffer.get_untracked();
         let cursor = self.cursor().get_untracked();
@@ -1969,7 +1973,7 @@ impl EditorData {
                                     &[(selection.clone(), edit.new_text.as_str())][..],
                                     &additional_edit[..],
                                 ]
-                                .concat(),
+                                .concat(), false
                             );
                             return Ok(());
                         }
@@ -2004,7 +2008,9 @@ impl EditorData {
                 &additional_edit[..],
             ]
             .concat(),
+            false,
         );
+        self.check_auto_save();
         Ok(())
     }
 
@@ -2094,21 +2100,48 @@ impl EditorData {
         });
     }
 
+    fn check_auto_save(&self) {
+        let config = self.common.config.get_untracked();
+        if config.editor.autosave_interval > 0 {
+            if self.doc().content.with_untracked(|c| c.path().is_none()) {
+                return;
+            };
+            let editor = self.clone();
+            exec_after(
+                Duration::from_millis(config.editor.autosave_interval),
+                move |_| {
+                    let is_pristine =
+                        editor.doc().buffer.get_untracked().is_pristine();
+                    tracing::debug!("check_auto_save {is_pristine}");
+                    if !is_pristine {
+                        editor.save(true, || {});
+                    }
+                },
+            );
+        }
+    }
+
     pub fn do_edit(
         &self,
         old_selection: &Selection,
         edits: &[(impl AsRef<Selection>, &str)],
+        format_before_save: bool,
     ) {
+        tracing::debug!("{:?} {}", old_selection, format_before_save);
         let mut cursor = self.cursor().get_untracked();
         let doc = self.doc();
 
-        let rev_offset = doc.buffer.with_untracked(|x| {
-            x.text()
-                .slice_to_cow(0..cursor.offset())
-                .chars()
-                .filter(|c| !c.is_whitespace())
-                .count()
-        });
+        let rev_offset = if format_before_save {
+            doc.buffer.with_untracked(|x| {
+                x.text()
+                    .slice_to_cow(0..cursor.offset())
+                    .chars()
+                    .filter(|c| !c.is_whitespace())
+                    .count()
+            })
+        } else {
+            0
+        };
 
         // let rev_offset = doc.buffer.with_untracked(|x| x.len()) - cursor.offset();
         let (text, delta, inval_lines) =
@@ -2123,16 +2156,17 @@ impl EditorData {
         doc.buffer.update(|buffer| {
             cursor.update_selection(buffer, selection);
             let rope = buffer.text();
-            let offset = rope
-                .slice_to_cow(0..rope.len())
-                .chars()
-                .enumerate() // 迭代字符并获取其索引
-                .filter(|(_, c)| !c.is_whitespace()) // 过滤掉空白字符
-                .nth(rev_offset - 1) // 获取第n个非空字符（从0开始索引，所以需要n-1）
-                .map(|(index, _)| index + 1)
-                .unwrap_or_default();
-
-            cursor.set_offset(offset, false, false);
+            if format_before_save {
+                let offset = rope
+                    .slice_to_cow(0..rope.len())
+                    .chars()
+                    .enumerate()
+                    .filter(|(_, c)| !c.is_whitespace())
+                    .nth(rev_offset - 1)
+                    .map(|(index, _)| index + 1)
+                    .unwrap_or_default();
+                cursor.set_offset(offset, false, false);
+            }
             buffer.set_cursor_before(old_cursor);
             buffer.set_cursor_after(cursor.mode.clone());
         });
@@ -2141,7 +2175,7 @@ impl EditorData {
         self.apply_deltas(&[(text, delta, inval_lines)]);
     }
 
-    pub fn do_text_edit(&self, edits: &[TextEdit]) {
+    pub fn do_text_edit(&self, edits: &[TextEdit], format_before_save: bool) {
         let (selection, edits) = self.doc().buffer.with_untracked(|buffer| {
             let selection = self.cursor().get_untracked().edit_selection(buffer);
             let edits = edits
@@ -2151,14 +2185,14 @@ impl EditorData {
                         buffer.offset_of_position(&edit.range.start),
                         buffer.offset_of_position(&edit.range.end),
                     );
-                    tracing::info!("{edit:?} {selection:?}");
+                    tracing::debug!("{edit:?} {selection:?}");
                     (selection, edit.new_text.as_str())
                 })
                 .collect::<Vec<_>>();
             (selection, edits)
         });
 
-        self.do_edit(&selection, &edits);
+        self.do_edit(&selection, &edits, format_before_save);
     }
 
     fn apply_deltas(&self, deltas: &[(Rope, RopeDelta, InvalLines)]) {
@@ -2205,7 +2239,7 @@ impl EditorData {
         if let Some(position) = location.position {
             self.go_to_position(position, location.scroll_offset, edits);
         } else if let Some(edits) = edits.as_ref() {
-            self.do_text_edit(edits);
+            self.do_text_edit(edits, false);
         } else {
             let db: Arc<LapceDb> = use_context().unwrap();
             if let Ok(info) = db.get_doc_info(&self.common.workspace, &location.path)
@@ -2264,7 +2298,7 @@ impl EditorData {
             self.editor.scroll_to.set(Some(scroll_offset));
         }
         if let Some(edits) = edits.as_ref() {
-            self.do_text_edit(edits);
+            self.do_text_edit(edits, false);
         }
     }
 
@@ -2405,8 +2439,8 @@ impl EditorData {
                 {
                     let current_rev = editor.doc().rev();
                     if current_rev == rev {
-                        tracing::info!("{:?}", edits);
-                        editor.do_text_edit(&edits);
+                        tracing::debug!("{:?}", edits);
+                        editor.do_text_edit(&edits, true);
                     }
                 }
                 editor.do_save(after_action);
@@ -2441,7 +2475,7 @@ impl EditorData {
                 {
                     let current_rev = editor.doc().rev();
                     if current_rev == rev {
-                        editor.do_text_edit(&edits);
+                        editor.do_text_edit(&edits, true);
                     }
                 }
             });
@@ -2521,7 +2555,7 @@ impl EditorData {
 
         if let Some((start, end)) = next {
             let selection = Selection::region(start, end);
-            self.do_edit(&selection, &[(selection.clone(), text)]);
+            self.do_edit(&selection, &[(selection.clone(), text)], false);
         }
     }
 
@@ -2540,7 +2574,7 @@ impl EditorData {
             .map(|region| (Selection::region(region.start, region.end), text))
             .collect();
         if !edits.is_empty() {
-            self.do_edit(&Selection::caret(offset), &edits);
+            self.do_edit(&Selection::caret(offset), &edits, false);
         }
     }
 
@@ -3447,6 +3481,7 @@ impl KeyPressFocus for EditorData {
                 );
 
                 self.apply_deltas(&deltas);
+                self.check_auto_save();
             } else if let Some(direction) = self.inline_find.get_untracked() {
                 self.inline_find(direction.clone(), c);
                 self.last_inline_find.set(Some((direction, c.to_string())));

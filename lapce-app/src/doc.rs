@@ -9,11 +9,9 @@ use std::{
         atomic::{self, AtomicUsize},
         Arc,
     },
-    time::Duration,
 };
 
 use floem::{
-    action::exec_after,
     ext_event::create_ext_action,
     keyboard::Modifiers,
     peniko::Color,
@@ -659,7 +657,6 @@ impl Doc {
         batch(|| {
             self.trigger_syntax_change(edits);
             self.trigger_head_change();
-            self.check_auto_save();
             self.get_inlay_hints();
             self.find_result.reset();
             self.get_semantic_styles();
@@ -707,58 +704,6 @@ impl Doc {
             edits
         });
         self.do_raw_edit(&edits, EditType::Completion);
-    }
-
-    fn check_auto_save(&self) {
-        let config = self.common.config.get_untracked();
-        if config.editor.autosave_interval > 0 {
-            let Some(path) = self.content.with_untracked(|c| c.path().cloned())
-            else {
-                return;
-            };
-            let rev = self.rev();
-            let doc = self.clone();
-            let scope = self.scope;
-            let proxy = self.common.proxy.clone();
-            let format = config.editor.format_on_save;
-            exec_after(
-                Duration::from_millis(config.editor.autosave_interval),
-                move |_| {
-                    let current_rev = match doc
-                        .buffer
-                        .try_with_untracked(|b| b.as_ref().map(|b| b.rev()))
-                    {
-                        Some(rev) => rev,
-                        None => return,
-                    };
-
-                    if current_rev != rev || doc.is_pristine() {
-                        return;
-                    }
-
-                    if format {
-                        let send = create_ext_action(scope, move |result| {
-                            let current_rev = doc.rev();
-                            if current_rev != rev {
-                                return;
-                            }
-                            if let Ok(ProxyResponse::GetDocumentFormatting {
-                                edits,
-                            }) = result
-                            {
-                                doc.do_text_edit(&edits);
-                            }
-                            doc.save(|| {});
-                        });
-                        proxy.get_document_formatting(path, move |(_, result)| {
-                            send(result);
-                        });
-                    } else {
-                        doc.save(|| {});
-                    }
-                },
-            );
-        }
     }
 
     /// Update the styles after an edit, so the highlights are at the correct positions.
