@@ -687,6 +687,7 @@ impl MainSplitData {
         location: EditorLocation,
         edits: Option<Vec<TextEdit>>,
     ) {
+        tracing::debug!("go_to_location {:?}", location);
         if self.common.focus.get_untracked() != Focus::Workbench {
             self.common.focus.set(Focus::Workbench);
         }

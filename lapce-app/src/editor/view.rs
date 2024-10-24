@@ -2085,7 +2085,7 @@ fn editor_content(
     let resize = create_rw_signal(Rect::ZERO);
     scroll({
         let editor_content_view =
-            editor_view(e_data.get_untracked(), debug_breakline, is_active, true)
+            editor_view(e_data.get_untracked(), debug_breakline, is_active, false)
                 .style(move |s| {
                     s.absolute()
                         .margin_left(1.0)
