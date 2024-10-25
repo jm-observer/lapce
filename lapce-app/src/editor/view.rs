@@ -1752,8 +1752,8 @@ fn editor_gutter_folding_range(
                 .on_click_stop({
                     let value = doc_clone;
                     move |_| {
-                        value.get_untracked().folding_ranges.update(|x| {
-                            match item.ty {
+                        value.get_untracked().folding_ranges.update(
+                            |x| match item.ty {
                                 FoldingDisplayType::UnfoldStart
                                 | FoldingDisplayType::Folded => {
                                     x.0.iter_mut().find_map(|mut range| {
@@ -1777,8 +1777,9 @@ fn editor_gutter_folding_range(
                                         }
                                     });
                                 }
-                            }
-                        })
+                            },
+                        );
+                        doc.get_untracked().clear_text_cache();
                     }
                 })
         },

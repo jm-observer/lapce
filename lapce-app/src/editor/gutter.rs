@@ -1,3 +1,4 @@
+use floem::views::editor::phantom_text::{PhantomText, PhantomTextKind};
 use floem::views::editor::view::ScreenLines;
 use floem::{
     context::PaintCx,
@@ -7,8 +8,10 @@ use floem::{
     Renderer, View, ViewId,
 };
 use im::HashMap;
+use lsp_types::Position;
 use serde::{Deserialize, Serialize};
 
+use lapce_core::buffer::Buffer;
 use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
 
 use crate::config::{color::LapceColor, LapceConfig};
@@ -225,6 +228,30 @@ impl FoldingRanges {
                 range.push(crate::editor::gutter::FoldedRange {
                     start: item.start,
                     end: item.end,
+                    collapsed_text: item.collapsed_text.clone(),
+                });
+                limit_line = item.end.line;
+            }
+        }
+
+        FoldedRanges(range)
+    }
+
+    pub fn get_folded_range_by_line(&self, line: u32) -> FoldedRanges {
+        let mut range = Vec::new();
+        let mut limit_line = 0;
+        for item in &self.0 {
+            if item.start.line < limit_line && limit_line > 0 {
+                continue;
+            }
+            if item.status.is_folded()
+                && item.start.line <= line
+                && item.end.line >= line
+            {
+                range.push(crate::editor::gutter::FoldedRange {
+                    start: item.start,
+                    end: item.end,
+                    collapsed_text: item.collapsed_text.clone(),
                 });
                 limit_line = item.end.line;
             }
@@ -276,7 +303,7 @@ impl FoldingRanges {
                             lines.info_for_line(item.end.line as usize)
                         {
                             unfold_end.insert(
-                                item.start.line,
+                                item.end.line,
                                 FoldingDisplayItem {
                                     position: item.end,
                                     y: line.y as i32,
@@ -297,6 +324,12 @@ impl FoldingRanges {
         }
         unfold_start.into_iter().map(|x| x.1).collect()
     }
+
+    pub fn update_ranges(&mut self, mut new: Vec<FoldingRange>) {
+        let folded_range = self.get_folded_range();
+        new.iter_mut().for_each(|x| folded_range.update_status(x));
+        self.0 = new;
+    }
 }
 
 impl FoldedRanges {
@@ -308,7 +341,7 @@ impl FoldedRanges {
         for range in self.0[start_index..].iter() {
             if range.start.line >= line {
                 return (false, last_index);
-            } else if range.start.line < line && range.end.line > line {
+            } else if range.start.line < line && range.end.line >= line {
                 return (true, last_index);
             } else if range.end.line < line {
                 last_index += 1;
@@ -316,18 +349,80 @@ impl FoldedRanges {
         }
         (false, last_index)
     }
+
+    pub fn contain_position(&self, position: Position) -> bool {
+        self.0
+            .iter()
+            .any(|x| x.start <= position && x.end >= position)
+    }
+
+    pub fn update_status(&self, folding: &mut FoldingRange) {
+        if self
+            .0
+            .iter()
+            .any(|x| x.start == folding.start && x.end == folding.end)
+        {
+            folding.status = FoldingRangeStatus::Fold
+        }
+    }
+
+    pub fn into_phantom_text(
+        self,
+        buffer: &Buffer,
+        config: &LapceConfig,
+    ) -> Vec<PhantomText> {
+        self.0
+            .into_iter()
+            .filter_map(|x| x.into_phantom_text(buffer, config))
+            .collect()
+    }
+}
+
+fn get_offset(buffer: &Buffer, positon: Position) -> usize {
+    buffer.offset_of_line(positon.line as usize) + positon.character as usize
 }
 
 #[derive(Debug, Clone)]
 pub struct FoldedRange {
-    pub start: FoldingPosition,
-    pub end: FoldingPosition,
+    pub start: Position,
+    pub end: Position,
+    pub collapsed_text: Option<String>,
+}
+
+impl FoldedRange {
+    pub fn into_phantom_text(
+        self,
+        buffer: &Buffer,
+        config: &LapceConfig,
+    ) -> Option<PhantomText> {
+        let start_char = buffer.char_at_offset(get_offset(buffer, self.start))?;
+        let end_char = buffer.char_at_offset(get_offset(buffer, self.end) - 1)?;
+        let mut text = String::new();
+        text.push(start_char);
+        text.push_str("...");
+        text.push(end_char);
+
+        Some(PhantomText {
+            kind: PhantomTextKind::FoldedRang {
+                same_line: self.end.line == self.start.line,
+                end_line: self.end.line,
+                end_character: self.end.character,
+            },
+            col: self.start.character as usize,
+            text,
+            affinity: None,
+            fg: Some(config.color(LapceColor::INLAY_HINT_FOREGROUND)),
+            font_size: Some(config.editor.inlay_hint_font_size()),
+            bg: Some(config.color(LapceColor::INLAY_HINT_BACKGROUND)),
+            under_line: None,
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct FoldingRange {
-    pub start: FoldingPosition,
-    pub end: FoldingPosition,
+    pub start: Position,
+    pub end: Position,
     pub status: FoldingRangeStatus,
     pub collapsed_text: Option<String>,
 }
@@ -342,29 +437,15 @@ impl FoldingRange {
             collapsed_text,
             ..
         } = value;
-        // let status = if kind
-        //     .as_ref()
-        //     .map(|x| {
-        //         x == &lsp_types::FoldingRangeKind::Imports
-        //         // || x == &lsp_types::FoldingRangeKind::Comment
-        //     })
-        //     .unwrap_or_default()
-        // {
-        //     FoldingRangeStatus::Fold
-        // } else {
-        //     FoldingRangeStatus::Unfold
-        // };
         let status = FoldingRangeStatus::Unfold;
         Self {
-            start: FoldingPosition {
+            start: Position {
                 line: start_line,
-                character: start_character,
-                // kind: kind.clone().map(|x| FoldingRangeKind::from(x)),
+                character: start_character.unwrap_or_default(),
             },
-            end: FoldingPosition {
+            end: Position {
                 line: end_line,
-                character: end_character,
-                // kind: kind.map(|x| FoldingRangeKind::from(x)),
+                character: end_character.unwrap_or_default(),
             },
             status,
             collapsed_text,
@@ -403,7 +484,7 @@ impl FoldingRangeStatus {
 }
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct FoldingDisplayItem {
-    pub position: FoldingPosition,
+    pub position: Position,
     pub y: i32,
     pub ty: FoldingDisplayType,
 }

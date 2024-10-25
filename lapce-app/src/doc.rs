@@ -65,7 +65,7 @@ use lapce_xi_rope::{
 };
 use lsp_types::{
     CodeActionOrCommand, CodeLens, Diagnostic, DiagnosticSeverity,
-    DocumentSymbolResponse, InlayHint, InlayHintLabel, TextEdit,
+    DocumentSymbolResponse, InlayHint, InlayHintLabel, Position, TextEdit,
 };
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -1140,7 +1140,7 @@ impl Doc {
                             .sorted_by(|x, y| x.start.line.cmp(&y.start.line))
                             .collect();
                         doc.folding_ranges.update(|symbol| {
-                            symbol.0 = folding;
+                            symbol.update_ranges(folding);
                         });
                     }
                 }
@@ -1684,9 +1684,14 @@ impl DocumentPhantom for Doc {
     ) -> PhantomTextLine {
         let config = &self.common.config.get_untracked();
 
-        let (start_offset, end_offset) = self.buffer.with_untracked(|buffer| {
-            (buffer.offset_of_line(line), buffer.offset_of_line(line + 1))
-        });
+        let buffer = self.buffer.get_untracked();
+        let (start_offset, end_offset) =
+            (buffer.offset_of_line(line), buffer.offset_of_line(line + 1));
+
+        let folded_ranges = self
+            .folding_ranges
+            .get_untracked()
+            .get_folded_range_by_line(line as u32);
 
         let inlay_hints = self.inlay_hints.get_untracked();
         // If hints are enabled, and the hints field is filled, then get the hints for this line
@@ -1699,13 +1704,15 @@ impl DocumentPhantom for Doc {
             .map(|hints| hints.iter_chunks(start_offset..end_offset))
             .into_iter()
             .flatten()
-            .filter(|(interval, _)| {
-                interval.start >= start_offset && interval.start < end_offset
+            .filter(|(interval, hint)| {
+                interval.start >= start_offset
+                    && interval.start < end_offset
+                    && !folded_ranges.contain_position(hint.position)
             })
             .map(|(interval, inlay_hint)| {
-                let (col, affinity) = self.buffer.with_untracked(|b| {
+                let (col, affinity) = {
                     let mut cursor =
-                        lapce_xi_rope::Cursor::new(b.text(), interval.start);
+                        lapce_xi_rope::Cursor::new(buffer.text(), interval.start);
 
                     let next_char = cursor.peek_next_codepoint();
                     let prev_char = cursor.prev_codepoint();
@@ -1740,9 +1747,9 @@ impl DocumentPhantom for Doc {
                         }
                     }
 
-                    let (_, col) = b.offset_to_line_col(interval.start);
+                    let (_, col) = buffer.offset_to_line_col(interval.start);
                     (col, affinity)
-                });
+                };
                 let mut text = match &inlay_hint.label {
                     InlayHintLabel::String(label) => label.to_string(),
                     InlayHintLabel::LabelParts(parts) => {
@@ -1784,74 +1791,66 @@ impl DocumentPhantom for Doc {
         // that end on this line which have a severity worse than HINT and convert them into
         // PhantomText instances
 
-        let mut diag_text: SmallVec<[PhantomText; 6]> =
-            self.buffer.with_untracked(|buffer| {
-                config
-                    .editor
-                    .enable_error_lens
-                    .then_some(())
-                    .map(|_| self.diagnostics.diagnostics_span.get_untracked())
-                    .map(|diags| {
-                        diags
-                            .iter_chunks(start_offset..end_offset)
-                            .filter_map(|(iv, diag)| {
-                                let end = iv.end();
-                                let end_line = buffer.line_of_offset(end);
-                                if end_line == line
-                                    && diag.severity < Some(DiagnosticSeverity::HINT)
+        let mut diag_text: SmallVec<[PhantomText; 6]> = config
+            .editor
+            .enable_error_lens
+            .then_some(())
+            .map(|_| self.diagnostics.diagnostics_span.get_untracked())
+            .map(|diags| {
+                diags
+                    .iter_chunks(start_offset..end_offset)
+                    .filter_map(|(iv, diag)| {
+                        let end = iv.end();
+                        let end_line = buffer.line_of_offset(end);
+                        if end_line == line
+                            && diag.severity < Some(DiagnosticSeverity::HINT)
+                            && !folded_ranges.contain_position(diag.range.start)
+                            && !folded_ranges.contain_position(diag.range.end)
+                        {
+                            let fg = {
+                                let severity = diag
+                                    .severity
+                                    .unwrap_or(DiagnosticSeverity::WARNING);
+                                let theme_prop = if severity
+                                    == DiagnosticSeverity::ERROR
                                 {
-                                    let fg = {
-                                        let severity = diag
-                                            .severity
-                                            .unwrap_or(DiagnosticSeverity::WARNING);
-                                        let theme_prop = if severity
-                                            == DiagnosticSeverity::ERROR
-                                        {
-                                            LapceColor::ERROR_LENS_ERROR_FOREGROUND
-                                        } else if severity
-                                            == DiagnosticSeverity::WARNING
-                                        {
-                                            LapceColor::ERROR_LENS_WARNING_FOREGROUND
-                                        } else {
-                                            // information + hint (if we keep that) + things without a severity
-                                            LapceColor::ERROR_LENS_OTHER_FOREGROUND
-                                        };
-
-                                        config.color(theme_prop)
-                                    };
-
-                                    let text =
-                                        if config.editor.only_render_error_styling {
-                                            "".to_string()
-                                        } else if config.editor.error_lens_multiline
-                                        {
-                                            format!("    {}", diag.message)
-                                        } else {
-                                            format!(
-                                                "    {}",
-                                                diag.message.lines().join(" ")
-                                            )
-                                        };
-                                    Some(PhantomText {
-                                        kind: PhantomTextKind::Diagnostic,
-                                        col: end_offset - start_offset,
-                                        affinity: Some(CursorAffinity::Backward),
-                                        text,
-                                        fg: Some(fg),
-                                        font_size: Some(
-                                            config.editor.error_lens_font_size(),
-                                        ),
-                                        bg: None,
-                                        under_line: None,
-                                    })
+                                    LapceColor::ERROR_LENS_ERROR_FOREGROUND
+                                } else if severity == DiagnosticSeverity::WARNING {
+                                    LapceColor::ERROR_LENS_WARNING_FOREGROUND
                                 } else {
-                                    None
-                                }
+                                    // information + hint (if we keep that) + things without a severity
+                                    LapceColor::ERROR_LENS_OTHER_FOREGROUND
+                                };
+
+                                config.color(theme_prop)
+                            };
+
+                            let text = if config.editor.only_render_error_styling {
+                                "".to_string()
+                            } else if config.editor.error_lens_multiline {
+                                format!("    {}", diag.message)
+                            } else {
+                                format!("    {}", diag.message.lines().join(" "))
+                            };
+                            Some(PhantomText {
+                                kind: PhantomTextKind::Diagnostic,
+                                col: end_offset - start_offset,
+                                affinity: Some(CursorAffinity::Backward),
+                                text,
+                                fg: Some(fg),
+                                font_size: Some(
+                                    config.editor.error_lens_font_size(),
+                                ),
+                                bg: None,
+                                under_line: None,
                             })
-                            .collect::<SmallVec<[PhantomText; 6]>>()
+                        } else {
+                            None
+                        }
                     })
-                    .unwrap_or_default()
-            });
+                    .collect::<SmallVec<[PhantomText; 6]>>()
+            })
+            .unwrap_or_default();
 
         text.append(&mut diag_text);
 
@@ -1862,7 +1861,13 @@ impl DocumentPhantom for Doc {
             .then_some(())
             .and(self.completion_lens.get_untracked())
             // TODO: We're probably missing on various useful completion things to include here!
-            .filter(|_| line == completion_line)
+            .filter(|_| {
+                line == completion_line
+                    && !folded_ranges.contain_position(Position {
+                        line: completion_line as u32,
+                        character: completion_col as u32,
+                    })
+            })
             .map(|completion| PhantomText {
                 kind: PhantomTextKind::Completion,
                 col: completion_col,
@@ -1889,7 +1894,13 @@ impl DocumentPhantom for Doc {
             .enable_inline_completion
             .then_some(())
             .and(self.inline_completion.get_untracked())
-            .filter(|_| line == inline_completion_line)
+            .filter(|_| {
+                line == inline_completion_line
+                    && !folded_ranges.contain_position(Position {
+                        line: inline_completion_line as u32,
+                        character: inline_completion_col as u32,
+                    })
+            })
             .map(|completion| PhantomText {
                 kind: PhantomTextKind::Completion,
                 col: inline_completion_col,
@@ -1906,11 +1917,13 @@ impl DocumentPhantom for Doc {
             text.push(inline_completion_text);
         }
 
+        // todo filter by folded?
         if let Some(preedit) = self
             .preedit_phantom(Some(config.color(LapceColor::EDITOR_FOREGROUND)), line)
         {
             text.push(preedit)
         }
+        text.extend(folded_ranges.into_phantom_text(&buffer, config));
 
         text.sort_by(|a, b| {
             if a.col == b.col {
