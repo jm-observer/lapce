@@ -3570,6 +3570,7 @@ fn show_completion(
                 true
             }
         }
+        EditCommand::NormalizeLineEndings => true,
         _ => false,
     };
 

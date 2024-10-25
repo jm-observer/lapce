@@ -68,7 +68,8 @@ pub fn source_control_panel(
                             debug_breakline,
                             is_active,
                             false,
-                        ),
+                        )
+                        .style(|x| x.width_pct(100.0).min_width(100.0)),
                         label(|| "Commit Message".to_string()).style(move |s| {
                             let config = config.get();
                             s.absolute()
