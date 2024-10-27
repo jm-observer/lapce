@@ -341,7 +341,8 @@ impl FoldedRanges {
         for range in self.0[start_index..].iter() {
             if range.start.line >= line {
                 return (false, last_index);
-            } else if range.start.line < line && range.end.line >= line {
+                // todo range.end.line >= line
+            } else if range.start.line < line && range.end.line > line {
                 return (true, last_index);
             } else if range.end.line < line {
                 last_index += 1;
@@ -370,10 +371,11 @@ impl FoldedRanges {
         self,
         buffer: &Buffer,
         config: &LapceConfig,
+        line: usize,
     ) -> Vec<PhantomText> {
         self.0
             .into_iter()
-            .filter_map(|x| x.into_phantom_text(buffer, config))
+            .filter_map(|x| x.into_phantom_text(buffer, config, line as u32))
             .collect()
     }
 }
@@ -394,28 +396,46 @@ impl FoldedRange {
         self,
         buffer: &Buffer,
         config: &LapceConfig,
+        line: u32,
     ) -> Option<PhantomText> {
-        let start_char = buffer.char_at_offset(get_offset(buffer, self.start))?;
-        let end_char = buffer.char_at_offset(get_offset(buffer, self.end) - 1)?;
-        let mut text = String::new();
-        text.push(start_char);
-        text.push_str("...");
-        text.push(end_char);
-
-        Some(PhantomText {
-            kind: PhantomTextKind::FoldedRang {
-                same_line: self.end.line == self.start.line,
-                end_line: self.end.line,
-                end_character: self.end.character,
-            },
-            col: self.start.character as usize,
-            text,
-            affinity: None,
-            fg: Some(config.color(LapceColor::INLAY_HINT_FOREGROUND)),
-            font_size: Some(config.editor.inlay_hint_font_size()),
-            bg: Some(config.color(LapceColor::INLAY_HINT_BACKGROUND)),
-            under_line: None,
-        })
+        if self.start.line == line {
+            let start_char =
+                buffer.char_at_offset(get_offset(buffer, self.start))?;
+            let end_char =
+                buffer.char_at_offset(get_offset(buffer, self.end) - 1)?;
+            let mut text = String::new();
+            text.push(start_char);
+            text.push_str("...");
+            text.push(end_char);
+            Some(PhantomText {
+                kind: PhantomTextKind::FoldedRangStart {
+                    same_line: self.end.line == self.start.line,
+                    end_line: self.end.line,
+                    end_character: self.end.character,
+                },
+                col: self.start.character as usize,
+                text,
+                affinity: None,
+                fg: Some(config.color(LapceColor::INLAY_HINT_FOREGROUND)),
+                font_size: Some(config.editor.inlay_hint_font_size()),
+                bg: Some(config.color(LapceColor::INLAY_HINT_BACKGROUND)),
+                under_line: None,
+            })
+        } else if self.end.line == line {
+            let text = String::new();
+            Some(PhantomText {
+                kind: PhantomTextKind::CrossLineFoldedRangEnd,
+                col: self.end.character as usize,
+                text,
+                affinity: None,
+                fg: None,
+                font_size: None,
+                bg: None,
+                under_line: None,
+            })
+        } else {
+            None
+        }
     }
 }
 

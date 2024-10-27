@@ -1923,7 +1923,7 @@ impl DocumentPhantom for Doc {
         {
             text.push(preedit)
         }
-        text.extend(folded_ranges.into_phantom_text(&buffer, config));
+        text.extend(folded_ranges.into_phantom_text(&buffer, config, line));
 
         text.sort_by(|a, b| {
             if a.col == b.col {
@@ -1933,7 +1933,10 @@ impl DocumentPhantom for Doc {
             }
         });
 
-        PhantomTextLine { text }
+        PhantomTextLine {
+            visual_line: line + 1,
+            text,
+        }
     }
 
     fn has_multiline_phantom(&self, _: EditorId, _: &EditorStyle) -> bool {
@@ -1989,21 +1992,23 @@ pub struct DocStyling {
 impl DocStyling {
     fn apply_colorization(
         &self,
-        edid: EditorId,
-        style: &EditorStyle,
         line: usize,
         attrs: &Attrs,
         attrs_list: &mut AttrsList,
+        phantom_text: &PhantomTextLine,
     ) {
         let config = self.config.get_untracked();
-        let phantom_text = self.doc.phantom_text(edid, style, line);
         if let Some(bracket_styles) = self.doc.parser.borrow().bracket_pos.get(&line)
         {
             for bracket_style in bracket_styles.iter() {
                 if let Some(fg_color) = bracket_style.style.fg_color.as_ref() {
                     if let Some(fg_color) = config.style_color(fg_color) {
-                        let start = phantom_text.col_at(bracket_style.start);
-                        let end = phantom_text.col_at(bracket_style.end);
+                        let (Some(start), Some(end)) = (
+                            phantom_text.col_at(bracket_style.start),
+                            phantom_text.col_at(bracket_style.end),
+                        ) else {
+                            continue;
+                        };
                         attrs_list.add_span(start..end, attrs.color(fg_color));
                     }
                 }
@@ -2074,22 +2079,25 @@ impl Styling for DocStyling {
 
     fn apply_attr_styles(
         &self,
-        edid: EditorId,
-        style: &EditorStyle,
         line: usize,
         default: Attrs,
         attrs_list: &mut AttrsList,
+        phantom_text: &PhantomTextLine,
     ) {
         let config = self.doc.common.config.get_untracked();
 
-        self.apply_colorization(edid, style, line, &default, attrs_list);
+        self.apply_colorization(line, &default, attrs_list, phantom_text);
 
-        let phantom_text = self.doc.phantom_text(edid, style, line);
+        // calculate style of origin text
         for line_style in self.doc.line_style(line).iter() {
             if let Some(fg_color) = line_style.style.fg_color.as_ref() {
                 if let Some(fg_color) = config.style_color(fg_color) {
-                    let start = phantom_text.col_at(line_style.start);
-                    let end = phantom_text.col_at(line_style.end);
+                    let (Some(start), Some(end)) = (
+                        phantom_text.col_at(line_style.start),
+                        phantom_text.col_at(line_style.end),
+                    ) else {
+                        continue;
+                    };
                     attrs_list.add_span(start..end, default.color(fg_color));
                 }
             }
@@ -2115,7 +2123,22 @@ impl Styling for DocStyling {
             .offset_size_iter()
             .filter(move |(_, _, _, p)| p.bg.is_some() || p.under_line.is_some())
             .flat_map(move |(col_shift, size, col, phantom)| {
-                let start = col + col_shift;
+                tracing::info!(
+                    "col_shift={col_shift} size={size} col={col} {:?}",
+                    phantom
+                );
+                if col_shift < 0 {
+                    tracing::warn!("col_shift < 0 {:?}", phantom);
+                }
+                if size < 0 {
+                    tracing::debug!("size < 0 {:?}", phantom.kind);
+                }
+                let size = size as usize;
+                let start = col as i32 + col_shift;
+                if start < 0 {
+                    tracing::error!("col_shift < 0 {:?}", phantom);
+                }
+                let start = start as usize;
                 let end = start + size;
 
                 extra_styles_for_range(
@@ -2250,27 +2273,27 @@ fn syntax_prev_unmatched(
 }
 
 fn should_blink(
-    focus: SignalManager<Focus>,
-    keyboard_focus: RwSignal<Option<ViewId>>,
+    _focus: SignalManager<Focus>,
+    _keyboard_focus: RwSignal<Option<ViewId>>,
 ) -> impl Fn() -> bool {
     move || {
-        let Some(focus) = focus.try_get_untracked() else {
-            return false;
-        };
-        if matches!(
-            focus,
-            Focus::Workbench
-                | Focus::Palette
-                | Focus::Panel(crate::panel::kind::PanelKind::Plugin)
-                | Focus::Panel(crate::panel::kind::PanelKind::Search)
-                | Focus::Panel(crate::panel::kind::PanelKind::SourceControl)
-        ) {
-            return true;
-        }
-
-        if keyboard_focus.get_untracked().is_some() {
-            return true;
-        }
+        // let Some(focus) = _focus.try_get_untracked() else {
+        //     return false;
+        // };
+        // if matches!(
+        //     focus,
+        //     Focus::Workbench
+        //         | Focus::Palette
+        //         | Focus::Panel(crate::panel::kind::PanelKind::Plugin)
+        //         | Focus::Panel(crate::panel::kind::PanelKind::Search)
+        //         | Focus::Panel(crate::panel::kind::PanelKind::SourceControl)
+        // ) {
+        //     return true;
+        // }
+        //
+        // if _keyboard_focus.get_untracked().is_some() {
+        //     return true;
+        // }
         false
     }
 }

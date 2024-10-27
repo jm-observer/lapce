@@ -2162,7 +2162,7 @@ impl EditorData {
                     .chars()
                     .enumerate()
                     .filter(|(_, c)| !c.is_whitespace())
-                    .nth(rev_offset - 1)
+                    .nth(rev_offset.saturating_sub(1))
                     .map(|(index, _)| index + 1)
                     .unwrap_or_default();
                 cursor.set_offset(offset, false, false);
