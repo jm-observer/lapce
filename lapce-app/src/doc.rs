@@ -2083,6 +2083,7 @@ impl Styling for DocStyling {
         default: Attrs,
         attrs_list: &mut AttrsList,
         phantom_text: &PhantomTextLine,
+        collapsed_line_col: usize,
     ) {
         let config = self.doc.common.config.get_untracked();
 
@@ -2098,7 +2099,10 @@ impl Styling for DocStyling {
                     ) else {
                         continue;
                     };
-                    attrs_list.add_span(start..end, default.color(fg_color));
+                    attrs_list.add_span(
+                        start + collapsed_line_col..end + collapsed_line_col,
+                        default.color(fg_color),
+                    );
                 }
             }
         }
@@ -2106,20 +2110,11 @@ impl Styling for DocStyling {
 
     fn apply_layout_styles(
         &self,
-        edid: EditorId,
-        style: &EditorStyle,
-        line: usize,
-        layout_line: &mut TextLayoutLine,
-    ) {
-        let doc = &self.doc;
-        let config = doc.common.config.get_untracked();
-
-        layout_line.extra_style.clear();
-        let layout = &layout_line.text;
-
-        let phantom_text = doc.phantom_text(edid, style, line);
-
-        let phantom_styles = phantom_text
+        layout: &TextLayout,
+        phantom_text: &PhantomTextLine,
+        _collapsed_line_col: usize,
+    ) -> Vec<LineExtraStyle> {
+        phantom_text
             .offset_size_iter()
             .filter(move |(_, _, _, p)| p.bg.is_some() || p.under_line.is_some())
             .flat_map(move |(col_shift, size, col, phantom)| {
@@ -2149,97 +2144,97 @@ impl Styling for DocStyling {
                     phantom.under_line,
                     None,
                 )
-            });
-        layout_line.extra_style.extend(phantom_styles);
+            })
+            .collect()
 
-        let (start_offset, end_offset) = doc.buffer.with_untracked(|buffer| {
-            (buffer.offset_of_line(line), buffer.offset_of_line(line + 1))
-        });
+        // let (start_offset, end_offset) = doc.buffer.with_untracked(|buffer| {
+        //     (buffer.offset_of_line(line), buffer.offset_of_line(line + 1))
+        // });
 
-        let mut max_severity: Option<DiagnosticSeverity> = None;
-        doc.diagnostics.diagnostics_span.with_untracked(|diags| {
-            diags
-                .iter_chunks(start_offset..end_offset)
-                .for_each(|(iv, diag)| {
-                    let start = iv.start();
-                    let end = iv.end();
-
-                    if start <= end_offset
-                        && end >= start_offset
-                        && diag.severity < Some(DiagnosticSeverity::HINT)
-                    {
-                        let start = if start > start_offset {
-                            start - start_offset
-                        } else {
-                            0
-                        };
-                        let end = end - start_offset;
-                        let start = phantom_text.col_after(start, true);
-                        let end = phantom_text.col_after(end, false);
-
-                        match (diag.severity, max_severity) {
-                            (Some(severity), Some(max)) => {
-                                if severity < max {
-                                    max_severity = Some(severity);
-                                }
-                            }
-                            (Some(severity), None) => {
-                                max_severity = Some(severity);
-                            }
-                            _ => {}
-                        }
-
-                        let color_name = match diag.severity {
-                            Some(DiagnosticSeverity::ERROR) => {
-                                LapceColor::LAPCE_ERROR
-                            }
-                            _ => LapceColor::LAPCE_WARN,
-                        };
-                        let color = config.color(color_name);
-                        let styles = extra_styles_for_range(
-                            layout,
-                            start,
-                            end,
-                            None,
-                            None,
-                            Some(color),
-                        );
-                        layout_line.extra_style.extend(styles);
-                    }
-                });
-        });
+        // let mut max_severity: Option<DiagnosticSeverity> = None;
+        // doc.diagnostics.diagnostics_span.with_untracked(|diags| {
+        //     diags
+        //         .iter_chunks(start_offset..end_offset)
+        //         .for_each(|(iv, diag)| {
+        //             let start = iv.start();
+        //             let end = iv.end();
+        //
+        //             if start <= end_offset
+        //                 && end >= start_offset
+        //                 && diag.severity < Some(DiagnosticSeverity::HINT)
+        //             {
+        //                 let start = if start > start_offset {
+        //                     start - start_offset
+        //                 } else {
+        //                     0
+        //                 };
+        //                 let end = end - start_offset;
+        //                 let start = phantom_text.col_after(start, true);
+        //                 let end = phantom_text.col_after(end, false);
+        //
+        //                 match (diag.severity, max_severity) {
+        //                     (Some(severity), Some(max)) => {
+        //                         if severity < max {
+        //                             max_severity = Some(severity);
+        //                         }
+        //                     }
+        //                     (Some(severity), None) => {
+        //                         max_severity = Some(severity);
+        //                     }
+        //                     _ => {}
+        //                 }
+        //
+        //                 let color_name = match diag.severity {
+        //                     Some(DiagnosticSeverity::ERROR) => {
+        //                         LapceColor::LAPCE_ERROR
+        //                     }
+        //                     _ => LapceColor::LAPCE_WARN,
+        //                 };
+        //                 let color = config.color(color_name);
+        //                 let styles = extra_styles_for_range(
+        //                     layout,
+        //                     start,
+        //                     end,
+        //                     None,
+        //                     None,
+        //                     Some(color),
+        //                 );
+        //                 layout_line.extra_style.extend(styles);
+        //             }
+        //         });
+        // });
 
         // Add the styling for the diagnostic severity, if applicable
-        if let Some(max_severity) = max_severity {
-            let theme_prop = if max_severity == DiagnosticSeverity::ERROR {
-                LapceColor::ERROR_LENS_ERROR_BACKGROUND
-            } else if max_severity == DiagnosticSeverity::WARNING {
-                LapceColor::ERROR_LENS_WARNING_BACKGROUND
-            } else {
-                LapceColor::ERROR_LENS_OTHER_BACKGROUND
-            };
-
-            let size = layout.size();
-            let x1 = if !config.editor.error_lens_end_of_line {
-                let error_end_x = size.width;
-                Some(error_end_x.max(size.width))
-            } else {
-                None
-            };
-
-            // TODO(minor): Should we show the background only on wrapped lines that have the
-            // diagnostic actually on that line?
-            // That would make it more obvious where it is from and matches other editors.
-            layout_line.extra_style.push(LineExtraStyle {
-                x: 0.0,
-                y: 0.0,
-                width: x1,
-                height: size.height,
-                bg_color: Some(config.color(theme_prop)),
-                under_line: None,
-                wave_line: None,
-            });
-        }
+        // if let Some(max_severity) = max_severity {
+        //     let theme_prop = if max_severity == DiagnosticSeverity::ERROR {
+        //         LapceColor::ERROR_LENS_ERROR_BACKGROUND
+        //     } else if max_severity == DiagnosticSeverity::WARNING {
+        //         LapceColor::ERROR_LENS_WARNING_BACKGROUND
+        //     } else {
+        //         LapceColor::ERROR_LENS_OTHER_BACKGROUND
+        //     };
+        //
+        //     let size = layout.size();
+        //     let x1 = if !config.editor.error_lens_end_of_line {
+        //         let error_end_x = size.width;
+        //         Some(error_end_x.max(size.width))
+        //     } else {
+        //         None
+        //     };
+        //
+        //     // TODO(minor): Should we show the background only on wrapped lines that have the
+        //     // diagnostic actually on that line?
+        //     // That would make it more obvious where it is from and matches other editors.
+        //     layout_line.extra_style.push(LineExtraStyle {
+        //         x: 0.0,
+        //         y: 0.0,
+        //         width: x1,
+        //         height: size.height,
+        //         bg_color: Some(config.color(theme_prop)),
+        //         under_line: None,
+        //         wave_line: None,
+        //     });
+        // }
     }
 
     fn paint_caret(&self, edid: EditorId, _line: usize) -> bool {

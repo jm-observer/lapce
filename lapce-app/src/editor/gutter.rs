@@ -342,7 +342,7 @@ impl FoldedRanges {
             if range.start.line >= line {
                 return (false, last_index);
                 // todo range.end.line >= line
-            } else if range.start.line < line && range.end.line > line {
+            } else if range.start.line < line && range.end.line >= line {
                 return (true, last_index);
             } else if range.end.line < line {
                 last_index += 1;
