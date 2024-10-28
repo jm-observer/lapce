@@ -2114,27 +2114,32 @@ impl Styling for DocStyling {
         phantom_text: &PhantomTextLine,
         _collapsed_line_col: usize,
     ) -> Vec<LineExtraStyle> {
+        if phantom_text.text.len() > 0 {
+            tracing::debug!(
+                "line={} phantom_len={}",
+                phantom_text.visual_line,
+                phantom_text.text.len()
+            );
+        }
+
         phantom_text
             .offset_size_iter()
             .filter(move |(_, _, _, p)| p.bg.is_some() || p.under_line.is_some())
             .flat_map(move |(col_shift, size, col, phantom)| {
-                tracing::info!(
-                    "col_shift={col_shift} size={size} col={col} {:?}",
-                    phantom
-                );
                 if col_shift < 0 {
                     tracing::warn!("col_shift < 0 {:?}", phantom);
                 }
-                if size < 0 {
-                    tracing::debug!("size < 0 {:?}", phantom.kind);
-                }
                 let size = size as usize;
-                let start = col as i32 + col_shift;
-                if start < 0 {
-                    tracing::error!("col_shift < 0 {:?}", phantom);
-                }
-                let start = start as usize;
+                let start = col as usize;
+                // if start < 0 {
+                //     tracing::error!("start < 0 start={start} {:?} ", phantom);
+                // }
+                // let start = start as usize;
                 let end = start + size;
+                tracing::debug!(
+                    "col_shift={col_shift} size={size} start={start} end={end} {:?}",
+                    phantom
+                );
 
                 extra_styles_for_range(
                     layout,
@@ -2304,6 +2309,7 @@ fn extra_styles_for_range(
     let start_hit = text_layout.hit_position(start);
     let end_hit = text_layout.hit_position(end);
 
+    // tracing::info!("start={start_hit:?} end={end_hit:?}");
     text_layout
         .layout_runs()
         .enumerate()
