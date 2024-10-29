@@ -158,8 +158,7 @@ impl TerminalView {
             FamilyOwned::parse_list(font_family).collect();
         let attrs = Attrs::new().family(&family).font_size(font_size as f32);
         let attrs_list = AttrsList::new(attrs);
-        let mut text_layout = TextLayout::new();
-        text_layout.set_text("W", attrs_list);
+        let text_layout = TextLayout::new("W", attrs_list);
         text_layout.size()
     }
 
@@ -480,8 +479,8 @@ impl TerminalView {
         }
 
         for (char, attr, x, y) in &line_content.chars {
-            let mut text_layout = TextLayout::new();
-            text_layout.set_text(&char.to_string(), AttrsList::new(*attr));
+            let text_layout =
+                TextLayout::new(&char.to_string(), AttrsList::new(*attr));
             cx.draw_text(&text_layout, Point::new(*x, *y));
         }
     }
@@ -636,8 +635,7 @@ impl View for TerminalView {
         let attrs = Attrs::new().family(&family).font_size(font_size as f32);
 
         if let Some(error) = self.launch_error.get() {
-            let mut text_layout = TextLayout::new();
-            text_layout.set_text(
+            let text_layout = TextLayout::new(
                 &format!("Terminal failed to launch. Error: {error}"),
                 AttrsList::new(
                     attrs.color(config.color(LapceColor::EDITOR_FOREGROUND)),

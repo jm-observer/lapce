@@ -363,7 +363,6 @@ impl TextInput {
     }
 
     fn set_text_layout(&mut self) {
-        let mut text_layout = TextLayout::new();
         let mut attrs =
             Attrs::new().color(self.style.color().unwrap_or(Color::BLACK));
         if let Some(font_size) = self.style.font_size() {
@@ -386,7 +385,7 @@ impl TextInput {
         if let Some(line_height) = self.style.line_height() {
             attrs = attrs.line_height(line_height);
         }
-        text_layout.set_text(
+        let text_layout = TextLayout::new(
             if self.content.is_empty() {
                 " "
             } else {
@@ -396,14 +395,14 @@ impl TextInput {
         );
         self.text_layout.set(Some(text_layout));
 
-        let mut placeholder_text_layout = TextLayout::new();
         attrs = attrs.color(
             self.style
                 .color()
                 .unwrap_or(Color::BLACK)
                 .with_alpha_factor(0.5),
         );
-        placeholder_text_layout.set_text(&self.placeholder, AttrsList::new(attrs));
+        let placeholder_text_layout =
+            TextLayout::new(&self.placeholder, AttrsList::new(attrs));
         self.placeholder_text_layout = Some(placeholder_text_layout);
     }
 

@@ -179,12 +179,11 @@ impl View for EditorGutterView {
                 }
                 .to_string();
 
-                let mut text_layout = TextLayout::new();
-                if line == current_line {
-                    text_layout.set_text(&text, current_line_attrs_list.clone());
+                let text_layout = if line == current_line {
+                    TextLayout::new(&text, current_line_attrs_list.clone())
                 } else {
-                    text_layout.set_text(&text, attrs_list.clone());
-                }
+                    TextLayout::new(&text, attrs_list.clone())
+                };
                 let size = text_layout.size();
                 let height = size.height;
 

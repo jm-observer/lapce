@@ -413,7 +413,6 @@ impl WindowTabData {
 
         let ui_line_height = cx.create_memo(move |_| {
             let config = config.get();
-            let mut text_layout = TextLayout::new();
 
             let family: Vec<FamilyOwned> =
                 FamilyOwned::parse_list(&config.ui.font_family).collect();
@@ -422,8 +421,7 @@ impl WindowTabData {
                 .font_size(config.ui.font_size() as f32)
                 .line_height(LineHeightValue::Normal(1.8));
             let attrs_list = AttrsList::new(attrs);
-            text_layout.set_text("W", attrs_list);
-            text_layout.size().height
+            TextLayout::new("W", attrs_list).size().height
         });
 
         let common = Rc::new(CommonData {

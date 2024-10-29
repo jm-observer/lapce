@@ -1014,8 +1014,7 @@ dependencies = [
 [[package]]
 name = "cosmic-text"
 version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59fd57d82eb4bfe7ffa9b1cec0c05e2fd378155b47f255a67983cb4afe0e80c2"
+source = "git+https://github.com/pop-os/cosmic-text.git?rev=4fe90bb#4fe90bb6126c22f589b46768d7754d65ae300c5e"
 dependencies = [
  "bitflags 2.6.0",
  "fontdb",
@@ -1025,6 +1024,7 @@ dependencies = [
  "rustc-hash",
  "rustybuzz 0.14.1",
  "self_cell",
+ "smol_str",
  "swash",
  "sys-locale",
  "ttf-parser 0.21.1",
@@ -1704,6 +1704,7 @@ dependencies = [
  "bitflags 2.6.0",
  "clipboard-win",
  "copypasta",
+ "cosmic-text",
  "crossbeam",
  "crossbeam-channel",
  "downcast-rs",
@@ -1755,7 +1756,6 @@ dependencies = [
 [[package]]
 name = "floem-vger"
 version = "0.3.0"
-source = "git+https://github.com/lapce/vger-rs?rev=cfdec48f8093837f06be6fecfd75b0e5a0c5a3cf#cfdec48f8093837f06be6fecfd75b0e5a0c5a3cf"
 dependencies = [
  "cosmic-text",
  "euclid",
@@ -1833,6 +1833,7 @@ dependencies = [
  "peniko",
  "resvg",
  "swash",
+ "unicode-segmentation",
  "wasm-bindgen-futures",
  "wgpu",
 ]

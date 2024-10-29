@@ -1037,7 +1037,6 @@ pub fn theme_color_settings_view(
     let config = common.config;
 
     let text_height = create_memo(move |_| {
-        let mut text_layout = TextLayout::new();
         let config = config.get();
         let family: Vec<FamilyOwned> =
             FamilyOwned::parse_list(&config.ui.font_family).collect();
@@ -1045,12 +1044,11 @@ pub fn theme_color_settings_view(
             .family(&family)
             .font_size(config.ui.font_size() as f32);
         let attrs_list = AttrsList::new(attrs);
-        text_layout.set_text("W", attrs_list);
+        let text_layout = TextLayout::new("W", attrs_list);
         text_layout.size().height
     });
 
     let max_width = create_memo(move |_| {
-        let mut text_layout = TextLayout::new();
         let config = config.get();
         let family: Vec<FamilyOwned> =
             FamilyOwned::parse_list(&config.ui.font_family).collect();
@@ -1061,15 +1059,13 @@ pub fn theme_color_settings_view(
 
         let mut max_width = 0.0;
         for key in config.color_theme.ui.keys() {
-            text_layout.set_text(key, attrs_list.clone());
-            let width = text_layout.size().width;
+            let width = TextLayout::new(key, attrs_list.clone()).size().width;
             if width > max_width {
                 max_width = width;
             }
         }
         for key in config.color_theme.syntax.keys() {
-            text_layout.set_text(key, attrs_list.clone());
-            let width = text_layout.size().width;
+            let width = TextLayout::new(key, attrs_list.clone()).size().width;
             if width > max_width {
                 max_width = width;
             }

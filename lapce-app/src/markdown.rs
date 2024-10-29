@@ -114,8 +114,8 @@ pub fn parse_markdown(
                             // image is rendered?
 
                             if builder_dirty {
-                                let mut text_layout = TextLayout::new();
-                                text_layout.set_text(&current_text, attr_list);
+                                let text_layout =
+                                    TextLayout::new(&current_text, attr_list);
                                 res.push(MarkdownContent::Text(text_layout));
                                 attr_list = AttrsList::new(default_attrs);
                                 current_text.clear();
@@ -190,8 +190,7 @@ pub fn parse_markdown(
     }
 
     if builder_dirty {
-        let mut text_layout = TextLayout::new();
-        text_layout.set_text(&current_text, attr_list);
+        let text_layout = TextLayout::new(&current_text, attr_list);
         res.push(MarkdownContent::Text(text_layout));
     }
 
@@ -329,8 +328,7 @@ pub fn from_plaintext(
     line_height: f64,
     config: &LapceConfig,
 ) -> Vec<MarkdownContent> {
-    let mut text_layout = TextLayout::new();
-    text_layout.set_text(
+    let text_layout = TextLayout::new(
         text,
         AttrsList::new(
             Attrs::new()
