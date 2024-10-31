@@ -1756,6 +1756,7 @@ dependencies = [
 [[package]]
 name = "floem-vger"
 version = "0.3.0"
+source = "git+https://github.com/jm-observer/vger-rs.git?rev=2e5a95d#2e5a95d23be2faaf6dd18f297866c7034083cd60"
 dependencies = [
  "cosmic-text",
  "euclid",
