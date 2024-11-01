@@ -66,6 +66,7 @@ toml              = { version = "*" }
 toml_edit         = { version = "0.20.2", features = ["serde"] }
 url               = { version = "2.5.0" }
 zstd              = { version = "0.11.2" }                                                                         # follow same version wasmtime-cache in lockfile
+alacritty_terminal = "0.24.1"
 
 lsp-types = { version = "0.95.1", features = ["proposed"] }                                                  # not following semver, so should be locked to patch version updates only
 psp-types = { git = "https://github.com/lapce/psp-types", rev = "f7fea28f59e7b2d6faa1034a21679ad49b3524ad" }
@@ -80,6 +81,8 @@ floem = { git = "https://github.com/lapce/floem", rev = "4510c4b", features = ["
 # floem = { path = "../floem", features = ["editor", "serde", "default-image-formats", "rfd-async-std"] }
 floem-editor-core = { git = "https://github.com/lapce/floem", rev = "4510c4b", features = ["serde"] }
 # floem-editor-core = { path = "../floem/editor-core/", features = ["serde"] }
+
+
 
 [patch.crates-io]
 # Temporarily patch lsp-types with a version that adds message-type debug
@@ -118,9 +121,9 @@ git     = "https://github.com/jm-observer/tracing"
 #rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
 package = "tracing-appender"
 
-[workspace.dependencies.alacritty_terminal]
-git = "https://github.com/alacritty/alacritty"
-rev = "cacdb5bb3b72bad2c729227537979d95af75978f"
+#[workspace.dependencies.alacritty_terminal]
+#git = "https://github.com/alacritty/alacritty"
+#rev = "cacdb5bb3b72bad2c729227537979d95af75978f"
 
 [workspace.dependencies.windows-sys]
 version  = "0"
