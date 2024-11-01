@@ -56,6 +56,7 @@ pub fn line_styles(
 
     let start_offset = text.offset_of_line(line);
     let end_offset = text.offset_of_line(line + 1);
+    let line_str = text.slice_to_cow(start_offset..end_offset);
     let line_styles: Vec<LineStyle> = styles
         .iter_chunks(start_offset..end_offset)
         .filter_map(|(iv, style)| {
@@ -71,7 +72,13 @@ pub fn line_styles(
                 };
                 let end = end - start_offset;
                 let style = style.clone();
-                Some(LineStyle { start, end, style })
+                let text = line_str.get(start..end).map(|x| x.to_string());
+                Some(LineStyle {
+                    start,
+                    end,
+                    style,
+                    text,
+                })
             }
         })
         .collect();

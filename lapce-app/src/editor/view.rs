@@ -2152,6 +2152,7 @@ fn editor_content(
         let e_data = e_data.get_untracked();
         let cursor = cursor.get_untracked();
         let offset = cursor.offset();
+        tracing::info!("ensure_visible offset={offset}");
         let offset_line_from_top = e_data.offset_line_from_top.get();
         e_data.doc_signal().track();
         e_data.kind.track();

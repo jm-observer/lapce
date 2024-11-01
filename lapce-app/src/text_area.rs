@@ -1,15 +1,15 @@
-use floem::{
-    peniko::kurbo::Rect,
-    reactive::{
-        create_effect, create_rw_signal, SignalGet, SignalUpdate, SignalWith,
-    },
-    text::{Attrs, AttrsList, LineHeightValue, TextLayout},
-    views::{container, label, rich_text, scroll, stack, Decorators},
-    View,
-};
-use lapce_core::buffer::rope_text::RopeText;
-
-use crate::{config::color::LapceColor, editor::EditorData};
+// use floem::{
+//     peniko::kurbo::Rect,
+//     reactive::{
+//         create_effect, create_rw_signal, SignalGet, SignalUpdate, SignalWith,
+//     },
+//     text::{Attrs, AttrsList, LineHeightValue, TextLayout},
+//     views::{container, label, rich_text, scroll, stack, Decorators},
+//     View,
+// };
+// use lapce_core::buffer::rope_text::RopeText;
+//
+// use crate::{config::color::LapceColor, editor::EditorData};
 
 // pub fn text_area(
 //     editor: EditorData,

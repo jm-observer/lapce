@@ -409,8 +409,8 @@ impl FoldedRange {
             Some(PhantomText {
                 kind: PhantomTextKind::FoldedRangStart {
                     same_line: self.end.line == self.start.line,
-                    end_line: self.end.line,
-                    end_character: self.end.character,
+                    end_line: self.end.line as usize,
+                    end_character: self.end.character as usize,
                 },
                 col: self.start.character as usize,
                 text,
@@ -419,11 +419,15 @@ impl FoldedRange {
                 font_size: Some(config.editor.inlay_hint_font_size()),
                 bg: Some(config.color(LapceColor::INLAY_HINT_BACKGROUND)),
                 under_line: None,
+                final_col: self.start.character as usize,
+                line: line as usize,
             })
         } else if self.end.line == line {
             let text = String::new();
             Some(PhantomText {
-                kind: PhantomTextKind::CrossLineFoldedRangEnd,
+                kind: PhantomTextKind::CrossLineFoldedRangEnd {
+                    line: line as usize,
+                },
                 col: self.end.character as usize,
                 text,
                 affinity: None,
@@ -431,6 +435,8 @@ impl FoldedRange {
                 font_size: None,
                 bg: None,
                 under_line: None,
+                final_col: self.end.character as usize,
+                line: line as usize,
             })
         } else {
             None

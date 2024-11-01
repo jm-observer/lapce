@@ -1946,9 +1946,11 @@ fn add_bracket_pos(
     start_pos: Point,
     color: String,
 ) {
+    // todo
     let line_style = LineStyle {
         start: start_pos.column,
         end: start_pos.column + 1,
+        text: None,
         style: Style {
             fg_color: Some(color),
         },

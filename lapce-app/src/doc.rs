@@ -23,7 +23,7 @@ use floem::{
         actions::CommonAction,
         command::{Command, CommandExecuted},
         id::EditorId,
-        layout::{LineExtraStyle, TextLayoutLine},
+        layout::LineExtraStyle,
         phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
         text::{Document, DocumentPhantom, PreeditData, Styling, SystemClipboard},
         view::{ScreenLines, ScreenLinesBase},
@@ -1688,6 +1688,15 @@ impl DocumentPhantom for Doc {
         let (start_offset, end_offset) =
             (buffer.offset_of_line(line), buffer.offset_of_line(line + 1));
 
+        let mut origin_text_len = end_offset - start_offset;
+        let line_ending = buffer.line_ending().get_chars().len();
+        if origin_text_len >= line_ending {
+            origin_text_len -= line_ending;
+        }
+        // if line == 8 {
+        //     tracing::info!("start_offset={start_offset} end_offset={end_offset} line_ending={line_ending} origin_text_len={origin_text_len}");
+        // }
+
         let folded_ranges = self
             .folding_ranges
             .get_untracked()
@@ -1780,6 +1789,8 @@ impl DocumentPhantom for Doc {
                     font_size: Some(config.editor.inlay_hint_font_size()),
                     bg: Some(config.color(LapceColor::INLAY_HINT_BACKGROUND)),
                     under_line: None,
+                    final_col: col,
+                    line,
                 }
             });
         // You're quite unlikely to have more than six hints on a single line
@@ -1843,6 +1854,8 @@ impl DocumentPhantom for Doc {
                                 ),
                                 bg: None,
                                 under_line: None,
+                                final_col: end_offset - start_offset,
+                                line,
                             })
                         } else {
                             None
@@ -1878,6 +1891,8 @@ impl DocumentPhantom for Doc {
                 // font_family: Some(config.editor.completion_lens_font_family()),
                 bg: None,
                 under_line: None,
+                final_col: completion_col,
+                line,
                 // TODO: italics?
             });
         if let Some(completion_text) = completion_text {
@@ -1911,6 +1926,8 @@ impl DocumentPhantom for Doc {
                 // font_family: Some(config.editor.completion_lens_font_family()),
                 bg: None,
                 under_line: None,
+                final_col: inline_completion_col,
+                line,
                 // TODO: italics?
             });
         if let Some(inline_completion_text) = inline_completion_text {
@@ -1925,18 +1942,7 @@ impl DocumentPhantom for Doc {
         }
         text.extend(folded_ranges.into_phantom_text(&buffer, config, line));
 
-        text.sort_by(|a, b| {
-            if a.col == b.col {
-                a.kind.cmp(&b.kind)
-            } else {
-                a.col.cmp(&b.col)
-            }
-        });
-
-        PhantomTextLine {
-            visual_line: line + 1,
-            text,
-        }
+        PhantomTextLine::new(line, origin_text_len, text)
     }
 
     fn has_multiline_phantom(&self, _: EditorId, _: &EditorStyle) -> bool {
@@ -1998,9 +2004,11 @@ impl DocStyling {
         phantom_text: &PhantomTextLine,
     ) {
         let config = self.config.get_untracked();
+        // todo it always empty??
         if let Some(bracket_styles) = self.doc.parser.borrow().bracket_pos.get(&line)
         {
             for bracket_style in bracket_styles.iter() {
+                // tracing::info!("{line} {:?}", bracket_style);
                 if let Some(fg_color) = bracket_style.style.fg_color.as_ref() {
                     if let Some(fg_color) = config.style_color(fg_color) {
                         let (Some(start), Some(end)) = (
@@ -2009,6 +2017,7 @@ impl DocStyling {
                         ) else {
                             continue;
                         };
+                        // tracing::info!("{line} {:?} {start} {end}", bracket_style);
                         attrs_list.add_span(start..end, attrs.color(fg_color));
                     }
                 }
@@ -2087,9 +2096,10 @@ impl Styling for DocStyling {
     ) {
         let config = self.doc.common.config.get_untracked();
 
+        // todo
         self.apply_colorization(line, &default, attrs_list, phantom_text);
 
-        // calculate style of origin text
+        // calculate style of origin text, for example: `self`
         for line_style in self.doc.line_style(line).iter() {
             if let Some(fg_color) = line_style.style.fg_color.as_ref() {
                 if let Some(fg_color) = config.style_color(fg_color) {
@@ -2099,6 +2109,14 @@ impl Styling for DocStyling {
                     ) else {
                         continue;
                     };
+                    // if line == 8 || line == 10 {
+                    //     tracing::info!(
+                    //         "line_style={}-{} => {start}-{end} {:?}",
+                    //         line_style.start,
+                    //         line_style.end,
+                    //         line_style.text
+                    //     )
+                    // }
                     attrs_list.add_span(
                         start + collapsed_line_col..end + collapsed_line_col,
                         default.color(fg_color),
@@ -2114,7 +2132,7 @@ impl Styling for DocStyling {
         phantom_text: &PhantomTextLine,
         _collapsed_line_col: usize,
     ) -> Vec<LineExtraStyle> {
-        if phantom_text.text.len() > 0 {
+        if !phantom_text.text.is_empty() {
             tracing::debug!(
                 "line={} phantom_len={}",
                 phantom_text.visual_line,
@@ -2123,18 +2141,9 @@ impl Styling for DocStyling {
         }
 
         phantom_text
-            .offset_size_iter()
-            .filter(move |(_, _, _, p)| p.bg.is_some() || p.under_line.is_some())
-            .flat_map(move |(col_shift, size, col, phantom)| {
-                if col_shift < 0 {
-                    tracing::warn!("col_shift < 0 {:?}", phantom);
-                }
-                let size = size as usize;
-                let start = col as usize;
-                // if start < 0 {
-                //     tracing::error!("start < 0 start={start} {:?} ", phantom);
-                // }
-                // let start = start as usize;
+            .offset_size_iter_2()
+            .filter(move |(_, _, _, _, p)| p.bg.is_some() || p.under_line.is_some())
+            .flat_map(move |(col_shift, size, _, (_line, start), phantom)| {
                 let end = start + size;
                 tracing::debug!(
                     "col_shift={col_shift} size={size} start={start} end={end} {:?}",

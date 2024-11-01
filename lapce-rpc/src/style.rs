@@ -8,6 +8,7 @@ pub type LineStyles = HashMap<usize, Arc<Vec<LineStyle>>>;
 pub struct LineStyle {
     pub start: usize,
     pub end: usize,
+    pub text: Option<String>,
     pub style: Style,
 }
 

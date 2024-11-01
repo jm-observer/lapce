@@ -90,6 +90,20 @@ pub enum NodeType {
     Dummy,
 }
 
+impl NodeType {
+    pub fn bracket(&self) -> Option<String> {
+        match self {
+            NodeType::LeftParen => Some("(".to_string()),
+            NodeType::RightParen => Some(")".to_string()),
+            NodeType::LeftBracket => Some("[".to_string()),
+            NodeType::RightBracket => Some("]".to_string()),
+            NodeType::LeftCurly => Some("{".to_string()),
+            NodeType::RightCurly => Some("}".to_string()),
+            NodeType::Pair | NodeType::Code | NodeType::Dummy => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum BracketParserMode {
     Parsing,
@@ -222,14 +236,15 @@ impl BracketParser {
                 if buffer.is_empty() {
                     return;
                 }
-                for (offset, color) in pos_vec.iter() {
-                    let (line, col) = buffer.offset_to_line_col(*offset);
+                for (offset, color, bracket) in pos_vec.into_iter() {
+                    let (line, col) = buffer.offset_to_line_col(offset);
                     let line_style = LineStyle {
                         start: col,
                         end: col + 1,
                         style: Style {
                             fg_color: Some(color.clone()),
                         },
+                        text: bracket,
                     };
                     match self.bracket_pos.entry(line) {
                         Entry::Vacant(v) => _ = v.insert(vec![line_style.clone()]),
@@ -338,7 +353,7 @@ impl BracketParser {
 
     fn highlight_pos(
         ast: &ASTNode,
-        pos_vec: &mut Vec<(usize, String)>,
+        pos_vec: &mut Vec<(usize, String, Option<String>)>,
         index: &mut usize,
         level: &mut usize,
         palette: &Vec<String>,
@@ -349,8 +364,11 @@ impl BracketParser {
                     NodeType::LeftCurly
                     | NodeType::LeftParen
                     | NodeType::LeftBracket => {
-                        pos_vec
-                            .push((*index, palette[*level % palette.len()].clone()));
+                        pos_vec.push((
+                            *index,
+                            palette[*level % palette.len()].clone(),
+                            n.tt.bracket(),
+                        ));
                         *level += 1;
                         *index += 1;
                     }
@@ -359,12 +377,17 @@ impl BracketParser {
                     | NodeType::RightBracket => {
                         let (new_level, overflow) = (*level).overflowing_sub(1);
                         if overflow {
-                            pos_vec.push((*index, "bracket.unpaired".to_string()));
+                            pos_vec.push((
+                                *index,
+                                "bracket.unpaired".to_string(),
+                                n.tt.bracket(),
+                            ));
                         } else {
                             *level = new_level;
                             pos_vec.push((
                                 *index,
                                 palette[*level % palette.len()].clone(),
+                                n.tt.bracket(),
                             ));
                         }
                         *index += 1;

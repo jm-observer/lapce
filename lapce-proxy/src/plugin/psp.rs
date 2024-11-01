@@ -1452,9 +1452,11 @@ fn format_semantic_styles(
             continue;
         }
         last_start = start;
+        // todo what is the `text`
         highlights.push(LineStyle {
             start,
             end,
+            text: None,
             style: Style {
                 fg_color: Some(kind),
             },
