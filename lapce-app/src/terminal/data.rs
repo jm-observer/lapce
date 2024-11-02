@@ -388,11 +388,7 @@ impl TerminalData {
         let exp_run_debug = run_debug
             .as_ref()
             .map(|run_debug| {
-                ExpandedRunDebug::expand(
-                    workspace,
-                    &run_debug.config,
-                    run_debug.is_prelaunch,
-                )
+                ExpandedRunDebug::expand(&run_debug.config, run_debug.is_prelaunch)
             })
             .transpose();
 
@@ -772,12 +768,18 @@ pub struct ExpandedRunDebug {
 }
 impl ExpandedRunDebug {
     pub fn expand(
-        workspace: &LapceWorkspace,
         run_debug: &RunDebugConfig,
         is_prelaunch: bool,
     ) -> anyhow::Result<Self> {
         // Get the current working directory variable, which can container ${workspace}
-        let work_dir = Self::expand_work_dir(workspace, run_debug);
+
+        let work_dir = run_debug
+            .cwd
+            .as_ref()
+            .map(PathBuf::from)
+            .and_then(|x| Url::from_file_path(x).ok());
+        // let work_dir =
+        //     Url::from_file_path(PathBuf::from(run_debug.cwd.as_ref().?)).ok();
 
         let prelaunch = is_prelaunch
             .then_some(run_debug.prelaunch.as_ref())
@@ -786,7 +788,7 @@ impl ExpandedRunDebug {
         let env = run_debug.env.clone();
 
         // TODO: replace some variables in the args
-        let (program, mut args) =
+        let (program, args) =
             if let Some(debug_command) = run_debug.debug_command.as_ref() {
                 let mut args = debug_command.to_owned();
                 let command = args.first().cloned().unwrap_or_default();
@@ -801,7 +803,7 @@ impl ExpandedRunDebug {
             } else {
                 (run_debug.program.clone(), run_debug.args.clone())
             };
-        let mut program = if program == "${lapce}" {
+        let program = if program == "${lapce}" {
             std::env::current_exe().map_err(|e| {
                 anyhow!("Failed to get current exe for ${{lapce}} run and debug: {e}")
             })?.to_str().ok_or_else(|| anyhow!("Failed to convert ${{lapce}} path to str"))?.to_string()
@@ -809,25 +811,25 @@ impl ExpandedRunDebug {
             program
         };
 
-        if program.contains("${workspace}") {
-            if let Some(workspace) = workspace.path.as_ref().and_then(|x| x.to_str())
-            {
-                program = program.replace("${workspace}", workspace);
-            }
-        }
+        // if program.contains("${workspace}") {
+        //     if let Some(workspace) = workspace.path.as_ref().and_then(|x| x.to_str())
+        //     {
+        //         program = program.replace("${workspace}", workspace);
+        //     }
+        // }
 
-        if let Some(args) = &mut args {
-            for arg in args {
-                // Replace all mentions of ${workspace} with the current workspace path
-                if arg.contains("${workspace}") {
-                    if let Some(workspace) =
-                        workspace.path.as_ref().and_then(|x| x.to_str())
-                    {
-                        *arg = arg.replace("${workspace}", workspace);
-                    }
-                }
-            }
-        }
+        // if let Some(args) = &mut args {
+        //     for arg in args {
+        //         // Replace all mentions of ${workspace} with the current workspace path
+        //         if arg.contains("${workspace}") {
+        //             if let Some(workspace) =
+        //                 workspace.path.as_ref().and_then(|x| x.to_str())
+        //             {
+        //                 *arg = arg.replace("${workspace}", workspace);
+        //             }
+        //         }
+        //     }
+        // }
 
         Ok(ExpandedRunDebug {
             work_dir,
@@ -835,24 +837,5 @@ impl ExpandedRunDebug {
             program,
             args,
         })
-    }
-
-    fn expand_work_dir(
-        workspace: &LapceWorkspace,
-        run_debug: &RunDebugConfig,
-    ) -> Option<Url> {
-        let path = run_debug.cwd.as_ref()?;
-
-        if path.contains("${workspace}") {
-            if let Some(workspace) = workspace.path.as_ref().and_then(|x| x.to_str())
-            {
-                let path = path.replace("${workspace}", workspace);
-                if let Ok(as_url) = Url::from_file_path(PathBuf::from(path)) {
-                    return Some(as_url);
-                }
-            }
-        }
-
-        Url::from_file_path(PathBuf::from(path)).ok()
     }
 }

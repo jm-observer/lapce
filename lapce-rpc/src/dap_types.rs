@@ -42,6 +42,18 @@ pub struct RunDebugProgram {
     pub args: Option<Vec<String>>,
 }
 
+impl RunDebugProgram {
+    pub fn update_by_workspace(&mut self, workspace: &str) {
+        self.program = self.program.replace("${workspace}", workspace);
+
+        if let Some(x) = self.args.as_mut() {
+            for arg in x {
+                *arg = arg.replace("${workspace}", workspace);
+            }
+        }
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub struct RunDebugConfig {
@@ -61,6 +73,32 @@ pub struct RunDebugConfig {
     pub tracing_output: bool,
     #[serde(default)]
     pub config_source: ConfigSource,
+}
+
+impl RunDebugConfig {
+    pub fn update_by_workspace(&mut self, workspace: &str) {
+        self.program = self.program.replace("${workspace}", workspace);
+
+        self.args.iter_mut().for_each(|x| {
+            for arg in x {
+                *arg = arg.replace("${workspace}", workspace);
+            }
+        });
+        self.cwd = self
+            .cwd
+            .as_ref()
+            .map(|x| x.replace("${workspace}", workspace));
+
+        if let Some(x) = self.prelaunch.as_mut() {
+            x.update_by_workspace(workspace)
+        }
+
+        self.debug_command.as_mut().map(|x| {
+            x.get_mut(0).map(|x| {
+                *x = x.replace("${workspace}", workspace);
+            })
+        });
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, Default, PartialEq, Eq)]

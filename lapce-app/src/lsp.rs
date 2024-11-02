@@ -10,7 +10,7 @@ use url::Url;
 pub fn path_from_url(url: &Url) -> PathBuf {
     use percent_encoding::percent_decode_str;
 
-    event!(Level::DEBUG, "Converting `{:?}` to path", url);
+    // event!(Level::DEBUG, "Converting `{:?}` to path", url);
 
     if let Ok(path) = url.to_file_path() {
         return path;

@@ -44,8 +44,8 @@ use lapce_rpc::{
     RpcError,
 };
 use lsp_types::{
-    CodeActionOrCommand, CodeLens, Diagnostic, ProgressParams, ProgressToken,
-    ShowMessageParams,
+    CodeActionOrCommand, CodeLens, Diagnostic, MessageType, ProgressParams,
+    ProgressToken, ShowMessageParams,
 };
 use serde_json::Value;
 use tracing::{debug, error, event, Level};
@@ -1974,7 +1974,10 @@ impl WindowTabData {
             InternalCommand::SplitTerminalExchange { term_id } => {
                 self.terminal.split_exchange(term_id);
             }
-            InternalCommand::RunAndDebug { mode, config } => {
+            InternalCommand::RunAndDebug { mode, mut config } => {
+                if let Some(workspace) = &self.workspace.path {
+                    config.update_by_workspace(workspace.to_string_lossy().as_ref());
+                }
                 self.run_and_debug(cx, &mode, &config);
             }
             InternalCommand::StartRename {
@@ -2972,6 +2975,18 @@ impl WindowTabData {
     fn show_message(&self, title: &str, message: &ShowMessageParams) {
         self.messages.update(|messages| {
             messages.push((title.to_string(), message.clone()));
+        });
+    }
+    #[allow(dead_code)]
+    fn show_error_message(&self, title: String, message: String) {
+        self.messages.update(|messages| {
+            messages.push((
+                title,
+                ShowMessageParams {
+                    typ: MessageType::ERROR,
+                    message,
+                },
+            ));
         });
     }
 
