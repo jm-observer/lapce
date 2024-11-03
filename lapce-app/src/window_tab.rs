@@ -1353,6 +1353,7 @@ impl WindowTabData {
                 self.common.focus.set(Focus::Panel(PanelKind::Terminal));
             }
             OpenUIInspector => {
+                crate::log::log(&self);
                 self.common.view_id.get_untracked().inspect();
             }
             ShowEnvironment => {

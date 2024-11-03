@@ -2132,23 +2132,23 @@ impl Styling for DocStyling {
         phantom_text: &PhantomTextLine,
         _collapsed_line_col: usize,
     ) -> Vec<LineExtraStyle> {
-        if !phantom_text.text.is_empty() {
-            tracing::debug!(
-                "line={} phantom_len={}",
-                phantom_text.visual_line,
-                phantom_text.text.len()
-            );
-        }
+        // if !phantom_text.text.is_empty() {
+        //     tracing::debug!(
+        //         "line={} phantom_len={}",
+        //         phantom_text.visual_line,
+        //         phantom_text.text.len()
+        //     );
+        // }
 
         phantom_text
             .offset_size_iter_2()
             .filter(move |(_, _, _, _, p)| p.bg.is_some() || p.under_line.is_some())
-            .flat_map(move |(col_shift, size, _, (_line, start), phantom)| {
+            .flat_map(move |(_col_shift, size, _, (_line, start), phantom)| {
                 let end = start + size;
-                tracing::debug!(
-                    "col_shift={col_shift} size={size} start={start} end={end} {:?}",
-                    phantom
-                );
+                // tracing::debug!(
+                //     "col_shift={col_shift} size={size} start={start} end={end} {:?}",
+                //     phantom
+                // );
 
                 extra_styles_for_range(
                     layout,

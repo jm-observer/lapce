@@ -1410,6 +1410,7 @@ fn editor_gutter_breakpoint_view(
         //     + i;
         let doc = doc.get_untracked();
         let offset = doc.buffer.with_untracked(|b| b.offset_of_line(line));
+        tracing::info!("click breakpoint line={line}");
         if let Some(path) = doc.content.get_untracked().path() {
             let path_breakpoints = breakpoints
                 .try_update(|breakpoints| {
@@ -1527,12 +1528,15 @@ fn editor_gutter_breakpoints(
                 },
             )
             .style(move |s| {
-                s.absolute().flex_col().margin_top(
-                    -(viewport.get().y0 % config.get().editor.line_height() as f64)
-                        as f32,
-                )
+                let line_height = config.get().editor.line_height() as f64;
+                let y0 = viewport.get().y0;
+                let margin_top = -(y0 % line_height) as f32 + line_height as f32;
+                tracing::info!(
+                    "y0={y0} line_height={line_height} margin_top={margin_top}"
+                );
+                s.absolute().flex_col().margin_top(margin_top)
             })
-            .debug_name("Breakpoint Stack"),
+            .debug_name("Breakpoint Dyn Stack"),
             dyn_stack(
                 move || {
                     let e_data = e_data.get();
@@ -1589,6 +1593,7 @@ fn editor_gutter_breakpoints(
         s.absolute().size_pct(100.0, 100.0)
         // .background(config.get().color(LapceColor::EDITOR_BACKGROUND))
     })
+    .debug_name("Breakpoint Clip")
 }
 
 fn editor_gutter_code_lens_view(

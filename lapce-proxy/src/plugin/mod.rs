@@ -1567,6 +1567,7 @@ impl PluginCatalogRpcHandler {
         path: PathBuf,
         breakpoints: Vec<SourceBreakpoint>,
     ) -> Result<()> {
+        tracing::info!("dap_set_breakpoints dap_id={dap_id:?} path={path:?} breakpoints={breakpoints:?}");
         self.catalog_notification(PluginCatalogNotification::DapSetBreakpoints {
             dap_id,
             path,
