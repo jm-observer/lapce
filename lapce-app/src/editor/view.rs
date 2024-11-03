@@ -49,11 +49,9 @@ use lapce_core::{
     cursor::{CursorAffinity, CursorMode},
     selection::SelRegion,
 };
-use lapce_rpc::{
-    dap_types::{DapId, SourceBreakpoint},
-    plugin::PluginId,
-};
+use lapce_rpc::{dap_types::DapId, plugin::PluginId};
 
+use crate::debug::update_breakpoints;
 use crate::editor::gutter::FoldingDisplayType;
 use crate::{
     app::clickable_icon,
@@ -1412,61 +1410,67 @@ fn editor_gutter_breakpoint_view(
         let offset = doc.buffer.with_untracked(|b| b.offset_of_line(line));
         tracing::info!("click breakpoint line={line}");
         if let Some(path) = doc.content.get_untracked().path() {
-            let path_breakpoints = breakpoints
-                .try_update(|breakpoints| {
-                    let breakpoints = breakpoints.entry(path.clone()).or_default();
-                    if let std::collections::btree_map::Entry::Vacant(e) =
-                        breakpoints.entry(line)
-                    {
-                        e.insert(LapceBreakpoint {
-                            id: None,
-                            verified: false,
-                            message: None,
-                            line,
-                            offset,
-                            dap_line: None,
-                            active: true,
-                        });
-                    } else {
-                        let mut toggle_active = false;
-                        if let Some(breakpint) = breakpoints.get_mut(&line) {
-                            if !breakpint.active {
-                                breakpint.active = true;
-                                toggle_active = true;
-                            }
-                        }
-                        if !toggle_active {
-                            breakpoints.remove(&line);
-                        }
-                    }
-                    breakpoints.clone()
-                })
-                .unwrap();
-            let source_breakpoints: Vec<SourceBreakpoint> = path_breakpoints
-                .iter()
-                .filter_map(|(_, b)| {
-                    if b.active {
-                        Some(SourceBreakpoint {
-                            line: b.line + 1,
-                            column: None,
-                            condition: None,
-                            hit_condition: None,
-                            log_message: None,
-                        })
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            let daps: Vec<DapId> =
-                daps.with_untracked(|daps| daps.keys().cloned().collect());
-            for dap_id in daps {
-                common.proxy.dap_set_breakpoints(
-                    dap_id,
-                    path.to_path_buf(),
-                    source_breakpoints.clone(),
-                );
-            }
+            update_breakpoints(
+                daps,
+                common.proxy.clone(),
+                breakpoints,
+                crate::debug::BreakpointAction::Add { path, line, offset },
+            );
+            // let path_breakpoints = breakpoints
+            //     .try_update(|breakpoints| {
+            //         let breakpoints = breakpoints.entry(path.clone()).or_default();
+            //         if let std::collections::btree_map::Entry::Vacant(e) =
+            //             breakpoints.entry(line)
+            //         {
+            //             e.insert(LapceBreakpoint {
+            //                 id: None,
+            //                 verified: false,
+            //                 message: None,
+            //                 line,
+            //                 offset,
+            //                 dap_line: None,
+            //                 active: true,
+            //             });
+            //         } else {
+            //             let mut toggle_active = false;
+            //             if let Some(breakpint) = breakpoints.get_mut(&line) {
+            //                 if !breakpint.active {
+            //                     breakpint.active = true;
+            //                     toggle_active = true;
+            //                 }
+            //             }
+            //             if !toggle_active {
+            //                 breakpoints.remove(&line);
+            //             }
+            //         }
+            //         breakpoints.clone()
+            //     })
+            //     .unwrap();
+            // let source_breakpoints: Vec<SourceBreakpoint> = path_breakpoints
+            //     .iter()
+            //     .filter_map(|(_, b)| {
+            //         if b.active {
+            //             Some(SourceBreakpoint {
+            //                 line: b.line + 1,
+            //                 column: None,
+            //                 condition: None,
+            //                 hit_condition: None,
+            //                 log_message: None,
+            //             })
+            //         } else {
+            //             None
+            //         }
+            //     })
+            //     .collect();
+            // let daps: Vec<DapId> =
+            //     daps.with_untracked(|daps| daps.keys().cloned().collect());
+            // for dap_id in daps {
+            //     common.proxy.dap_set_breakpoints(
+            //         dap_id,
+            //         path.to_path_buf(),
+            //         source_breakpoints.clone(),
+            //     );
+            // }
         }
     })
     .on_event_stop(EventListener::PointerEnter, move |_| {
@@ -1531,9 +1535,9 @@ fn editor_gutter_breakpoints(
                 let line_height = config.get().editor.line_height() as f64;
                 let y0 = viewport.get().y0;
                 let margin_top = -(y0 % line_height) as f32 + line_height as f32;
-                tracing::info!(
-                    "y0={y0} line_height={line_height} margin_top={margin_top}"
-                );
+                // tracing::info!(
+                //     "y0={y0} line_height={line_height} margin_top={margin_top}"
+                // );
                 s.absolute().flex_col().margin_top(margin_top)
             })
             .debug_name("Breakpoint Dyn Stack"),
@@ -2182,12 +2186,12 @@ fn editor_content(
         if let Some(offset_line_from_top) = offset_line_from_top {
             let offset_height = (offset_line_from_top * line_height) as f64;
             rect.y0 -= offset_height;
-            rect.y1 = rect.y1 + height - offset_height ;
+            rect.y1 = rect.y1 + height - offset_height;
         }
-        tracing::debug!(
-            "{:?} height()={} {rect:?} offset_line_from_top={offset_line_from_top:?} vline={vline} offset={offset}",
-            e_data.doc().content.get_untracked().path(), height
-        );
+        // tracing::debug!(
+        //     "{:?} height()={} {rect:?} offset_line_from_top={offset_line_from_top:?} vline={vline} offset={offset}",
+        //     e_data.doc().content.get_untracked().path(), height
+        // );
         rect
     })
     .style(|s| s.size_full().set(PropagatePointerWheel, false))

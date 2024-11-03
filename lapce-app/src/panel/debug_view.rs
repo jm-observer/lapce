@@ -20,6 +20,7 @@ use lapce_rpc::{
 };
 
 use super::{data::PanelSection, view::PanelBuilder};
+use crate::debug::{update_breakpoints, BreakpointAction};
 use crate::panel::position::PanelContainerPosition;
 use crate::{
     app::clickable_icon,
@@ -329,6 +330,7 @@ fn debug_processes(
         )
         .style(|s| s.width_pct(100.0).flex_col())
     })
+    .debug_name("debug processes")
 }
 
 fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
@@ -451,6 +453,7 @@ fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
         .style(|s| s.absolute().size_full()),
     )
     .style(|s| s.width_full().line_height(1.6).flex_grow(1.0).flex_basis(0))
+    .debug_name("debug variables")
 }
 
 fn debug_stack_frames(
@@ -561,6 +564,7 @@ fn debug_stack_frames(
         .style(|s| s.flex_col().min_width_pct(100.0)),
     ))
     .style(|s| s.flex_col().min_width_pct(100.0))
+    .debug_name("debug stack frames")
 }
 
 fn debug_stack_traces(
@@ -622,10 +626,13 @@ fn debug_stack_traces(
             .flex_grow(1.0)
             .flex_basis(0.0)
     })
+    .debug_name("debug stack traces")
 }
 
 fn breakpoints_view(window_tab_data: Rc<WindowTabData>) -> impl View {
     let breakpoints = window_tab_data.terminal.debug.breakpoints;
+    let proxy = window_tab_data.common.proxy.clone();
+    let daps = window_tab_data.terminal.debug.daps;
     let config = window_tab_data.common.config;
     let workspace = window_tab_data.common.workspace.clone();
     let available_width = create_rw_signal(0.0);
@@ -663,18 +670,28 @@ fn breakpoints_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                     let folder =
                         path.parent().and_then(|s| s.to_str()).unwrap_or("");
                     let folder_empty = folder.is_empty();
-
+                    let proxy = proxy.clone();
+                    let toggle_proxy = proxy.clone();
                     stack((
                         clickable_icon(
                             move || LapceIcons::CLOSE,
                             move || {
-                                breakpoints.update(|breakpoints| {
-                                    if let Some(breakpoints) =
-                                        breakpoints.get_mut(&full_path_for_close)
-                                    {
-                                        breakpoints.remove(&line);
-                                    }
-                                });
+                                update_breakpoints(
+                                    daps,
+                                    proxy.clone(),
+                                    breakpoints,
+                                    BreakpointAction::Remove {
+                                        path: &full_path_for_close,
+                                        line,
+                                    },
+                                );
+                                // breakpoints.update(|breakpoints| {
+                                //     if let Some(breakpoints) =
+                                //         breakpoints.get_mut(&full_path_for_close)
+                                //     {
+                                //         breakpoints.remove(&line);
+                                //     }
+                                // });
                             },
                             || false,
                             || false,
@@ -687,17 +704,27 @@ fn breakpoints_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                                 s.margin_right(6.0).cursor(CursorStyle::Pointer)
                             })
                             .on_click_stop(move |_| {
-                                breakpoints.update(|breakpoints| {
-                                    if let Some(breakpoints) =
-                                        breakpoints.get_mut(&full_path)
-                                    {
-                                        if let Some(breakpoint) =
-                                            breakpoints.get_mut(&line)
-                                        {
-                                            breakpoint.active = !breakpoint.active;
-                                        }
-                                    }
-                                });
+                                update_breakpoints(
+                                    daps,
+                                    toggle_proxy.clone(),
+                                    breakpoints,
+                                    BreakpointAction::Toggle {
+                                        path: &full_path,
+                                        line,
+                                    },
+                                );
+                                //
+                                // breakpoints.update(|breakpoints| {
+                                //     if let Some(breakpoints) =
+                                //         breakpoints.get_mut(&full_path)
+                                //     {
+                                //         if let Some(breakpoint) =
+                                //             breakpoints.get_mut(&line)
+                                //         {
+                                //             breakpoint.active = !breakpoint.active;
+                                //         }
+                                //     }
+                                // });
                             }),
                         text(format!("{file_name}:{}", breakpoint.line + 1)).style(
                             move |s| {
@@ -757,4 +784,5 @@ fn breakpoints_view(window_tab_data: Rc<WindowTabData>) -> impl View {
         .style(|s| s.absolute().size_pct(100.0, 100.0)),
     )
     .style(|s| s.size_pct(100.0, 100.0))
+    .debug_name("debug breakpoints")
 }

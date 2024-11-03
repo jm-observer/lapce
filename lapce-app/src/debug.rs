@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::Display,
@@ -11,6 +12,7 @@ use floem::{
     reactive::{Memo, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     views::VirtualVector,
 };
+use lapce_rpc::proxy::ProxyRpcHandler;
 use lapce_rpc::{
     dap_types::{
         self, DapId, RunDebugConfig, SourceBreakpoint, StackFrame, Stopped,
@@ -515,6 +517,108 @@ impl DapVariable {
     }
 }
 
+pub enum BreakpointAction<'a> {
+    Remove {
+        path: &'a Path,
+        line: usize,
+    },
+    Add {
+        path: &'a Path,
+        line: usize,
+        offset: usize,
+    },
+    Toggle {
+        path: &'a Path,
+        line: usize,
+    },
+}
+pub fn update_breakpoints(
+    daps: RwSignal<im::HashMap<DapId, DapData>>,
+    proxy: ProxyRpcHandler,
+    breakpoints: RwSignal<BTreeMap<PathBuf, BTreeMap<usize, LapceBreakpoint>>>,
+    action: BreakpointAction,
+) {
+    let (path_breakpoints, path) = match action {
+        BreakpointAction::Remove { path, line } => breakpoints
+            .try_update(|breakpoints| {
+                let path_breakpoints =
+                    breakpoints.entry(path.to_path_buf()).or_default();
+                path_breakpoints.remove(&line);
+                if path_breakpoints.is_empty() {
+                    breakpoints.remove(path);
+                    (BTreeMap::new(), path)
+                } else {
+                    (path_breakpoints.clone(), path)
+                }
+            })
+            .unwrap(),
+        BreakpointAction::Add { path, line, offset } => breakpoints
+            .try_update(|breakpoints| {
+                let breakpoints = breakpoints.entry(path.to_path_buf()).or_default();
+                if let std::collections::btree_map::Entry::Vacant(e) =
+                    breakpoints.entry(line)
+                {
+                    e.insert(LapceBreakpoint {
+                        id: None,
+                        verified: false,
+                        message: None,
+                        line,
+                        offset,
+                        dap_line: None,
+                        active: true,
+                    });
+                } else {
+                    let mut toggle_active = false;
+                    if let Some(breakpint) = breakpoints.get_mut(&line) {
+                        if !breakpint.active {
+                            breakpint.active = true;
+                            toggle_active = true;
+                        }
+                    }
+                    if !toggle_active {
+                        breakpoints.remove(&line);
+                    }
+                }
+                (breakpoints.clone(), path)
+            })
+            .unwrap(),
+        BreakpointAction::Toggle { path, line } => breakpoints
+            .try_update(|breakpoints| {
+                let breakpoints = breakpoints.entry(path.to_path_buf()).or_default();
+                if let Some(breakpint) = breakpoints.get_mut(&line) {
+                    breakpint.active = !breakpint.active;
+                }
+                (breakpoints.clone(), path)
+            })
+            .unwrap(),
+    };
+
+    let source_breakpoints: Vec<SourceBreakpoint> = path_breakpoints
+        .iter()
+        .filter_map(|(_, b)| {
+            if b.active {
+                Some(SourceBreakpoint {
+                    line: b.line + 1,
+                    column: None,
+                    condition: None,
+                    hit_condition: None,
+                    log_message: None,
+                })
+            } else {
+                None
+            }
+        })
+        .collect();
+    let daps: Vec<DapId> =
+        daps.with_untracked(|daps| daps.keys().cloned().collect());
+    for dap_id in daps {
+        proxy.dap_set_breakpoints(
+            dap_id,
+            path.to_path_buf(),
+            source_breakpoints.clone(),
+        );
+    }
+}
 #[cfg(test)]
 mod tests {
     use lapce_rpc::dap_types::{Scope, Variable};

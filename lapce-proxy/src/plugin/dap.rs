@@ -31,6 +31,7 @@ use lapce_rpc::{
 };
 use parking_lot::Mutex;
 use serde_json::Value;
+use tracing::error;
 
 use super::{
     psp::{ResponseHandler, RpcCallback},
@@ -131,14 +132,15 @@ impl DapClient {
                 loop {
                     match crate::plugin::lsp::read_message(&mut reader) {
                         Ok(message_str) => {
-                            tracing::debug!("read from dap server: {}", message_str);
+                            tracing::info!("read from dap server: {message_str}");
                             dap_rpc.handle_server_message(&message_str);
                         }
                         Err(_err) => {
+                            tracing::error!("read from dap fail?: {_err:?}");
                             if let Err(err) = io_tx
                                 .send(DapPayload::Event(DapEvent::Initialized(None)))
                             {
-                                tracing::error!("{:?}", err);
+                                error!("{:?}", err);
                             }
                             plugin_rpc.core_rpc.log(
                                 lapce_rpc::core::LogLevel::Error,
@@ -226,7 +228,7 @@ impl DapClient {
                             );
                         }
                         Err(err) => {
-                            tracing::error!("{:?}", err);
+                            error!("{:?}", err);
                         }
                     }
                 }
@@ -234,7 +236,7 @@ impl DapClient {
                 self.dap_rpc
                     .request_async::<ConfigurationDone>((), |_, rs| {
                         if let Err(e) = rs {
-                            tracing::error!("request ConfigurationDone: {:?}", e)
+                            error!("request ConfigurationDone: {:?}", e)
                         }
                     });
             }
@@ -305,7 +307,7 @@ impl DapClient {
                     self.plugin_rpc.proxy_rpc.terminal_close(term_id);
                 }
                 if let Err(err) = self.check_restart() {
-                    tracing::error!("{:?}", err);
+                    error!("{:?}", err);
                 }
             }
             DapEvent::Thread { .. } => {}
@@ -356,13 +358,13 @@ impl DapClient {
         {
             thread::spawn(move || {
                 if let Err(err) = dap_rpc.terminate() {
-                    tracing::error!("{:?}", err);
+                    error!("{:?}", err);
                 }
             });
         } else {
             thread::spawn(move || {
                 if let Err(err) = dap_rpc.disconnect() {
-                    tracing::error!("{:?}", err);
+                    error!("{:?}", err);
                 }
             });
         }
@@ -398,7 +400,7 @@ impl DapClient {
         let config = self.config.clone();
         thread::spawn(move || {
             if let Err(err) = dap_rpc.launch(&config) {
-                tracing::error!("{:?}", err);
+                error!("{:?}", err);
             }
         });
 
@@ -411,7 +413,7 @@ impl DapClient {
         if !self.terminated {
             self.stop();
         } else if let Err(err) = self.check_restart() {
-            tracing::error!("{:?}", err);
+            error!("{:?}", err);
         }
     }
 }
@@ -479,12 +481,12 @@ impl DapRpcHandler {
                         body: result.ok(),
                     };
                     if let Err(err) = self.io_tx.send(DapPayload::Response(resp)) {
-                        tracing::error!("{:?}", err);
+                        error!("{:?}", err);
                     }
                 }
                 DapRpc::HostEvent(event) => {
                     if let Err(err) = dap_client.handle_host_event(&event) {
-                        tracing::error!("{:?}", err);
+                        error!("{:?}", err);
                     }
                 }
                 DapRpc::Stop => {
@@ -505,7 +507,7 @@ impl DapRpcHandler {
                         dap_client.plugin_rpc.proxy_rpc.terminal_close(term_id);
                     }
                     if let Err(err) = dap_client.check_restart() {
-                        tracing::error!("{:?}", err);
+                        error!("{:?}", err);
                     }
                 }
             }
@@ -592,7 +594,7 @@ impl DapRpcHandler {
             command: command.to_string(),
             arguments: Some(arguments),
         })) {
-            tracing::error!("{:?}", err);
+            error!("{:?}", err);
         }
     }
 
@@ -603,21 +605,27 @@ impl DapRpcHandler {
     }
 
     pub fn handle_server_message(&self, message_str: &str) {
-        if let Ok(payload) = serde_json::from_str::<DapPayload>(message_str) {
-            match payload {
+        match serde_json::from_str::<DapPayload>(message_str) {
+            Ok(payload) => match payload {
                 DapPayload::Request(req) => {
+                    // tracing::info!("read Request from dap server: {req:?}");
                     if let Err(err) = self.rpc_tx.send(DapRpc::HostRequest(req)) {
-                        tracing::error!("{:?}", err);
+                        error!("{:?}", err);
                     }
                 }
                 DapPayload::Event(event) => {
+                    // tracing::info!("read Event from dap server: {event:?}");
                     if let Err(err) = self.rpc_tx.send(DapRpc::HostEvent(event)) {
-                        tracing::error!("{:?}", err);
+                        error!("{:?}", err);
                     }
                 }
                 DapPayload::Response(resp) => {
+                    // tracing::info!("read Response from dap server: {resp:?}");
                     self.handle_server_response(resp);
                 }
+            },
+            Err(err) => {
+                error!("handle_server_message {err:?}");
             }
         }
     }
@@ -638,19 +646,19 @@ impl DapRpcHandler {
 
     pub fn stop(&self) {
         if let Err(err) = self.rpc_tx.send(DapRpc::Stop) {
-            tracing::error!("{:?}", err);
+            error!("{:?}", err);
         }
     }
 
     pub fn restart(&self, breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>) {
         if let Err(err) = self.rpc_tx.send(DapRpc::Restart(breakpoints)) {
-            tracing::error!("{:?}", err);
+            error!("{:?}", err);
         }
     }
 
     fn disconnected(&self) {
         if let Err(err) = self.rpc_tx.send(DapRpc::Disconnected) {
-            tracing::error!("{:?}", err);
+            error!("{:?}", err);
         }
     }
 
