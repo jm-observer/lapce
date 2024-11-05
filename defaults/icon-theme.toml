@@ -64,6 +64,10 @@ name = "Lapce Codicons"
 "fold.up" = "fold-up.svg"
 "fold.down" = "fold-down.svg"
 
+"folding.folded" = "folding-folded.svg"
+"folding.start" = "folding-start.svg"
+"folding.end" = "folding-end.svg"
+
 "dropdown.arrow" = "chevron-down.svg"
 
 "panel.fold-down" = "chevron-down.svg"

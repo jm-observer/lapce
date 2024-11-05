@@ -1662,9 +1662,9 @@ fn editor_gutter_folding_view(
     let view = container(
         svg(move || {
             let icon_str = match folding_display_item.ty {
-                FoldingDisplayType::UnfoldStart => LapceIcons::FOLD_DOWN,
-                FoldingDisplayType::Folded => LapceIcons::FOLD,
-                FoldingDisplayType::UnfoldEnd => LapceIcons::FOLD_UP,
+                FoldingDisplayType::UnfoldStart => LapceIcons::EDITOR_FOLDING_START,
+                FoldingDisplayType::Folded => LapceIcons::EDITOR_FOLDING_FOLDED,
+                FoldingDisplayType::UnfoldEnd => LapceIcons::EDITOR_FOLDING_END,
             };
             config.get().ui_svg(icon_str)
         })

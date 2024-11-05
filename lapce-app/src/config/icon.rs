@@ -63,6 +63,10 @@ impl LapceIcons {
 
     pub const DROPDOWN_ARROW: &'static str = "dropdown.arrow";
 
+    pub const EDITOR_FOLDING_START: &'static str = "folding.start";
+    pub const EDITOR_FOLDING_END: &'static str = "folding.end";
+    pub const EDITOR_FOLDING_FOLDED: &'static str = "folding.folded";
+
     pub const PANEL_FOLD_UP: &'static str = "panel.fold-up";
     pub const PANEL_FOLD_DOWN: &'static str = "panel.fold-down";
 
