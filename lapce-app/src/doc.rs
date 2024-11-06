@@ -1688,11 +1688,12 @@ impl DocumentPhantom for Doc {
         let (start_offset, end_offset) =
             (buffer.offset_of_line(line), buffer.offset_of_line(line + 1));
 
-        let mut origin_text_len = end_offset - start_offset;
-        let line_ending = buffer.line_ending().get_chars().len();
-        if origin_text_len >= line_ending {
-            origin_text_len -= line_ending;
-        }
+        let origin_text_len = end_offset - start_offset;
+        // lsp返回的字符包括换行符，现在长度不考虑，后续会有问题
+        // let line_ending = buffer.line_ending().get_chars().len();
+        // if origin_text_len >= line_ending {
+        //     origin_text_len -= line_ending;
+        // }
         // if line == 8 {
         //     tracing::info!("start_offset={start_offset} end_offset={end_offset} line_ending={line_ending} origin_text_len={origin_text_len}");
         // }
