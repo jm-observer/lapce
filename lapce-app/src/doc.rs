@@ -881,6 +881,7 @@ impl Doc {
 
     /// Request semantic styles for the buffer from the LSP through the proxy.
     pub fn get_semantic_styles(&self) {
+        // todo
         self.get_semantic_full_styles();
         // let Some(id) = self.semantic_previous_rs_id.get_untracked() else {
         //     self.get_semantic_full_styles();

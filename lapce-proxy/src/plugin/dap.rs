@@ -243,16 +243,6 @@ impl DapClient {
             DapEvent::Stopped(stopped) => {
                 let all_threads_stopped =
                     stopped.all_threads_stopped.unwrap_or_default();
-                let mut stack_frames = HashMap::new();
-                if all_threads_stopped {
-                    if let Ok(response) = self.dap_rpc.threads() {
-                        for thread in response.threads {
-                            if let Ok(frames) = self.dap_rpc.stack_trace(thread.id) {
-                                stack_frames.insert(thread.id, frames.stack_frames);
-                            }
-                        }
-                    }
-                }
 
                 let current_thread = if all_threads_stopped {
                     Some(stopped.thread_id.unwrap_or_default())
@@ -260,13 +250,31 @@ impl DapClient {
                     stopped.thread_id
                 };
 
-                let active_frame = current_thread
-                    .and_then(|thread_id| stack_frames.get(&thread_id))
-                    .and_then(|stack_frames| stack_frames.first());
+                let mut active_frame = None;
+
+                let mut stack_frames = HashMap::new();
+                if all_threads_stopped {
+                    if let Ok(response) = self.dap_rpc.threads() {
+                        for thread in response.threads {
+                            if Some(thread.id) == current_thread {
+                                if let Ok(frames) =
+                                    self.dap_rpc.stack_trace(thread.id)
+                                {
+                                    active_frame =
+                                        frames.stack_frames.first().cloned();
+                                    stack_frames
+                                        .insert(thread.id, frames.stack_frames);
+                                }
+                            } else {
+                                stack_frames.insert(thread.id, Vec::new());
+                            }
+                        }
+                    }
+                }
 
                 let mut vars = Vec::new();
-                if let Some(frame) = active_frame {
-                    if let Ok(scopes) = self.dap_rpc.scopes(frame.id) {
+                if let Some(_frame) = active_frame {
+                    if let Ok(scopes) = self.dap_rpc.scopes(_frame.id) {
                         for scope in scopes {
                             let result =
                                 self.dap_rpc.variables(scope.variables_reference);
