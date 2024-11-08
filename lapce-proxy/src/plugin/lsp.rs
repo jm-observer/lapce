@@ -504,14 +504,14 @@ fn parse_header(s: &str) -> Result<LspHeader> {
     let split: Vec<String> =
         s.splitn(2, ": ").map(|s| s.trim().to_lowercase()).collect();
     if split.len() != 2 {
-        return Err(anyhow!("Malformed"));
+        return Err(anyhow!("Malformed: {s}"));
     };
     match split[0].as_ref() {
         HEADER_CONTENT_TYPE => Ok(LspHeader::ContentType),
         HEADER_CONTENT_LENGTH => {
             Ok(LspHeader::ContentLength(split[1].parse::<usize>()?))
         }
-        _ => Err(anyhow!("Unknown parse error occurred")),
+        _ => Err(anyhow!("Unknown parse error occurred: {s}")),
     }
 }
 

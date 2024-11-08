@@ -43,6 +43,7 @@ use lsp_types::{
 use parking_lot::Mutex;
 use tracing::debug;
 
+use crate::terminal::Terminals;
 use crate::{
     buffer::{get_mod_time, load_file, Buffer},
     plugin::{catalog::PluginCatalog, PluginCatalogRpcHandler},
@@ -59,7 +60,7 @@ pub struct Dispatcher {
     core_rpc: CoreRpcHandler,
     catalog_rpc: PluginCatalogRpcHandler,
     buffers: HashMap<PathBuf, Buffer>,
-    terminals: HashMap<TermId, TerminalSender>,
+    terminals: Terminals,
     file_watcher: FileWatcher,
     window_id: usize,
     tab_id: usize,
@@ -145,7 +146,7 @@ impl ProxyHandler for Dispatcher {
                 self.core_rpc.terminal_process_id(term_id, child_id);
                 let tx = terminal.tx.clone();
                 let poller = terminal.poller.clone();
-                let sender = TerminalSender::new(tx, poller);
+                let sender = TerminalSender::new(term_id, tx, poller);
                 self.terminals.insert(term_id, sender);
                 let rpc = self.core_rpc.clone();
                 thread::spawn(move || {
@@ -233,10 +234,10 @@ impl ProxyHandler for Dispatcher {
                 }
             }
             DapRestart {
-                dap_id,
+                config,
                 breakpoints,
             } => {
-                if let Err(err) = self.catalog_rpc.dap_restart(dap_id, breakpoints) {
+                if let Err(err) = self.catalog_rpc.dap_restart(config, breakpoints) {
                     tracing::error!("{:?}", err);
                 }
             }
@@ -1329,7 +1330,7 @@ impl Dispatcher {
             core_rpc,
             catalog_rpc: plugin_rpc,
             buffers: HashMap::new(),
-            terminals: HashMap::new(),
+            terminals: Terminals::default(),
             file_watcher,
             window_id: 1,
             tab_id: 1,

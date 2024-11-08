@@ -207,7 +207,7 @@ pub enum PluginCatalogNotification {
         dap_id: DapId,
     },
     DapRestart {
-        dap_id: DapId,
+        config: RunDebugConfig,
         breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
     },
     DapSetBreakpoints {
@@ -1552,11 +1552,11 @@ impl PluginCatalogRpcHandler {
 
     pub fn dap_restart(
         &self,
-        dap_id: DapId,
+        config: RunDebugConfig,
         breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
     ) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::DapRestart {
-            dap_id,
+            config,
             breakpoints,
         })
     }

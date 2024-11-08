@@ -30,16 +30,16 @@ use crate::{
     workspace::LapceWorkspace,
 };
 
-pub struct TerminalTabInfo {
-    pub active: usize,
-    pub tabs: im::Vector<(RwSignal<usize>, TerminalTabData)>,
-}
+// pub struct TerminalTabInfo {
+//     pub active: usize,
+//     pub tabs: im::Vector<(RwSignal<usize>, TerminalTabData)>,
+// }
 
 #[derive(Clone)]
 pub struct TerminalPanelData {
     pub cx: Scope,
     pub workspace: Arc<LapceWorkspace>,
-    pub tab_info: RwSignal<TerminalTabInfo>,
+    pub tab_info: RwSignal<TerminalTabData>,
     pub debug: RunDebugData,
     pub breakline: Memo<Option<(usize, PathBuf)>>,
     pub common: Rc<CommonData>,
@@ -58,10 +58,10 @@ impl TerminalPanelData {
 
         let cx = common.scope;
 
-        let tabs =
-            im::vector![(terminal_tab.scope.create_rw_signal(0), terminal_tab)];
-        let tab_info = TerminalTabInfo { active: 0, tabs };
-        let tab_info = cx.create_rw_signal(tab_info);
+        // let tabs =
+        //     im::vector![(terminal_tab.scope.create_rw_signal(0), terminal_tab)];
+        // let tab_info = TerminalTabInfo { active: 0, tabs };
+        let tab_info = cx.create_rw_signal(terminal_tab);
 
         let debug = RunDebugData::new(cx, common.breakpoints);
 
@@ -507,13 +507,11 @@ impl TerminalPanelData {
             }
             RunDebugMode::Debug => {
                 is_debug = true;
-                let dap_id =
-                    terminal.run_debug.get_untracked().as_ref()?.config.dap_id;
-                let daps = self.debug.daps.get_untracked();
-                let dap = daps.get(&dap_id)?;
+                let config = terminal.run_debug.get_untracked()?.config;
+                // let daps = self.debug.daps.get_untracked();
                 self.common
                     .proxy
-                    .dap_restart(dap.dap_id, self.debug.source_breakpoints());
+                    .dap_restart(config, self.debug.source_breakpoints());
                 term_id
             }
         };

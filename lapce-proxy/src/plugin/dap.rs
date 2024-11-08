@@ -109,7 +109,6 @@ impl DapClient {
 
         let dap_rpc = self.dap_rpc.clone();
         let io_rx = self.dap_rpc.io_rx.clone();
-        let io_tx = self.dap_rpc.io_tx.clone();
         let mut writer = Box::new(BufWriter::new(stdin));
         thread::spawn(move || -> Result<()> {
             for msg in io_rx {
@@ -133,15 +132,19 @@ impl DapClient {
                     match crate::plugin::lsp::read_message(&mut reader) {
                         Ok(message_str) => {
                             tracing::info!("read from dap server: {message_str}");
-                            dap_rpc.handle_server_message(&message_str);
+                            // terminated
+                            if dap_rpc.handle_server_message(&message_str) {
+                                tracing::info!("dap stdout terminated");
+                                break;
+                            }
                         }
                         Err(_err) => {
                             tracing::error!("read from dap fail?: {_err:?}");
-                            if let Err(err) = io_tx
-                                .send(DapPayload::Event(DapEvent::Initialized(None)))
-                            {
-                                error!("{:?}", err);
-                            }
+                            // if let Err(err) = io_tx
+                            //     .send(DapPayload::Event(DapEvent::Initialized(None)))
+                            // {
+                            //     error!("{:?}", err);
+                            // }
                             plugin_rpc.core_rpc.log(
                                 lapce_rpc::core::LogLevel::Error,
                                 format!("dap server {program} stopped!"),
@@ -431,7 +434,7 @@ pub enum DapRpc {
     HostEvent(DapEvent),
     Stop,
     Restart(HashMap<PathBuf, Vec<SourceBreakpoint>>),
-    Shutdown,
+    // Shutdown,
     Disconnected,
 }
 
@@ -503,12 +506,12 @@ impl DapRpcHandler {
                 DapRpc::Restart(breakpoints) => {
                     dap_client.restart(breakpoints);
                 }
-                DapRpc::Shutdown => {
-                    if let Some(term_id) = dap_client.term_id {
-                        dap_client.plugin_rpc.proxy_rpc.terminal_close(term_id);
-                    }
-                    return;
-                }
+                // DapRpc::Shutdown => {
+                //     if let Some(term_id) = dap_client.term_id {
+                //         dap_client.plugin_rpc.proxy_rpc.terminal_close(term_id);
+                //     }
+                //     return;
+                // }
                 DapRpc::Disconnected => {
                     dap_client.disconnected = true;
                     if let Some(term_id) = dap_client.term_id {
@@ -518,6 +521,9 @@ impl DapRpcHandler {
                         error!("{:?}", err);
                     }
                 }
+            }
+            if dap_client.terminated {
+                break;
             }
         }
     }
@@ -612,7 +618,8 @@ impl DapRpcHandler {
         }
     }
 
-    pub fn handle_server_message(&self, message_str: &str) {
+    pub fn handle_server_message(&self, message_str: &str) -> bool {
+        let mut terminated = false;
         match serde_json::from_str::<DapPayload>(message_str) {
             Ok(payload) => match payload {
                 DapPayload::Request(req) => {
@@ -623,6 +630,9 @@ impl DapRpcHandler {
                 }
                 DapPayload::Event(event) => {
                     // tracing::info!("read Event from dap server: {event:?}");
+                    if let DapEvent::Terminated(..) = &event {
+                        terminated = true;
+                    }
                     if let Err(err) = self.rpc_tx.send(DapRpc::HostEvent(event)) {
                         error!("{:?}", err);
                     }
@@ -636,6 +646,7 @@ impl DapRpcHandler {
                 error!("handle_server_message {err:?}");
             }
         }
+        terminated
     }
 
     pub fn launch(&self, config: &RunDebugConfig) -> Result<()> {
@@ -644,7 +655,8 @@ impl DapRpcHandler {
             "args": config.args,
             "cwd": config.cwd,
             "runInTerminal": true,
-            "env": config.env
+            "env": config.env,
+            "terminal":"console"
         });
         let _resp = self
             .request::<Launch>(params)

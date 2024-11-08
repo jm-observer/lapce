@@ -79,7 +79,3 @@ vendored-fonts = []
 
 [dev-dependencies]
 criterion = "0.5"
-
-[[bench]]
-name    = "visual_line"
-harness = false

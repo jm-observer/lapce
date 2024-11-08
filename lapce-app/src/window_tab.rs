@@ -1979,7 +1979,7 @@ impl WindowTabData {
                 if let Some(workspace) = &self.workspace.path {
                     config.update_by_workspace(workspace.to_string_lossy().as_ref());
                 }
-                self.run_and_debug(cx, &mode, &config);
+                self.run_and_debug(cx, mode, config);
             }
             InternalCommand::StartRename {
                 path,
@@ -2816,20 +2816,15 @@ impl WindowTabData {
         self.common.focus.set(Focus::Panel(kind));
     }
 
-    fn run_and_debug(
-        &self,
-        cx: Scope,
-        mode: &RunDebugMode,
-        config: &RunDebugConfig,
-    ) {
+    fn run_and_debug(&self, cx: Scope, mode: RunDebugMode, config: RunDebugConfig) {
         debug!("{:?}", config);
         match mode {
             RunDebugMode::Run => {
-                self.run_in_terminal(cx, mode, config, false);
+                self.run_in_terminal(cx, &mode, &config, false);
             }
             RunDebugMode::Debug => {
                 if config.prelaunch.is_some() {
-                    self.run_in_terminal(cx, mode, config, false);
+                    self.run_in_terminal(cx, &mode, &config, false);
                 } else {
                     self.common.proxy.dap_start(
                         config.clone(),

@@ -347,7 +347,7 @@ pub enum ProxyNotification {
         dap_id: DapId,
     },
     DapRestart {
-        dap_id: DapId,
+        config: RunDebugConfig,
         breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
     },
     DapSetBreakpoints {
@@ -1178,11 +1178,11 @@ impl ProxyRpcHandler {
 
     pub fn dap_restart(
         &self,
-        dap_id: DapId,
+        config: RunDebugConfig,
         breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
     ) {
         self.notification(ProxyNotification::DapRestart {
-            dap_id,
+            config,
             breakpoints,
         })
     }

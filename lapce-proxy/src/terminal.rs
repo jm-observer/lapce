@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+use std::ops::Deref;
 use std::{
     borrow::Cow,
     collections::VecDeque,
@@ -21,6 +23,7 @@ use lapce_rpc::{
     terminal::{TermId, TerminalProfile},
 };
 use polling::PollMode;
+use tracing::info;
 
 const READ_BUFFER_SIZE: usize = 0x10_0000;
 
@@ -34,22 +37,55 @@ const PTY_READ_WRITE_TOKEN: usize = 2;
 #[cfg(target_os = "windows")]
 const PTY_CHILD_EVENT_TOKEN: usize = 1;
 
+#[derive(Default)]
+pub struct Terminals {
+    terminals: HashMap<TermId, TerminalSender>,
+}
+
+impl Terminals {
+    pub fn insert(&mut self, id: TermId, sender: TerminalSender) {
+        info!("Terminals insert id={id:?}");
+        self.terminals.insert(id, sender);
+    }
+
+    pub fn remove(&mut self, id: &TermId) -> Option<TerminalSender> {
+        info!("Terminals remove id={id:?}");
+        self.terminals.remove(&id)
+    }
+}
+
+impl Deref for Terminals {
+    type Target = HashMap<TermId, TerminalSender>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.terminals
+    }
+}
+
 pub struct TerminalSender {
+    term_id: TermId,
     tx: Sender<Msg>,
     poller: Arc<polling::Poller>,
 }
 
 impl TerminalSender {
-    pub fn new(tx: Sender<Msg>, poller: Arc<polling::Poller>) -> Self {
-        Self { tx, poller }
+    pub fn new(
+        term_id: TermId,
+        tx: Sender<Msg>,
+        poller: Arc<polling::Poller>,
+    ) -> Self {
+        Self {
+            term_id,
+            tx,
+            poller,
+        }
     }
 
     pub fn send(&self, msg: Msg) {
         if let Err(err) = self.tx.send(msg) {
-            tracing::error!("{:?}", err);
-        }
-        if let Err(err) = self.poller.notify() {
-            tracing::error!("{:?}", err);
+            tracing::error!("{:?} {:?}", self.term_id, err);
+        } else if let Err(err) = self.poller.notify() {
+            tracing::error!("{:?} {:?}", self.term_id, err);
         }
     }
 }

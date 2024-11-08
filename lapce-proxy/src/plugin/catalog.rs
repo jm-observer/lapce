@@ -10,6 +10,7 @@ use std::{
     thread,
 };
 
+use lapce_rpc::dap_types::{RunDebugConfig, SourceBreakpoint};
 use lapce_rpc::{
     dap_types::{self, DapId, DapServer, SetBreakpointsResponse},
     plugin::{PluginId, VoltID, VoltInfo, VoltMetadata},
@@ -633,49 +634,7 @@ impl PluginCatalog {
                 config,
                 breakpoints,
             } => {
-                let workspace = self.workspace.clone();
-                let plugin_rpc = self.plugin_rpc.clone();
-                if let Some(debugger) = config
-                    .ty
-                    .as_ref()
-                    .and_then(|ty| self.debuggers.get(ty).cloned())
-                {
-                    thread::spawn(move || {
-                        match DapClient::start(
-                            DapServer {
-                                program: debugger.program,
-                                args: debugger.args.unwrap_or_default(),
-                                cwd: workspace,
-                            },
-                            config.clone(),
-                            breakpoints,
-                            plugin_rpc.clone(),
-                        ) {
-                            Ok(dap_rpc) => {
-                                if let Err(err) =
-                                    plugin_rpc.dap_loaded(dap_rpc.clone())
-                                {
-                                    tracing::error!("{:?}", err);
-                                }
-
-                                if let Err(err) = dap_rpc.launch(&config) {
-                                    tracing::error!("{:?}", err);
-                                }
-                            }
-                            Err(err) => {
-                                tracing::error!("{:?}", err);
-                            }
-                        }
-                    });
-                } else {
-                    self.plugin_rpc.core_rpc.show_message(
-                        "debug fail".to_owned(),
-                        ShowMessageParams {
-                            typ: MessageType::ERROR,
-                            message: "Debugger not found. Please install the appropriate plugin.".to_owned(),
-                        },
-                    )
-                }
+                self.dap_start(config, breakpoints);
             }
             DapProcessId {
                 dap_id,
@@ -725,7 +684,7 @@ impl PluginCatalog {
                 }
             }
             DapStop { dap_id } => {
-                if let Some(dap) = self.daps.get(&dap_id) {
+                if let Some(dap) = self.daps.remove(&dap_id) {
                     dap.stop();
                 }
             }
@@ -739,12 +698,13 @@ impl PluginCatalog {
                 }
             }
             DapRestart {
-                dap_id,
+                config,
                 breakpoints,
             } => {
-                if let Some(dap) = self.daps.get(&dap_id) {
-                    dap.restart(breakpoints);
+                if let Some(dap) = self.daps.remove(&config.dap_id) {
+                    dap.stop();
                 }
+                self.dap_start(config, breakpoints);
             }
             DapSetBreakpoints {
                 dap_id,
@@ -792,6 +752,56 @@ impl PluginCatalog {
                     plugin.shutdown();
                 }
             }
+        }
+    }
+
+    fn dap_start(
+        &mut self,
+        config: RunDebugConfig,
+        breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
+    ) {
+        let workspace = self.workspace.clone();
+        let plugin_rpc = self.plugin_rpc.clone();
+        if let Some(debugger) = config
+            .ty
+            .as_ref()
+            .and_then(|ty| self.debuggers.get(ty).cloned())
+        {
+            thread::spawn(move || {
+                match DapClient::start(
+                    DapServer {
+                        program: debugger.program,
+                        args: debugger.args.unwrap_or_default(),
+                        cwd: workspace,
+                    },
+                    config.clone(),
+                    breakpoints,
+                    plugin_rpc.clone(),
+                ) {
+                    Ok(dap_rpc) => {
+                        if let Err(err) = plugin_rpc.dap_loaded(dap_rpc.clone()) {
+                            tracing::error!("{:?}", err);
+                        }
+
+                        if let Err(err) = dap_rpc.launch(&config) {
+                            tracing::error!("{:?}", err);
+                        }
+                    }
+                    Err(err) => {
+                        tracing::error!("{:?}", err);
+                    }
+                }
+            });
+        } else {
+            self.plugin_rpc.core_rpc.show_message(
+                "debug fail".to_owned(),
+                ShowMessageParams {
+                    typ: MessageType::ERROR,
+                    message:
+                        "Debugger not found. Please install the appropriate plugin."
+                            .to_owned(),
+                },
+            )
         }
     }
 }
