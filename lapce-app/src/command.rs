@@ -667,18 +667,18 @@ pub enum InternalCommand {
     NewTerminal {
         profile: Option<TerminalProfile>,
     },
-    SplitTerminal {
-        term_id: TermId,
-    },
-    SplitTerminalPrevious {
-        term_id: TermId,
-    },
-    SplitTerminalNext {
-        term_id: TermId,
-    },
-    SplitTerminalExchange {
-        term_id: TermId,
-    },
+    // SplitTerminal {
+    //     term_id: TermId,
+    // },
+    // SplitTerminalPrevious {
+    //     term_id: TermId,
+    // },
+    // SplitTerminalNext {
+    //     term_id: TermId,
+    // },
+    // SplitTerminalExchange {
+    //     term_id: TermId,
+    // },
     EditorTabClose {
         editor_tab_id: EditorTabId,
     },
@@ -790,7 +790,6 @@ pub enum InternalCommand {
     ClearTerminalBuffer {
         view_id: ViewId,
         tab_index: usize,
-        terminal_index: usize,
     },
     CallHierarchyIncoming {
         root_id: ViewId,

@@ -225,42 +225,12 @@ impl KeyPressFocus for TerminalData {
                 _ => return CommandExecuted::No,
             },
             CommandKind::Focus(cmd) => match cmd {
-                FocusCommand::SplitVertical => {
-                    self.common.internal_command.send(
-                        InternalCommand::SplitTerminal {
-                            term_id: self.term_id,
-                        },
-                    );
-                }
-                FocusCommand::SplitHorizontal => {
-                    self.common.internal_command.send(
-                        InternalCommand::SplitTerminal {
-                            term_id: self.term_id,
-                        },
-                    );
-                }
-                FocusCommand::SplitLeft => {
-                    self.common.internal_command.send(
-                        InternalCommand::SplitTerminalPrevious {
-                            term_id: self.term_id,
-                        },
-                    );
-                }
-                FocusCommand::SplitRight => {
-                    self.common.internal_command.send(
-                        InternalCommand::SplitTerminalNext {
-                            term_id: self.term_id,
-                        },
-                    );
-                }
-                FocusCommand::SplitExchange => {
-                    self.common.internal_command.send(
-                        InternalCommand::SplitTerminalExchange {
-                            term_id: self.term_id,
-                        },
-                    );
-                }
-                FocusCommand::SearchForward => {
+                FocusCommand::SplitVertical
+                | FocusCommand::SplitHorizontal
+                | FocusCommand::SplitLeft
+                | FocusCommand::SplitRight
+                | FocusCommand::SplitExchange
+                | FocusCommand::SearchForward => {
                     // if let Some(search_string) = self.find.search_string.as_ref() {
                     //     let mut raw = self.terminal.raw.lock();
                     //     let term = &mut raw.term;

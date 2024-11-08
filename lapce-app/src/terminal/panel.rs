@@ -30,16 +30,16 @@ use crate::{
     workspace::LapceWorkspace,
 };
 
-// pub struct TerminalTabInfo {
-//     pub active: usize,
-//     pub tabs: im::Vector<(RwSignal<usize>, TerminalTabData)>,
-// }
+pub struct TerminalTabInfo {
+    pub active: usize,
+    pub tabs: im::Vector<(RwSignal<usize>, TerminalTabData)>,
+}
 
 #[derive(Clone)]
 pub struct TerminalPanelData {
     pub cx: Scope,
     pub workspace: Arc<LapceWorkspace>,
-    pub tab_info: RwSignal<TerminalTabData>,
+    pub tab_infos: RwSignal<TerminalTabInfo>,
     pub debug: RunDebugData,
     pub breakline: Memo<Option<(usize, PathBuf)>>,
     pub common: Rc<CommonData>,
@@ -58,10 +58,10 @@ impl TerminalPanelData {
 
         let cx = common.scope;
 
-        // let tabs =
-        //     im::vector![(terminal_tab.scope.create_rw_signal(0), terminal_tab)];
-        // let tab_info = TerminalTabInfo { active: 0, tabs };
-        let tab_info = cx.create_rw_signal(terminal_tab);
+        let tabs =
+            im::vector![(terminal_tab.scope.create_rw_signal(0), terminal_tab)];
+        let tab_info = TerminalTabInfo { active: 0, tabs };
+        let tab_info = cx.create_rw_signal(tab_info);
 
         let debug = RunDebugData::new(cx, common.breakpoints);
 
@@ -77,14 +77,15 @@ impl TerminalPanelData {
 
                 let term = tab_info.with_untracked(|info| {
                     for (_, tab) in &info.tabs {
-                        let terminal = tab.terminals.with_untracked(|terminals| {
-                            terminals
-                                .iter()
-                                .find(|(_, t)| t.term_id == active_term)
-                                .cloned()
+                        let terminal = tab.terminal.with_untracked(|terminals| {
+                            if terminals.term_id == active_term {
+                                Some(terminals.clone())
+                            } else {
+                                None
+                            }
                         });
                         if let Some(terminal) = terminal {
-                            return Some(terminal.1);
+                            return Some(terminal);
                         }
                     }
                     None
@@ -110,7 +111,7 @@ impl TerminalPanelData {
         Self {
             cx,
             workspace,
-            tab_info,
+            tab_infos: tab_info,
             debug,
             breakline,
             common,
@@ -120,7 +121,7 @@ impl TerminalPanelData {
 
     pub fn active_tab(&self, tracked: bool) -> Option<TerminalTabData> {
         if tracked {
-            self.tab_info.with(|info| {
+            self.tab_infos.with(|info| {
                 info.tabs
                     .get(info.active)
                     .or_else(|| info.tabs.last())
@@ -128,7 +129,7 @@ impl TerminalPanelData {
                     .map(|(_, tab)| tab)
             })
         } else {
-            self.tab_info.with_untracked(|info| {
+            self.tab_infos.with_untracked(|info| {
                 info.tabs
                     .get(info.active)
                     .or_else(|| info.tabs.last())
@@ -143,12 +144,12 @@ impl TerminalPanelData {
         event: impl Into<EventRef<'a>> + Copy,
         keypress: &KeyPressData,
     ) -> Option<KeyPressHandle> {
-        if self.tab_info.with_untracked(|info| info.tabs.is_empty()) {
+        if self.tab_infos.with_untracked(|info| info.tabs.is_empty()) {
             self.new_tab(None);
         }
 
         let tab = self.active_tab(false);
-        let terminal = tab.and_then(|tab| tab.active_terminal(false));
+        let terminal = tab.map(|tab| tab.active_terminal(false));
         if let Some(terminal) = terminal {
             let handle = keypress.key_down(event, &terminal);
             let mode = terminal.get_mode();
@@ -188,7 +189,7 @@ impl TerminalPanelData {
             self.common.clone(),
         );
 
-        self.tab_info.update(|info| {
+        self.tab_infos.update(|info| {
             info.tabs.insert(
                 if info.tabs.is_empty() {
                     0
@@ -205,7 +206,7 @@ impl TerminalPanelData {
     }
 
     pub fn next_tab(&self) {
-        self.tab_info.update(|info| {
+        self.tab_infos.update(|info| {
             if info.active >= info.tabs.len().saturating_sub(1) {
                 info.active = 0;
             } else {
@@ -216,7 +217,7 @@ impl TerminalPanelData {
     }
 
     pub fn previous_tab(&self) {
-        self.tab_info.update(|info| {
+        self.tab_infos.update(|info| {
             if info.active == 0 {
                 info.active = info.tabs.len().saturating_sub(1);
             } else {
@@ -228,7 +229,7 @@ impl TerminalPanelData {
 
     pub fn close_tab(&self, terminal_tab_id: Option<TerminalTabId>) {
         if let Some(close_tab) = self
-            .tab_info
+            .tab_infos
             .try_update(|info| {
                 let mut close_tab = None;
                 if let Some(terminal_tab_id) = terminal_tab_id {
@@ -241,9 +242,8 @@ impl TerminalPanelData {
                             }
                         })
                     {
-                        close_tab = Some(
-                            info.tabs.remove(index).1.terminals.get_untracked(),
-                        );
+                        close_tab =
+                            Some(info.tabs.remove(index).1.terminal.get_untracked());
                     }
                 } else {
                     let active = info.active.min(info.tabs.len().saturating_sub(1));
@@ -257,9 +257,7 @@ impl TerminalPanelData {
             })
             .flatten()
         {
-            for (_, data) in close_tab {
-                data.stop();
-            }
+            close_tab.stop();
         }
         self.update_debug_active_term();
     }
@@ -271,16 +269,17 @@ impl TerminalPanelData {
     }
 
     pub fn get_terminal(&self, term_id: &TermId) -> Option<TerminalData> {
-        self.tab_info.with_untracked(|info| {
+        self.tab_infos.with_untracked(|info| {
             for (_, tab) in &info.tabs {
-                let terminal = tab.terminals.with_untracked(|terminals| {
-                    terminals
-                        .iter()
-                        .find(|(_, t)| &t.term_id == term_id)
-                        .cloned()
+                let terminal = tab.terminal.with_untracked(|terminals| {
+                    if terminals.term_id == *term_id {
+                        Some(terminals.clone())
+                    } else {
+                        None
+                    }
                 });
                 if let Some(terminal) = terminal {
-                    return Some(terminal.1);
+                    return Some(terminal);
                 }
             }
             None
@@ -290,91 +289,76 @@ impl TerminalPanelData {
     fn get_terminal_in_tab(
         &self,
         term_id: &TermId,
-    ) -> Option<(usize, TerminalTabData, usize, TerminalData)> {
-        self.tab_info.with_untracked(|info| {
+    ) -> Option<(usize, TerminalTabData, TerminalData)> {
+        self.tab_infos.with_untracked(|info| {
             for (tab_index, (_, tab)) in info.tabs.iter().enumerate() {
-                let result = tab.terminals.with_untracked(|terminals| {
-                    terminals
-                        .iter()
-                        .enumerate()
-                        .find(|(_, (_, t))| &t.term_id == term_id)
-                        .map(|(i, (_, terminal))| (i, terminal.clone()))
+                let result = tab.terminal.with_untracked(|terminals| {
+                    if terminals.term_id == *term_id {
+                        Some(terminals.clone())
+                    } else {
+                        None
+                    }
                 });
-                if let Some((index, terminal)) = result {
-                    return Some((tab_index, tab.clone(), index, terminal));
+                if let Some(terminal) = result {
+                    return Some((tab_index, tab.clone(), terminal));
                 }
             }
             None
         })
     }
 
-    pub fn split(&self, term_id: TermId) {
-        if let Some((_, tab, index, _)) = self.get_terminal_in_tab(&term_id) {
-            let terminal_data = TerminalData::new(
-                tab.scope,
-                self.workspace.clone(),
-                None,
-                self.common.clone(),
-            );
-            let i = terminal_data.scope.create_rw_signal(0);
-            tab.terminals.update(|terminals| {
-                terminals.insert(index + 1, (i, terminal_data));
-            });
-        }
-    }
+    // pub fn split(&self, term_id: TermId) {
+    //     if let Some((_, tab, index, _)) = self.get_terminal_in_tab(&term_id) {
+    //         let terminal_data = TerminalData::new(
+    //             tab.scope,
+    //             self.workspace.clone(),
+    //             None,
+    //             self.common.clone(),
+    //         );
+    //         let i = terminal_data.scope.create_rw_signal(0);
+    //         tab.terminal.update(|terminals| {
+    //             terminals.insert(index + 1, (i, terminal_data));
+    //         });
+    //     }
+    // }
 
-    pub fn split_next(&self, term_id: TermId) {
-        if let Some((_, tab, index, _)) = self.get_terminal_in_tab(&term_id) {
-            let max = tab.terminals.with_untracked(|t| t.len() - 1);
-            let new_index = (index + 1).min(max);
-            if new_index != index {
-                tab.active.set(new_index);
-                self.update_debug_active_term();
-            }
-        }
-    }
+    // pub fn split_next(&self, term_id: TermId) {
+    //     if let Some((_, tab, index, _)) = self.get_terminal_in_tab(&term_id) {
+    //         let max = tab.terminal.with_untracked(|t| t.len() - 1);
+    //         let new_index = (index + 1).min(max);
+    //         if new_index != index {
+    //             tab.active.set(new_index);
+    //             self.update_debug_active_term();
+    //         }
+    //     }
+    // }
 
-    pub fn split_previous(&self, term_id: TermId) {
-        if let Some((_, tab, index, _)) = self.get_terminal_in_tab(&term_id) {
-            let new_index = index.saturating_sub(1);
-            if new_index != index {
-                tab.active.set(new_index);
-                self.update_debug_active_term();
-            }
-        }
-    }
-
-    pub fn split_exchange(&self, term_id: TermId) {
-        if let Some((_, tab, index, _)) = self.get_terminal_in_tab(&term_id) {
-            let max = tab.terminals.with_untracked(|t| t.len() - 1);
-            if index < max {
-                tab.terminals.update(|terminals| {
-                    terminals.swap(index, index + 1);
-                });
-                self.update_debug_active_term();
-            }
-        }
-    }
+    // pub fn split_previous(&self, term_id: TermId) {
+    //     if let Some((_, tab, index, _)) = self.get_terminal_in_tab(&term_id) {
+    //         let new_index = index.saturating_sub(1);
+    //         if new_index != index {
+    //             tab.active.set(new_index);
+    //             self.update_debug_active_term();
+    //         }
+    //     }
+    // }
+    //
+    // pub fn split_exchange(&self, term_id: TermId) {
+    //     if let Some((_, tab, index, _)) = self.get_terminal_in_tab(&term_id) {
+    //         let max = tab.terminal.with_untracked(|t| t.len() - 1);
+    //         if index < max {
+    //             tab.terminal.update(|terminals| {
+    //                 terminals.swap(index, index + 1);
+    //             });
+    //             self.update_debug_active_term();
+    //         }
+    //     }
+    // }
 
     pub fn close_terminal(&self, term_id: &TermId) {
-        if let Some((_, tab, index, _)) = self.get_terminal_in_tab(term_id) {
-            let active = tab.active.get_untracked();
-            let len = tab
-                .terminals
-                .try_update(|terminals| {
-                    terminals.remove(index);
-                    terminals.len()
-                })
-                .unwrap();
-            if len == 0 {
-                self.close_tab(Some(tab.terminal_tab_id));
-            } else {
-                let new_active = active.min(len.saturating_sub(1));
-                if new_active != active {
-                    tab.active.set(new_active);
-                    self.update_debug_active_term();
-                }
-            }
+        // todo close tab directly
+        if let Some((_, tab, terminal_data)) = self.get_terminal_in_tab(term_id) {
+            self.close_tab(Some(tab.terminal_tab_id));
         }
     }
 
@@ -438,24 +422,22 @@ impl TerminalPanelData {
         mode: &RunDebugMode,
         config: &RunDebugConfig,
     ) -> Option<TerminalData> {
-        self.tab_info.with_untracked(|info| {
+        self.tab_infos.with_untracked(|info| {
             for (_, tab) in &info.tabs {
-                let terminal = tab.terminals.with_untracked(|terminals| {
-                    for (_, terminal) in terminals {
-                        if let Some(run_debug) =
-                            terminal.run_debug.get_untracked().as_ref()
-                        {
-                            if run_debug.stopped && &run_debug.mode == mode {
-                                match run_debug.mode {
-                                    RunDebugMode::Run => {
-                                        if run_debug.config.name == config.name {
-                                            return Some(terminal.clone());
-                                        }
+                let terminal = tab.terminal.with_untracked(|terminal| {
+                    if let Some(run_debug) =
+                        terminal.run_debug.get_untracked().as_ref()
+                    {
+                        if run_debug.stopped && &run_debug.mode == mode {
+                            match run_debug.mode {
+                                RunDebugMode::Run => {
+                                    if run_debug.config.name == config.name {
+                                        return Some(terminal.clone());
                                     }
-                                    RunDebugMode::Debug => {
-                                        if run_debug.config.dap_id == config.dap_id {
-                                            return Some(terminal.clone());
-                                        }
+                                }
+                                RunDebugMode::Debug => {
+                                    if run_debug.config.dap_id == config.dap_id {
+                                        return Some(terminal.clone());
                                     }
                                 }
                             }
@@ -473,8 +455,7 @@ impl TerminalPanelData {
 
     /// Return whether it is in debug mode.
     pub fn restart_run_debug(&self, term_id: TermId) -> Option<bool> {
-        let (_, terminal_tab, index, terminal) =
-            self.get_terminal_in_tab(&term_id)?;
+        let (_, terminal_tab, terminal) = self.get_terminal_in_tab(&term_id)?;
         let mut run_debug = terminal.run_debug.get_untracked()?;
         if run_debug.config.config_source.from_palette() {
             if let Some(new_config) =
@@ -498,9 +479,8 @@ impl TerminalPanelData {
                     self.common.clone(),
                 );
                 let new_term_id = new_terminal.term_id;
-                terminal_tab.terminals.update(|terminals| {
-                    terminals[index] =
-                        (new_terminal.scope.create_rw_signal(0), new_terminal);
+                terminal_tab.terminal.update(|terminals| {
+                    *terminals = new_terminal;
                 });
                 self.debug.active_term.set(Some(new_term_id));
                 new_term_id
@@ -543,13 +523,12 @@ impl TerminalPanelData {
     }
 
     pub fn focus_terminal(&self, term_id: TermId) {
-        if let Some((tab_index, terminal_tab, index, _terminal)) =
+        if let Some((tab_index, terminal_tab, _terminal)) =
             self.get_terminal_in_tab(&term_id)
         {
-            self.tab_info.update(|info| {
+            self.tab_infos.update(|info| {
                 info.active = tab_index;
             });
-            terminal_tab.active.set(index);
             self.common.focus.set(Focus::Panel(PanelKind::Terminal));
 
             self.update_debug_active_term();
@@ -558,7 +537,7 @@ impl TerminalPanelData {
 
     pub fn update_debug_active_term(&self) {
         let tab = self.active_tab(false);
-        let terminal = tab.and_then(|tab| tab.active_terminal(false));
+        let terminal = tab.map(|tab| tab.active_terminal(false));
         if let Some(terminal) = terminal {
             let term_id = terminal.term_id;
             let is_run_debug =
@@ -604,25 +583,21 @@ impl TerminalPanelData {
     ) -> Vec<(TermId, RunDebugProcess)> {
         let mut processes = Vec::new();
         if tracked {
-            self.tab_info.with(|info| {
+            self.tab_infos.with(|info| {
                 for (_, tab) in &info.tabs {
-                    tab.terminals.with(|terminals| {
-                        for (_, terminal) in terminals {
-                            if let Some(run_debug) = terminal.run_debug.get() {
-                                processes.push((terminal.term_id, run_debug));
-                            }
+                    tab.terminal.with(|terminal| {
+                        if let Some(run_debug) = terminal.run_debug.get() {
+                            processes.push((terminal.term_id, run_debug));
                         }
                     })
                 }
             });
         } else {
-            self.tab_info.with_untracked(|info| {
+            self.tab_infos.with_untracked(|info| {
                 for (_, tab) in &info.tabs {
-                    tab.terminals.with_untracked(|terminals| {
-                        for (_, terminal) in terminals {
-                            if let Some(run_debug) = terminal.run_debug.get() {
-                                processes.push((terminal.term_id, run_debug));
-                            }
+                    tab.terminal.with_untracked(|terminal| {
+                        if let Some(run_debug) = terminal.run_debug.get() {
+                            processes.push((terminal.term_id, run_debug));
                         }
                     })
                 }

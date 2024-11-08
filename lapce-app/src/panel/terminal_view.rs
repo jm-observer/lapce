@@ -47,8 +47,8 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
     let terminal = window_tab_data.terminal.clone();
     let config = window_tab_data.common.config;
     let focus = window_tab_data.common.focus;
-    let active_index = move || terminal.tab_info.with(|info| info.active);
-    let tab_info = terminal.tab_info;
+    let active_index = move || terminal.tab_infos.with(|info| info.active);
+    let tab_info = terminal.tab_infos;
     let header_width = create_rw_signal(0.0);
     let header_height = create_rw_signal(0.0);
     let icon_width = create_rw_signal(0.0);
@@ -58,7 +58,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
     stack((
         scroll(dyn_stack(
             move || {
-                let tabs = terminal.tab_info.with(|info| info.tabs.clone());
+                let tabs = terminal.tab_infos.with(|info| info.tabs.clone());
                 for (i, (index, _)) in tabs.iter().enumerate() {
                     if index.get_untracked() != i {
                         index.set(i);
@@ -76,38 +76,31 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                     let tab = tab.clone();
                     move || {
                         let terminal = tab.active_terminal(true);
-                        let run_debug = terminal.as_ref().map(|t| t.run_debug);
-                        if let Some(run_debug) = run_debug {
-                            if let Some(name) = run_debug.with(|run_debug| {
-                                run_debug.as_ref().map(|r| r.config.name.clone())
-                            }) {
-                                return name;
-                            }
+                        let run_debug = terminal.run_debug;
+                        if let Some(name) = run_debug.with(|run_debug| {
+                            run_debug.as_ref().map(|r| r.config.name.clone())
+                        }) {
+                            return name;
                         }
-
-                        let title = terminal.map(|t| t.title);
-                        let title = title.map(|t| t.get());
-                        title.unwrap_or_default()
+                        terminal.title.get()
                     }
                 };
 
                 let svg_string = move || {
                     let terminal = tab.active_terminal(true);
-                    let run_debug = terminal.as_ref().map(|t| t.run_debug);
-                    if let Some(run_debug) = run_debug {
-                        if let Some((mode, stopped)) = run_debug.with(|run_debug| {
-                            run_debug.as_ref().map(|r| (r.mode, r.stopped))
-                        }) {
-                            let svg = match (mode, stopped) {
-                                (RunDebugMode::Run, false) => LapceIcons::START,
-                                (RunDebugMode::Run, true) => LapceIcons::RUN_ERRORS,
-                                (RunDebugMode::Debug, false) => LapceIcons::DEBUG,
-                                (RunDebugMode::Debug, true) => {
-                                    LapceIcons::DEBUG_DISCONNECT
-                                }
-                            };
-                            return svg;
-                        }
+                    let run_debug = terminal.run_debug;
+                    if let Some((mode, stopped)) = run_debug.with(|run_debug| {
+                        run_debug.as_ref().map(|r| (r.mode, r.stopped))
+                    }) {
+                        let svg = match (mode, stopped) {
+                            (RunDebugMode::Run, false) => LapceIcons::START,
+                            (RunDebugMode::Run, true) => LapceIcons::RUN_ERRORS,
+                            (RunDebugMode::Debug, false) => LapceIcons::DEBUG,
+                            (RunDebugMode::Debug, true) => {
+                                LapceIcons::DEBUG_DISCONNECT
+                            }
+                        };
+                        return svg;
                     }
                     LapceIcons::TERMINAL
                 };
@@ -268,79 +261,56 @@ fn terminal_tab_split(
     let config = terminal_panel_data.common.config;
     let internal_command = terminal_panel_data.common.internal_command;
     let workspace = terminal_panel_data.workspace.clone();
-    let active = terminal_tab_data.active;
-    dyn_stack(
-        move || {
-            let terminals = terminal_tab_data.terminals.get();
-            for (i, (index, _)) in terminals.iter().enumerate() {
-                if index.get_untracked() != i {
-                    index.set(i);
+    let terminal_panel_data = terminal_panel_data.clone();
+    container({
+        let terminal = terminal_tab_data.terminal.get();
+        let terminal_view = terminal_view(
+            terminal.term_id,
+            terminal.raw.read_only(),
+            terminal.mode.read_only(),
+            terminal.run_debug.read_only(),
+            terminal_panel_data,
+            terminal.launch_error,
+            internal_command,
+            workspace.clone(),
+        );
+        let view_id = terminal_view.id();
+        let have_task = terminal.run_debug.get_untracked().is_some();
+        terminal_view
+            .on_secondary_click_stop(move |_| {
+                if have_task {
+                    tab_secondary_click(
+                        internal_command,
+                        view_id,
+                        tab_index,
+                        terminal.term_id,
+                    );
                 }
-            }
-            terminals
-        },
-        |(_, terminal)| terminal.term_id,
-        move |(index, terminal)| {
-            let terminal_panel_data = terminal_panel_data.clone();
-            container({
-                let terminal_view = terminal_view(
-                    terminal.term_id,
-                    terminal.raw.read_only(),
-                    terminal.mode.read_only(),
-                    terminal.run_debug.read_only(),
-                    terminal_panel_data,
-                    terminal.launch_error,
-                    internal_command,
-                    workspace.clone(),
-                );
-                let view_id = terminal_view.id();
-                let have_task = terminal.run_debug.get_untracked().is_some();
-                terminal_view
-                    .on_event_cont(EventListener::PointerDown, move |_| {
-                        active.set(index.get_untracked());
-                    })
-                    .on_secondary_click_stop(move |_| {
-                        if have_task {
-                            tab_secondary_click(
-                                internal_command,
-                                view_id,
-                                tab_index,
-                                index.get_untracked(),
-                                terminal.term_id,
-                            );
-                        }
-                    })
-                    .on_event(EventListener::PointerWheel, move |event| {
-                        if let Event::PointerWheel(pointer_event) = event {
-                            terminal.clone().wheel_scroll(pointer_event.delta.y);
-                            EventPropagation::Stop
-                        } else {
-                            EventPropagation::Continue
-                        }
-                    })
-                    .style(|s| s.size_pct(100.0, 100.0))
             })
-            .style(move |s| {
-                s.size_pct(100.0, 100.0).padding_horiz(10.0).apply_if(
-                    index.get() > 0,
-                    |s| {
-                        s.border_left(1.0).border_color(
-                            config.get().color(LapceColor::LAPCE_BORDER),
-                        )
-                    },
-                )
+            .on_event(EventListener::PointerWheel, move |event| {
+                if let Event::PointerWheel(pointer_event) = event {
+                    terminal.clone().wheel_scroll(pointer_event.delta.y);
+                    EventPropagation::Stop
+                } else {
+                    EventPropagation::Continue
+                }
             })
-        },
-    )
-    .style(|s| s.size_pct(100.0, 100.0))
-    .debug_name("terminal_tab_split")
+            .style(|s| s.size_pct(100.0, 100.0))
+    })
+    .style(move |s| {
+        s.size_pct(100.0, 100.0).padding_horiz(10.0)
+        // .apply_if(index.get() > 0, |s| {
+        //     s.border_left(1.0)
+        //         .border_color(config.get().color(LapceColor::LAPCE_BORDER))
+        // })
+    })
 }
 
 fn terminal_tab_content(window_tab_data: Rc<WindowTabData>) -> impl View {
     let terminal = window_tab_data.terminal.clone();
     tab(
-        move || terminal.tab_info.with(|info| info.active),
-        move || terminal.tab_info.with(|info| info.tabs.clone()),
+        move || terminal.tab_infos.with(|info| info.active),
+        move || terminal.tab_infos.with(|info| info.tabs.clone()),
         |(_, tab)| tab.terminal_tab_id,
         move |(tab_index, tab)| {
             terminal_tab_split(terminal.clone(), tab, tab_index.get_untracked())
@@ -354,7 +324,6 @@ fn tab_secondary_click(
     internal_command: Listener<InternalCommand>,
     view_id: ViewId,
     tab_index: usize,
-    terminal_index: usize,
     term_id: TermId,
 ) {
     let mut menu = Menu::new("");
@@ -366,11 +335,8 @@ fn tab_secondary_click(
             internal_command.send(InternalCommand::RestartTerminal { term_id });
         }))
         .entry(MenuItem::new("Clear All").action(move || {
-            internal_command.send(InternalCommand::ClearTerminalBuffer {
-                view_id,
-                tab_index,
-                terminal_index,
-            });
+            internal_command
+                .send(InternalCommand::ClearTerminalBuffer { view_id, tab_index });
         }));
     show_context_menu(menu, None);
 }

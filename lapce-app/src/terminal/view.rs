@@ -115,7 +115,7 @@ pub fn terminal_view(
             let tab = terminal_panel_data.active_tab(true);
             if let Some(tab) = tab {
                 let terminal = tab.active_terminal(true);
-                is_focused = terminal.map(|t| t.term_id) == Some(term_id);
+                is_focused = terminal.term_id == term_id;
             }
         }
 

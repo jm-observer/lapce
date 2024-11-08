@@ -13,8 +13,7 @@ use crate::{
 pub struct TerminalTabData {
     pub scope: Scope,
     pub terminal_tab_id: TerminalTabId,
-    pub active: RwSignal<usize>,
-    pub terminals: RwSignal<im::Vector<(RwSignal<usize>, TerminalData)>>,
+    pub terminal: RwSignal<TerminalData>,
 }
 
 impl TerminalTabData {
@@ -36,33 +35,20 @@ impl TerminalTabData {
         let cx = common.scope.create_child();
         let terminal_data =
             TerminalData::new_run_debug(cx, workspace, run_debug, profile, common);
-        let terminals = im::vector![(cx.create_rw_signal(0), terminal_data)];
-        let terminals = cx.create_rw_signal(terminals);
-        let active = cx.create_rw_signal(0);
+        let terminals = cx.create_rw_signal(terminal_data);
         let terminal_tab_id = TerminalTabId::next();
         Self {
             scope: cx,
             terminal_tab_id,
-            active,
-            terminals,
+            terminal: terminals,
         }
     }
 
-    pub fn active_terminal(&self, tracked: bool) -> Option<TerminalData> {
-        let active = if tracked {
-            self.active.get()
-        } else {
-            self.active.get_untracked()
-        };
-
+    pub fn active_terminal(&self, tracked: bool) -> TerminalData {
         if tracked {
-            self.terminals
-                .with(|t| t.get(active).or_else(|| t.last()).cloned())
-                .map(|(_, t)| t)
+            self.terminal.with(|t| t.clone())
         } else {
-            self.terminals
-                .with_untracked(|t| t.get(active).or_else(|| t.last()).cloned())
-                .map(|(_, t)| t)
+            self.terminal.with_untracked(|t| t.clone())
         }
     }
 }

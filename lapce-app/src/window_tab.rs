@@ -1111,7 +1111,7 @@ impl WindowTabData {
                 self.terminal.close_tab(None);
                 if self
                     .terminal
-                    .tab_info
+                    .tab_infos
                     .with_untracked(|info| info.tabs.is_empty())
                 {
                     if self.panel.is_panel_visible(&PanelKind::Terminal) {
@@ -1963,18 +1963,18 @@ impl WindowTabData {
             InternalCommand::NewTerminal { profile } => {
                 self.terminal.new_tab(profile);
             }
-            InternalCommand::SplitTerminal { term_id } => {
-                self.terminal.split(term_id);
-            }
-            InternalCommand::SplitTerminalNext { term_id } => {
-                self.terminal.split_next(term_id);
-            }
-            InternalCommand::SplitTerminalPrevious { term_id } => {
-                self.terminal.split_previous(term_id);
-            }
-            InternalCommand::SplitTerminalExchange { term_id } => {
-                self.terminal.split_exchange(term_id);
-            }
+            // InternalCommand::SplitTerminal { term_id } => {
+            //     self.terminal.split(term_id);
+            // }
+            // InternalCommand::SplitTerminalNext { term_id } => {
+            //     self.terminal.split_next(term_id);
+            // }
+            // InternalCommand::SplitTerminalPrevious { term_id } => {
+            //     self.terminal.split_previous(term_id);
+            // }
+            // InternalCommand::SplitTerminalExchange { term_id } => {
+            //     self.terminal.split_exchange(term_id);
+            // }
             InternalCommand::RunAndDebug { mode, mut config } => {
                 if let Some(workspace) = &self.workspace.path {
                     config.update_by_workspace(workspace.to_string_lossy().as_ref());
@@ -2126,12 +2126,8 @@ impl WindowTabData {
                     }
                 };
             }
-            InternalCommand::ClearTerminalBuffer {
-                view_id,
-                tab_index,
-                terminal_index,
-            } => {
-                let Some(tab) = self.terminal.tab_info.with_untracked(|x| {
+            InternalCommand::ClearTerminalBuffer { view_id, tab_index } => {
+                let Some(tab) = self.terminal.tab_infos.with_untracked(|x| {
                     x.tabs.iter().find_map(|(index, data)| {
                         if index.get_untracked() == tab_index {
                             Some(data.clone())
@@ -2143,18 +2139,7 @@ impl WindowTabData {
                     error!("cound not find terminal tab data: index={tab_index}");
                     return;
                 };
-                let Some(raw) = tab.terminals.with_untracked(|x| {
-                    x.iter().find_map(|(index, data)| {
-                        if index.get_untracked() == terminal_index {
-                            Some(data.raw.get_untracked())
-                        } else {
-                            None
-                        }
-                    })
-                }) else {
-                    error!("cound not find terminal data: index={terminal_index}");
-                    return;
-                };
+                let raw = tab.terminal.with_untracked(|x| x.raw.get_untracked());
                 raw.write().term.reset_state();
                 view_id.request_paint();
             }
@@ -2283,7 +2268,7 @@ impl WindowTabData {
                 self.terminal.terminal_stopped(term_id, *exit_code);
                 if self
                     .terminal
-                    .tab_info
+                    .tab_infos
                     .with_untracked(|info| info.tabs.is_empty())
                 {
                     if self.panel.is_panel_visible(&PanelKind::Terminal) {
@@ -2790,7 +2775,7 @@ impl WindowTabData {
         if kind == PanelKind::Terminal
             && self
                 .terminal
-                .tab_info
+                .tab_infos
                 .with_untracked(|info| info.tabs.is_empty())
         {
             self.terminal.new_tab(
@@ -2870,7 +2855,7 @@ impl WindowTabData {
                 }),
                 None,
             );
-            new_terminal_tab.active_terminal(false).unwrap().term_id
+            new_terminal_tab.active_terminal(false).term_id
         };
         self.common.focus.set(Focus::Panel(PanelKind::Terminal));
         self.terminal.focus_terminal(term_id);
