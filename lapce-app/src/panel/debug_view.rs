@@ -105,7 +105,7 @@ fn debug_process_icons(
                 clickable_icon(
                     || LapceIcons::DEBUG_STOP,
                     move || {
-                        terminal.stop_run_debug(term_id);
+                        terminal.manual_stop_run_debug(term_id);
                     },
                     || false,
                     move || stopped,
@@ -219,7 +219,7 @@ fn debug_process_icons(
                 clickable_icon(
                     || LapceIcons::DEBUG_STOP,
                     move || {
-                        terminal.stop_run_debug(term_id);
+                        terminal.manual_stop_run_debug(term_id);
                     },
                     || false,
                     move || stopped,

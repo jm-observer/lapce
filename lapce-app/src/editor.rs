@@ -2114,9 +2114,6 @@ impl EditorData {
                     let is_pristine =
                         editor.doc().buffer.get_untracked().is_pristine();
                     let is_current_rec = editor.doc().rev() == rev;
-                    tracing::debug!(
-                        "check_auto_save {is_pristine} {is_current_rec}"
-                    );
                     if !is_pristine && is_current_rec {
                         editor.save(true, || {});
                     }

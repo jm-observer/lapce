@@ -48,9 +48,9 @@ pub(super) fn logging() -> (Handle<Targets>, Option<WorkerGuard>) {
             .with(
                 fmt::Subscriber::default()
                     .with_line_number(true)
-                    .with_target(false)
+                    .with_target(true)
                     .with_thread_names(true)
-                    .with_file(true)
+                    .with_file(false)
                     .with_filter(log_filter_targets),
             )
             .init();

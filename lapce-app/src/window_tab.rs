@@ -9,6 +9,7 @@ use std::{
 };
 
 use alacritty_terminal::vte::ansi::Handler;
+use anyhow::anyhow;
 use crossbeam_channel::Sender;
 use floem::reactive::SignalTrack;
 use floem::{
@@ -48,8 +49,9 @@ use lsp_types::{
     ProgressToken, ShowMessageParams,
 };
 use serde_json::Value;
-use tracing::{debug, error, event, Level};
+use tracing::{debug, error, event, info, Level};
 
+use crate::id::TerminalTabId;
 use crate::{
     about::AboutData,
     alert::{AlertBoxData, AlertButton},
@@ -61,7 +63,7 @@ use crate::{
     completion::{CompletionData, CompletionStatus},
     config::LapceConfig,
     db::LapceDb,
-    debug::{DapData, LapceBreakpoint, RunDebugMode, RunDebugProcess},
+    debug::{LapceBreakpoint, RunDebugMode, RunDebugProcess},
     doc::DocContent,
     editor::location::{EditorLocation, EditorPosition},
     editor_tab::EditorTabChild,
@@ -1216,7 +1218,7 @@ impl WindowTabData {
             RunAndDebugStop => {
                 let active_term = self.terminal.debug.active_term.get_untracked();
                 if let Some(term_id) = active_term {
-                    self.terminal.stop_run_debug(term_id);
+                    self.terminal.manual_stop_run_debug(term_id);
                 }
             }
 
@@ -1960,27 +1962,6 @@ impl WindowTabData {
                 self.main_split
                     .save_jump_location(path, offset, scroll_offset);
             }
-            InternalCommand::NewTerminal { profile } => {
-                self.terminal.new_tab(profile);
-            }
-            // InternalCommand::SplitTerminal { term_id } => {
-            //     self.terminal.split(term_id);
-            // }
-            // InternalCommand::SplitTerminalNext { term_id } => {
-            //     self.terminal.split_next(term_id);
-            // }
-            // InternalCommand::SplitTerminalPrevious { term_id } => {
-            //     self.terminal.split_previous(term_id);
-            // }
-            // InternalCommand::SplitTerminalExchange { term_id } => {
-            //     self.terminal.split_exchange(term_id);
-            // }
-            InternalCommand::RunAndDebug { mode, mut config } => {
-                if let Some(workspace) = &self.workspace.path {
-                    config.update_by_workspace(workspace.to_string_lossy().as_ref());
-                }
-                self.run_and_debug(cx, mode, config);
-            }
             InternalCommand::StartRename {
                 path,
                 placeholder,
@@ -2147,18 +2128,35 @@ impl WindowTabData {
                 view_id.request_paint();
             }
             InternalCommand::StopTerminal { terminal_id } => {
-                self.terminal.stop_run_debug(terminal_id);
+                self.terminal.manual_stop_run_debug(terminal_id);
             }
             InternalCommand::RestartTerminal { terminal_id } => {
-                if let Some(is_debug) = self.terminal.restart_run_debug(terminal_id)
-                {
-                    self.panel.show_panel(&PanelKind::Terminal);
-                    if is_debug {
-                        self.panel.show_panel(&PanelKind::Debug);
+                match self.restart_run_program_in_terminal(terminal_id) {
+                    Ok(_) => {
+                        // todo!()
+                        // if let Some(is_debug) = self.restart_run_program_in_terminal(terminal_id)
+                        // {
+                        //     self.panel.show_panel(&PanelKind::Terminal);
+                        //     if is_debug {
+                        //         self.panel.show_panel(&PanelKind::Debug);
+                        //     }
+                        // } else {
+                        //     self.palette.run(PaletteKind::RunAndDebug);
+                        // }
                     }
-                } else {
-                    self.palette.run(PaletteKind::RunAndDebug);
+                    Err(_) => {
+                        // todo!()
+                    }
                 }
+            }
+            InternalCommand::NewTerminal { profile } => {
+                self.terminal.new_tab(profile);
+            }
+            InternalCommand::RunAndDebug { mode, mut config } => {
+                if let Some(workspace) = &self.workspace.path {
+                    config.update_by_workspace(workspace.to_string_lossy().as_ref());
+                }
+                self.run_and_debug(cx, mode, config);
             }
             InternalCommand::CallHierarchyIncoming { item_id, root_id } => {
                 self.call_hierarchy_incoming(root_id, item_id);
@@ -2261,13 +2259,13 @@ impl WindowTabData {
                 }
             }
             CoreNotification::TerminalProcessStopped { term_id, exit_code } => {
-                debug!("TerminalProcessStopped {:?}, {:?}", term_id, exit_code);
+                info!("TerminalProcessStopped {:?}, {:?}", term_id, exit_code);
                 if let Err(err) = self
                     .common
                     .term_tx
                     .send((*term_id, TermEvent::CloseTerminal))
                 {
-                    tracing::error!("{:?}", err);
+                    error!("{:?}", err);
                 }
                 self.terminal.terminal_stopped(term_id, *exit_code);
                 if self
@@ -2284,8 +2282,8 @@ impl WindowTabData {
             CoreNotification::TerminalLaunchFailed { term_id, error } => {
                 self.terminal.launch_failed(term_id, error);
             }
-            CoreNotification::RunInTerminal { config } => {
-                self.run_in_terminal(cx, &RunDebugMode::Debug, config, true);
+            CoreNotification::DapRunInTerminal { config } => {
+                self.run_program_in_terminal(cx, &RunDebugMode::Debug, config, true);
             }
             CoreNotification::TerminalProcessId {
                 term_id,
@@ -2809,11 +2807,11 @@ impl WindowTabData {
         debug!("{:?}", config);
         match mode {
             RunDebugMode::Run => {
-                self.run_in_terminal(cx, &mode, &config, false);
+                self.run_program_in_terminal(cx, &mode, &config, false);
             }
             RunDebugMode::Debug => {
                 if config.prelaunch.is_some() {
-                    self.run_in_terminal(cx, &mode, &config, false);
+                    self.run_program_in_terminal(cx, &mode, &config, false);
                 } else {
                     self.common.proxy.dap_start(
                         config.clone(),
@@ -2827,9 +2825,9 @@ impl WindowTabData {
         }
     }
 
-    fn run_in_terminal(
+    fn run_program_in_terminal(
         &self,
-        cx: Scope,
+        _cx: Scope,
         mode: &RunDebugMode,
         config: &RunDebugConfig,
         from_dap: bool,
@@ -2841,6 +2839,7 @@ impl WindowTabData {
         {
             terminal.new_process(Some(RunDebugProcess {
                 mode: *mode,
+                origin_config: config.clone(),
                 config: config.clone(),
                 stopped: false,
                 created: Instant::now(),
@@ -2851,6 +2850,7 @@ impl WindowTabData {
         } else {
             let new_terminal_tab = self.terminal.new_tab_run_debug(
                 Some(RunDebugProcess {
+                    origin_config: config.clone(),
                     mode: *mode,
                     config: config.clone(),
                     stopped: false,
@@ -2863,18 +2863,75 @@ impl WindowTabData {
         };
         self.common.focus.set(Focus::Panel(PanelKind::Terminal));
         self.terminal.focus_terminal(term_id);
-
-        self.terminal.debug.active_term.set(Some(term_id));
-        self.terminal.debug.daps.update(|daps| {
-            daps.insert(
-                config.dap_id,
-                DapData::new(cx, config.dap_id, term_id, self.common.clone()),
-            );
-        });
-
         if !self.panel.is_panel_visible(&PanelKind::Terminal) {
             self.panel.show_panel(&PanelKind::Terminal);
         }
+    }
+
+    fn restart_run_program_in_terminal(
+        &self,
+        terminal_id: TerminalTabId,
+    ) -> anyhow::Result<()> {
+        let tab = self
+            .terminal
+            .get_tab_terminal(terminal_id)
+            .ok_or(anyhow!("not found tab(terminal_id={terminal_id:?})"))?;
+        let terminal = tab.terminal.get_untracked();
+        let mut run_debug = terminal
+            .run_debug
+            .get_untracked()
+            .ok_or(anyhow!("run_debug is none(terminal_id={terminal_id:?})"))?;
+        run_debug.config = run_debug.origin_config.clone();
+        run_debug.stopped = false;
+        run_debug.created = Instant::now();
+        run_debug.is_prelaunch = true;
+        tracing::info!("restart_run_program_in_terminal run_debug={run_debug:?}");
+        self.terminal.manual_stop_run_debug(terminal_id);
+
+        terminal.new_process(Some(run_debug));
+        Ok(())
+        // if not from dap, then run prelaunch first
+        // let term_id = if let Some(terminal) =
+        //     self.terminal.get_stopped_run_debug_terminal( mode, config)
+        // {
+        //     terminal.new_process(Some(RunDebugProcess {
+        //         mode: *mode,
+        //         origin_config: config.clone(),
+        //         config: config.clone(),
+        //         stopped: false,
+        //         created: Instant::now(),
+        //         is_prelaunch,
+        //     }));
+        //
+        //     terminal.term_id
+        // } else {
+        //     let new_terminal_tab = self.terminal.new_tab_run_debug(
+        //         Some(RunDebugProcess {
+        //             origin_config: config.clone(),
+        //             mode: *mode,
+        //             config: config.clone(),
+        //             stopped: false,
+        //             created: Instant::now(),
+        //             is_prelaunch,
+        //         }),
+        //         None,
+        //     );
+        //     new_terminal_tab.active_terminal(false).term_id
+        // };
+        // self.common.focus.set(Focus::Panel(PanelKind::Terminal));
+        // self.terminal.focus_terminal(term_id);
+        //
+        // self.terminal.debug.active_term.set(Some(term_id));
+        // self.terminal.debug.daps.update(|daps| {
+        //     daps.insert(
+        //         config.dap_id,
+        //         DapData::new(cx, config.dap_id, term_id, self.common.clone()),
+        //     );
+        // });
+        //
+        // if !self.panel.is_panel_visible(&PanelKind::Terminal) {
+        //     self.panel.show_panel(&PanelKind::Terminal);
+        // }
     }
 
     pub fn open_paths(&self, paths: &[PathObject]) {

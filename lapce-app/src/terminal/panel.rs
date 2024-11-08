@@ -14,8 +14,10 @@ use lapce_rpc::{
 };
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 use super::{data::TerminalData, tab::TerminalTabData};
+use crate::terminal::event::TermEvent;
 use crate::{
     debug::{
         DapData, DapVariable, RunDebugConfigs, RunDebugData, RunDebugMode,
@@ -283,22 +285,20 @@ impl TerminalPanelData {
         }
     }
 
-    pub fn get_terminal(&self, terminal_id: TerminalTabId) -> Option<TerminalData> {
+    pub fn get_tab_terminal(&self, term_id: TermId) -> Option<TerminalTabData> {
         self.tab_infos.with_untracked(|info| {
             for tab in &info.tabs {
-                let terminal = tab.terminal.with_untracked(|terminals| {
-                    if terminals.term_id == terminal_id {
-                        Some(terminals.clone())
-                    } else {
-                        None
-                    }
-                });
-                if let Some(terminal) = terminal {
-                    return Some(terminal);
+                if tab.terminal_tab_id == term_id {
+                    return Some(tab.clone());
                 }
             }
             None
         })
+    }
+
+    pub fn get_terminal(&self, term_id: TermId) -> Option<TerminalData> {
+        let tab = self.get_tab_terminal(term_id)?;
+        Some(tab.terminal.get_untracked())
     }
 
     fn get_terminal_in_tab(
@@ -427,7 +427,8 @@ impl TerminalPanelData {
                     }
                 }
             } else {
-                self.close_terminal(term_id);
+                todo!("???")
+                // self.close_terminal(term_id);
             }
         }
     }
@@ -568,13 +569,26 @@ impl TerminalPanelData {
         }
     }
 
-    pub fn stop_run_debug(&self, terminal_id: TerminalTabId) -> Option<()> {
+    pub fn manual_stop_run_debug(&self, terminal_id: TerminalTabId) -> Option<()> {
         let terminal = self.get_terminal(terminal_id)?;
-        let run_debug = terminal.run_debug.get_untracked()?;
+        let run_debug = terminal
+            .run_debug
+            .try_update(|x| {
+                x.as_mut().map(|x| x.stopped = true);
+                x.clone()
+            })
+            .flatten()?;
 
         match run_debug.mode {
             RunDebugMode::Run => {
                 self.common.proxy.terminal_close(terminal.term_id);
+                if let Err(err) = self
+                    .common
+                    .term_tx
+                    .send((terminal.term_id, TermEvent::CloseTerminal))
+                {
+                    error!("{:?}", err);
+                }
             }
             RunDebugMode::Debug => {
                 let dap_id = run_debug.config.dap_id;

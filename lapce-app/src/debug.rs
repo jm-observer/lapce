@@ -45,9 +45,10 @@ impl Display for RunDebugMode {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RunDebugProcess {
     pub mode: RunDebugMode,
+    pub origin_config: RunDebugConfig,
     pub config: RunDebugConfig,
     pub stopped: bool,
     pub created: Instant,

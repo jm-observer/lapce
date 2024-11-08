@@ -124,7 +124,7 @@ pub enum CoreNotification {
         term_id: TermId,
         exit_code: Option<i32>,
     },
-    RunInTerminal {
+    DapRunInTerminal {
         config: RunDebugConfig,
     },
     Log {
@@ -309,8 +309,8 @@ impl CoreRpcHandler {
         });
     }
 
-    pub fn run_in_terminal(&self, config: RunDebugConfig) {
-        self.notification(CoreNotification::RunInTerminal { config });
+    pub fn dap_run_in_terminal(&self, config: RunDebugConfig) {
+        self.notification(CoreNotification::DapRunInTerminal { config });
     }
 
     pub fn log(&self, level: LogLevel, message: String, target: Option<String>) {

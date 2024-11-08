@@ -203,7 +203,7 @@ impl DapClient {
                     serde_json::from_value(value.clone())?;
                 let mut config = self.config.clone();
                 config.debug_command = Some(args.args);
-                self.plugin_rpc.core_rpc.run_in_terminal(config);
+                self.plugin_rpc.core_rpc.dap_run_in_terminal(config);
                 let (term_id, process_id) =
                     self.dap_rpc.termain_process_rx.recv()?;
                 self.term_id = Some(term_id);

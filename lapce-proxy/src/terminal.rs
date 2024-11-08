@@ -155,9 +155,10 @@ impl Terminal {
         let mut events =
             polling::Events::with_capacity(NonZeroUsize::new(1024).unwrap());
 
-        let timeout = Some(Duration::from_secs(6));
+        let timeout = Some(Duration::from_secs(2));
         let mut exit_code = None;
         let mut should_exit = false;
+        tracing::debug!("terminal {:?} loop", self.term_id);
         'event_loop: loop {
             events.clear();
             if let Err(err) = self.poller.wait(&mut events, timeout) {
@@ -173,7 +174,11 @@ impl Terminal {
 
             // Handle channel events, if there are any.
             if !self.drain_recv_channel(&mut state) {
-                break;
+                tracing::debug!("terminal {:?} end by Msg::Shutdown", self.term_id);
+                if let Err(err) = self.pty.deregister(&self.poller) {
+                    tracing::error!("{:?}", err);
+                }
+                return;
             }
 
             for event in events.iter() {
@@ -185,6 +190,10 @@ impl Terminal {
                             if let Err(err) = self.pty_read(&core_rpc, &mut buf) {
                                 tracing::error!("{:?}", err);
                             }
+                            tracing::debug!(
+                                "terminal {:?} end by exit_code {exited_code:?}",
+                                self.term_id
+                            );
                             exit_code = exited_code;
                             should_exit = true;
                         }

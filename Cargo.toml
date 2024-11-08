@@ -142,18 +142,6 @@ codegen-units = 1
 # To use this profile:
 #   cargo build --profile fastdev
 #   cargo run --profile fastdev --bin lapce
-[profile.fastdev.package.floem]
-opt-level = 0
-debug =  2
-[profile.fastdev.package.floem-editor-core]
-opt-level = 0
-debug =  2
-[profile.fastdev.package.lapce]
-opt-level = 0
-debug =  2
-[profile.fastdev.package."*"]
-opt-level = 3
-debug = 0
 
 [profile.fastdev]
 inherits = "dev"

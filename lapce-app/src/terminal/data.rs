@@ -336,6 +336,7 @@ impl TerminalData {
         common: Rc<CommonData>,
         launch_error: RwSignal<Option<String>>,
     ) -> Arc<RwLock<RawTerminal>> {
+        tracing::debug!("term_id={term_id:?} new_raw_terminal");
         let raw = Arc::new(RwLock::new(RawTerminal::new(
             term_id,
             common.proxy.clone(),
