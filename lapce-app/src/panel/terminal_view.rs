@@ -13,9 +13,9 @@ use floem::{
     },
     View, ViewId,
 };
-use lapce_rpc::terminal::TermId;
 
 use super::kind::PanelKind;
+use crate::id::TerminalTabId;
 use crate::{
     app::clickable_icon,
     command::{InternalCommand, LapceWorkbenchCommand},
@@ -57,17 +57,9 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
 
     stack((
         scroll(dyn_stack(
-            move || {
-                let tabs = terminal.tab_infos.with(|info| info.tabs.clone());
-                for (i, (index, _)) in tabs.iter().enumerate() {
-                    if index.get_untracked() != i {
-                        index.set(i);
-                    }
-                }
-                tabs
-            },
-            |(_, tab)| tab.terminal_tab_id,
-            move |(index, tab)| {
+            move || terminal.tab_infos.with(|info| info.tabs.clone()),
+            |tab| tab.terminal_tab_id,
+            move |tab| {
                 let terminal = terminal.clone();
                 let local_terminal = terminal.clone();
                 let terminal_tab_id = tab.terminal_tab_id;
@@ -158,11 +150,13 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                     container({
                         label(|| "".to_string()).style(move |s| {
                             s.size_pct(100.0, 100.0)
-                                .border_bottom(if active_index() == index.get() {
-                                    2.0
-                                } else {
-                                    0.0
-                                })
+                                .border_bottom(
+                                    if active_index() == Some(terminal_tab_id) {
+                                        2.0
+                                    } else {
+                                        0.0
+                                    },
+                                )
                                 .border_color(config.get().color(
                                     if focus.get()
                                         == Focus::Panel(PanelKind::Terminal)
@@ -182,10 +176,10 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                     EventListener::PointerDown,
                     move |_| {
                         if tab_info.with_untracked(|tab| tab.active)
-                            != index.get_untracked()
+                            != Some(terminal_tab_id)
                         {
                             tab_info.update(|tab| {
-                                tab.active = index.get_untracked();
+                                tab.active = Some(terminal_tab_id);
                             });
                             local_terminal.update_debug_active_term();
                         }
@@ -256,14 +250,13 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
 fn terminal_tab_split(
     terminal_panel_data: TerminalPanelData,
     terminal_tab_data: TerminalTabData,
-    tab_index: usize,
 ) -> impl View {
-    let config = terminal_panel_data.common.config;
     let internal_command = terminal_panel_data.common.internal_command;
     let workspace = terminal_panel_data.workspace.clone();
     let terminal_panel_data = terminal_panel_data.clone();
     container({
         let terminal = terminal_tab_data.terminal.get();
+        let terminal_id = terminal.term_id;
         let terminal_view = terminal_view(
             terminal.term_id,
             terminal.raw.read_only(),
@@ -279,12 +272,7 @@ fn terminal_tab_split(
         terminal_view
             .on_secondary_click_stop(move |_| {
                 if have_task {
-                    tab_secondary_click(
-                        internal_command,
-                        view_id,
-                        tab_index,
-                        terminal.term_id,
-                    );
+                    tab_secondary_click(internal_command, view_id, terminal_id);
                 }
             })
             .on_event(EventListener::PointerWheel, move |event| {
@@ -309,12 +297,15 @@ fn terminal_tab_split(
 fn terminal_tab_content(window_tab_data: Rc<WindowTabData>) -> impl View {
     let terminal = window_tab_data.terminal.clone();
     tab(
-        move || terminal.tab_infos.with(|info| info.active),
-        move || terminal.tab_infos.with(|info| info.tabs.clone()),
-        |(_, tab)| tab.terminal_tab_id,
-        move |(tab_index, tab)| {
-            terminal_tab_split(terminal.clone(), tab, tab_index.get_untracked())
+        move || {
+            terminal.tab_infos.with(|info| {
+                info.active_tab().map(|x| x.0).unwrap_or_default()
+                // info.active.map(|x| x.to_raw() as usize).unwrap_or_default()
+            })
         },
+        move || terminal.tab_infos.with(|info| info.tabs.clone()),
+        |tab| tab.terminal_tab_id,
+        move |tab| terminal_tab_split(terminal.clone(), tab),
     )
     .style(|s| s.size_pct(100.0, 100.0))
     .debug_name("terminal_tab_content")
@@ -323,20 +314,21 @@ fn terminal_tab_content(window_tab_data: Rc<WindowTabData>) -> impl View {
 fn tab_secondary_click(
     internal_command: Listener<InternalCommand>,
     view_id: ViewId,
-    tab_index: usize,
-    term_id: TermId,
+    terminal_id: TerminalTabId,
 ) {
     let mut menu = Menu::new("");
     menu = menu
         .entry(MenuItem::new("Stop").action(move || {
-            internal_command.send(InternalCommand::StopTerminal { term_id });
+            internal_command.send(InternalCommand::StopTerminal { terminal_id });
         }))
         .entry(MenuItem::new("Restart").action(move || {
-            internal_command.send(InternalCommand::RestartTerminal { term_id });
+            internal_command.send(InternalCommand::RestartTerminal { terminal_id });
         }))
         .entry(MenuItem::new("Clear All").action(move || {
-            internal_command
-                .send(InternalCommand::ClearTerminalBuffer { view_id, tab_index });
+            internal_command.send(InternalCommand::ClearTerminalBuffer {
+                view_id,
+                terminal_id,
+            });
         }));
     show_context_menu(menu, None);
 }

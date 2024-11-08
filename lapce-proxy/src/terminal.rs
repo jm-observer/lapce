@@ -50,7 +50,7 @@ impl Terminals {
 
     pub fn remove(&mut self, id: &TermId) -> Option<TerminalSender> {
         info!("Terminals remove id={id:?}");
-        self.terminals.remove(&id)
+        self.terminals.remove(id)
     }
 }
 

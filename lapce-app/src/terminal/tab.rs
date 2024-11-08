@@ -1,6 +1,6 @@
 use std::{rc::Rc, sync::Arc};
 
-use floem::reactive::{RwSignal, Scope, SignalGet, SignalWith};
+use floem::reactive::{RwSignal, Scope, SignalWith};
 use lapce_rpc::terminal::TerminalProfile;
 
 use super::data::TerminalData;
@@ -35,8 +35,8 @@ impl TerminalTabData {
         let cx = common.scope.create_child();
         let terminal_data =
             TerminalData::new_run_debug(cx, workspace, run_debug, profile, common);
+        let terminal_tab_id = terminal_data.term_id;
         let terminals = cx.create_rw_signal(terminal_data);
-        let terminal_tab_id = TerminalTabId::next();
         Self {
             scope: cx,
             terminal_tab_id,

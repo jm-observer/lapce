@@ -2126,28 +2126,32 @@ impl WindowTabData {
                     }
                 };
             }
-            InternalCommand::ClearTerminalBuffer { view_id, tab_index } => {
+            InternalCommand::ClearTerminalBuffer {
+                view_id,
+                terminal_id,
+            } => {
                 let Some(tab) = self.terminal.tab_infos.with_untracked(|x| {
-                    x.tabs.iter().find_map(|(index, data)| {
-                        if index.get_untracked() == tab_index {
+                    x.tabs.iter().find_map(|data| {
+                        if data.terminal_tab_id == terminal_id {
                             Some(data.clone())
                         } else {
                             None
                         }
                     })
                 }) else {
-                    error!("cound not find terminal tab data: index={tab_index}");
+                    error!("cound not find terminal tab data: terminal_id={terminal_id:?}");
                     return;
                 };
                 let raw = tab.terminal.with_untracked(|x| x.raw.get_untracked());
                 raw.write().term.reset_state();
                 view_id.request_paint();
             }
-            InternalCommand::StopTerminal { term_id } => {
-                self.terminal.stop_run_debug(term_id);
+            InternalCommand::StopTerminal { terminal_id } => {
+                self.terminal.stop_run_debug(terminal_id);
             }
-            InternalCommand::RestartTerminal { term_id } => {
-                if let Some(is_debug) = self.terminal.restart_run_debug(term_id) {
+            InternalCommand::RestartTerminal { terminal_id } => {
+                if let Some(is_debug) = self.terminal.restart_run_debug(terminal_id)
+                {
                     self.panel.show_panel(&PanelKind::Terminal);
                     if is_debug {
                         self.panel.show_panel(&PanelKind::Debug);

@@ -31,7 +31,6 @@ use lapce_rpc::{
     },
     source_control::{DiffInfo, FileDiff},
     style::{LineStyle, SemanticStyles},
-    terminal::TermId,
     RequestId, RpcError,
 };
 use lapce_xi_rope::Rope;

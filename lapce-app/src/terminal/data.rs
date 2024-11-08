@@ -31,7 +31,7 @@ use super::{
     raw::{EventProxy, RawTerminal},
 };
 use crate::{
-    command::{CommandExecuted, CommandKind, InternalCommand},
+    command::{CommandExecuted, CommandKind},
     debug::{RunDebugMode, RunDebugProcess},
     keypress::{condition::Condition, KeyPressFocus},
     window_tab::CommonData,
@@ -314,7 +314,6 @@ impl TerminalData {
         let mode = cx.create_rw_signal(Mode::Terminal);
         let visual_mode = cx.create_rw_signal(VisualMode::Normal);
         let raw = cx.create_rw_signal(raw);
-
         Self {
             scope: cx,
             term_id,

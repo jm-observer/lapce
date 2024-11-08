@@ -14,13 +14,14 @@ use lapce_rpc::{
     dap_types::{DapId, RunDebugConfig},
     plugin::{PluginId, VoltID},
     proxy::ProxyStatus,
-    terminal::{TermId, TerminalProfile},
+    terminal::TerminalProfile,
 };
 use lsp_types::{CodeActionOrCommand, Position, WorkspaceEdit};
 use serde_json::Value;
 use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 
+use crate::id::TerminalTabId;
 use crate::{
     alert::AlertButton,
     debug::RunDebugMode,
@@ -787,19 +788,19 @@ pub enum InternalCommand {
         program: String,
         arguments: Vec<String>,
     },
-    ClearTerminalBuffer {
-        view_id: ViewId,
-        tab_index: usize,
-    },
     CallHierarchyIncoming {
         root_id: ViewId,
         item_id: ViewId,
     },
+    ClearTerminalBuffer {
+        view_id: ViewId,
+        terminal_id: TerminalTabId,
+    },
     StopTerminal {
-        term_id: TermId,
+        terminal_id: TerminalTabId,
     },
     RestartTerminal {
-        term_id: TermId,
+        terminal_id: TerminalTabId,
     },
 }
 

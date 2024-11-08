@@ -350,7 +350,7 @@ fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                             return DapVariable::default();
                         }
                         let process_stopped = terminal
-                            .get_terminal(&dap.term_id)
+                            .get_terminal(dap.term_id)
                             .and_then(|t| {
                                 t.run_debug.with(|r| r.as_ref().map(|r| r.stopped))
                             })
@@ -416,7 +416,7 @@ fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                             let dap = local_terminal.get_active_dap(false);
                             if let Some(dap) = dap {
                                 let process_stopped = local_terminal
-                                    .get_terminal(&dap.term_id)
+                                    .get_terminal(dap.term_id)
                                     .and_then(|t| {
                                         t.run_debug
                                             .with(|r| r.as_ref().map(|r| r.stopped))
@@ -580,7 +580,7 @@ fn debug_stack_traces(
                     let dap = local_terminal.get_active_dap(true);
                     if let Some(dap) = dap {
                         let process_stopped = local_terminal
-                            .get_terminal(&dap.term_id)
+                            .get_terminal(dap.term_id)
                             .and_then(|t| {
                                 t.run_debug.with(|r| r.as_ref().map(|r| r.stopped))
                             })

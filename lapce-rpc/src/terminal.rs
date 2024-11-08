@@ -12,6 +12,10 @@ impl TermId {
         static TERMINAL_ID_COUNTER: Counter = Counter::new();
         Self(TERMINAL_ID_COUNTER.next())
     }
+
+    pub fn to_raw(&self) -> u64 {
+        self.0
+    }
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Default)]
