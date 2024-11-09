@@ -119,8 +119,11 @@ impl DapClient {
                     writer.write_all(msg.as_bytes())?;
                     writer.flush()?;
                 }
+                // if msg.is_disconnect() {
+                //     tracing::debug!("thread(write to dap) exited");
+                //     break;
+                // }
             }
-            tracing::debug!("thread(write to dap) exited");
             Ok(())
         });
 
@@ -204,12 +207,12 @@ impl DapClient {
                 let mut config = self.config.clone();
                 config.debug_command = Some(args.args);
                 self.plugin_rpc.core_rpc.dap_run_in_terminal(config);
-                let (term_id, process_id) =
+                let (term_id, shell_process_id) =
                     self.dap_rpc.termain_process_rx.recv()?;
                 self.term_id = Some(term_id);
                 let resp = RunInTerminalResponse {
-                    process_id,
-                    shell_process_id: None,
+                    process_id: None,
+                    shell_process_id,
                 };
                 let resp = serde_json::to_value(resp)?;
                 Ok(resp)
@@ -656,7 +659,7 @@ impl DapRpcHandler {
             "cwd": config.cwd,
             "runInTerminal": true,
             "env": config.env,
-            "terminal":"console"
+            "terminal":"integrated"
         });
         let _resp = self
             .request::<Launch>(params)

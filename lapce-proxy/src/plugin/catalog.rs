@@ -27,6 +27,7 @@ use lsp_types::{
 use parking_lot::Mutex;
 use psp_types::Notification;
 use serde_json::Value;
+use tracing::debug;
 
 use super::{
     dap::{DapClient, DapRpcHandler, DebuggerData},
@@ -685,6 +686,7 @@ impl PluginCatalog {
             }
             DapStop { dap_id } => {
                 if let Some(dap) = self.daps.remove(&dap_id) {
+                    debug!("DapStop {dap_id:?}");
                     dap.stop();
                 }
             }

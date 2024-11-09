@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use std::{collections::HashMap, path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
@@ -569,37 +570,50 @@ impl TerminalPanelData {
         }
     }
 
-    pub fn manual_stop_run_debug(&self, terminal_id: TerminalTabId) -> Option<()> {
-        let terminal = self.get_terminal(terminal_id)?;
-        let run_debug = terminal
+    pub fn manual_stop_run_debug(&self, terminal_id: TerminalTabId) {
+        if let Err(err) = self._manual_stop_run_debug(terminal_id) {
+            error!("manual_stop_run_debug {:?}", err);
+        }
+    }
+    fn _manual_stop_run_debug(
+        &self,
+        terminal_id: TerminalTabId,
+    ) -> anyhow::Result<()> {
+        let terminal = self
+            .get_terminal(terminal_id)
+            .ok_or(anyhow!("not found terminal data {terminal_id:?}"))?;
+        let Some(run_debug) = terminal
             .run_debug
             .try_update(|x| {
                 x.as_mut().map(|x| x.stopped = true);
                 x.clone()
             })
-            .flatten()?;
+            .flatten()
+        else {
+            return Ok(());
+        };
 
         match run_debug.mode {
             RunDebugMode::Run => {
                 self.common.proxy.terminal_close(terminal.term_id);
-                if let Err(err) = self
-                    .common
+                self.common
                     .term_tx
-                    .send((terminal.term_id, TermEvent::CloseTerminal))
-                {
-                    error!("{:?}", err);
-                }
+                    .send((terminal.term_id, TermEvent::CloseTerminal))?;
             }
             RunDebugMode::Debug => {
                 let dap_id = run_debug.config.dap_id;
                 let daps = self.debug.daps.get_untracked();
-                let dap = daps.get(&dap_id)?;
+                let dap = daps
+                    .get(&dap_id)
+                    .ok_or(anyhow!("not found dap data {dap_id:?}"))?;
                 self.common.proxy.dap_stop(dap.dap_id);
+                self.common
+                    .term_tx
+                    .send((terminal.term_id, TermEvent::CloseTerminal))?;
             }
         }
-
         self.focus_terminal(terminal_id);
-        Some(())
+        Ok(())
     }
 
     pub fn run_debug_process(
@@ -687,6 +701,12 @@ impl TerminalPanelData {
         let thread_id = thread_id.unwrap_or_default();
         self.common.proxy.dap_continue(dap_id, thread_id);
         Some(())
+    }
+
+    pub fn dap_start(&self, config: RunDebugConfig) {
+        self.common
+            .proxy
+            .dap_start(config, self.debug.source_breakpoints());
     }
 
     pub fn dap_pause(&self, term_id: TermId) -> Option<()> {

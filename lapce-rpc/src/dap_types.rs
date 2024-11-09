@@ -181,6 +181,16 @@ pub enum DapPayload {
     Event(DapEvent),
 }
 
+impl DapPayload {
+    pub fn is_disconnect(&self) -> bool {
+        if let DapPayload::Request(req) = self {
+            req.command.as_str() == "disconnect"
+        } else {
+            false
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Initialize {}
 

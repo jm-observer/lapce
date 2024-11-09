@@ -51,6 +51,7 @@ use lsp_types::{
 use serde_json::Value;
 use tracing::{debug, error, event, info, Level};
 
+use crate::debug::DapData;
 use crate::id::TerminalTabId;
 use crate::{
     about::AboutData,
@@ -2813,10 +2814,7 @@ impl WindowTabData {
                 if config.prelaunch.is_some() {
                     self.run_program_in_terminal(cx, &mode, &config, false);
                 } else {
-                    self.common.proxy.dap_start(
-                        config.clone(),
-                        self.terminal.debug.source_breakpoints(),
-                    )
+                    self.terminal.dap_start(config);
                 };
                 if !self.panel.is_panel_visible(&PanelKind::Debug) {
                     self.panel.show_panel(&PanelKind::Debug);
@@ -2831,7 +2829,7 @@ impl WindowTabData {
         mode: &RunDebugMode,
         config: &RunDebugConfig,
         from_dap: bool,
-    ) {
+    ) -> TermId {
         // if not from dap, then run prelaunch first
         let is_prelaunch = !from_dap;
         let term_id = if let Some(terminal) =
@@ -2866,6 +2864,14 @@ impl WindowTabData {
         if !self.panel.is_panel_visible(&PanelKind::Terminal) {
             self.panel.show_panel(&PanelKind::Terminal);
         }
+        if from_dap {
+            let dap_id = config.dap_id;
+            let dap_data = DapData::new(_cx, dap_id, term_id, self.common.clone());
+            self.terminal.debug.daps.update(|x| {
+                x.insert(dap_id, dap_data);
+            });
+        }
+        term_id
     }
 
     fn restart_run_program_in_terminal(
