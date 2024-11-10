@@ -2132,22 +2132,8 @@ impl WindowTabData {
                 self.terminal.manual_stop_run_debug(terminal_id);
             }
             InternalCommand::RestartTerminal { terminal_id } => {
-                match self.restart_run_program_in_terminal(terminal_id) {
-                    Ok(_) => {
-                        // todo!()
-                        // if let Some(is_debug) = self.restart_run_program_in_terminal(terminal_id)
-                        // {
-                        //     self.panel.show_panel(&PanelKind::Terminal);
-                        //     if is_debug {
-                        //         self.panel.show_panel(&PanelKind::Debug);
-                        //     }
-                        // } else {
-                        //     self.palette.run(PaletteKind::RunAndDebug);
-                        // }
-                    }
-                    Err(_) => {
-                        // todo!()
-                    }
+                if let Err(err) = self.restart_run_program_in_terminal(terminal_id) {
+                    error!("RestartTerminal {err:?}");
                 }
             }
             InternalCommand::NewTerminal { profile } => {
@@ -2284,7 +2270,46 @@ impl WindowTabData {
                 self.terminal.launch_failed(term_id, error);
             }
             CoreNotification::DapRunInTerminal { config } => {
-                self.run_program_in_terminal(cx, &RunDebugMode::Debug, config, true);
+                let dap_id = config.dap_id;
+                if let Some(dap_data) = self
+                    .terminal
+                    .debug
+                    .daps
+                    .with_untracked(|x| x.get(&dap_id).cloned())
+                {
+                    let Some(term_id) = dap_data.term_id else {
+                        self.run_program_in_terminal(
+                            cx,
+                            &RunDebugMode::Debug,
+                            config,
+                            true,
+                        );
+                        return;
+                    };
+                    if let Some(terminal) = self.terminal.get_terminal(term_id) {
+                        let Some(origin_config) =
+                            terminal.run_debug.with_untracked(|x| {
+                                x.as_ref().map(|x| x.origin_config.clone())
+                            })
+                        else {
+                            error!("no found terminal {term_id:?}");
+                            return;
+                        };
+                        error!("{:?}", origin_config);
+                        terminal.new_process(Some(RunDebugProcess {
+                            mode: RunDebugMode::Debug,
+                            origin_config,
+                            config: config.clone(),
+                            stopped: false,
+                            created: Instant::now(),
+                            is_prelaunch: false,
+                        }));
+                    } else {
+                        error!("no found terminal {term_id:?}");
+                    }
+                } else {
+                    error!("no found dap_data {dap_id:?}");
+                }
             }
             CoreNotification::TerminalProcessId {
                 term_id,
@@ -2811,6 +2836,11 @@ impl WindowTabData {
                 self.run_program_in_terminal(cx, &mode, &config, false);
             }
             RunDebugMode::Debug => {
+                let dap_id = config.dap_id;
+                let dap_data = DapData::new(cx, dap_id, None, self.common.clone());
+                self.terminal.debug.daps.update(|x| {
+                    x.insert(dap_id, dap_data);
+                });
                 if config.prelaunch.is_some() {
                     self.run_program_in_terminal(cx, &mode, &config, false);
                 } else {
@@ -2866,9 +2896,12 @@ impl WindowTabData {
         }
         if from_dap {
             let dap_id = config.dap_id;
-            let dap_data = DapData::new(_cx, dap_id, term_id, self.common.clone());
             self.terminal.debug.daps.update(|x| {
-                x.insert(dap_id, dap_data);
+                if let Some(data) = x.get_mut(&dap_id) {
+                    data.term_id = Some(term_id);
+                } else {
+                    error!("no found dap data {dap_id:?}")
+                }
             });
         }
         term_id
@@ -2887,57 +2920,46 @@ impl WindowTabData {
             .run_debug
             .get_untracked()
             .ok_or(anyhow!("run_debug is none(terminal_id={terminal_id:?})"))?;
-        run_debug.config = run_debug.origin_config.clone();
-        run_debug.stopped = false;
-        run_debug.created = Instant::now();
-        run_debug.is_prelaunch = true;
-        tracing::info!("restart_run_program_in_terminal run_debug={run_debug:?}");
-        self.terminal.manual_stop_run_debug(terminal_id);
 
-        terminal.new_process(Some(run_debug));
+        tracing::info!("restart_run_program_in_terminal {run_debug:?}");
+        if !run_debug.stopped {
+            self.terminal.manual_stop_run_debug(terminal_id);
+        }
+        match run_debug.mode {
+            RunDebugMode::Run => {
+                run_debug.config = run_debug.origin_config.clone();
+                run_debug.stopped = false;
+                run_debug.created = Instant::now();
+                run_debug.is_prelaunch = true;
+                terminal.new_process(Some(run_debug));
+            }
+            RunDebugMode::Debug => {
+                let config = run_debug.origin_config.clone();
+                let dap_id = config.dap_id;
+                let dap_data = DapData::new(
+                    self.scope,
+                    dap_id,
+                    Some(terminal.term_id),
+                    self.common.clone(),
+                );
+                self.terminal.debug.daps.update(|x| {
+                    x.insert(dap_id, dap_data);
+                });
+                if config.prelaunch.is_some() {
+                    run_debug.config = config.clone();
+                    run_debug.stopped = false;
+                    run_debug.created = Instant::now();
+                    run_debug.is_prelaunch = true;
+                    terminal.new_process(Some(run_debug));
+                } else {
+                    self.terminal.dap_start(config);
+                };
+                if !self.panel.is_panel_visible(&PanelKind::Debug) {
+                    self.panel.show_panel(&PanelKind::Debug);
+                }
+            }
+        }
         Ok(())
-        // if not from dap, then run prelaunch first
-        // let term_id = if let Some(terminal) =
-        //     self.terminal.get_stopped_run_debug_terminal( mode, config)
-        // {
-        //     terminal.new_process(Some(RunDebugProcess {
-        //         mode: *mode,
-        //         origin_config: config.clone(),
-        //         config: config.clone(),
-        //         stopped: false,
-        //         created: Instant::now(),
-        //         is_prelaunch,
-        //     }));
-        //
-        //     terminal.term_id
-        // } else {
-        //     let new_terminal_tab = self.terminal.new_tab_run_debug(
-        //         Some(RunDebugProcess {
-        //             origin_config: config.clone(),
-        //             mode: *mode,
-        //             config: config.clone(),
-        //             stopped: false,
-        //             created: Instant::now(),
-        //             is_prelaunch,
-        //         }),
-        //         None,
-        //     );
-        //     new_terminal_tab.active_terminal(false).term_id
-        // };
-        // self.common.focus.set(Focus::Panel(PanelKind::Terminal));
-        // self.terminal.focus_terminal(term_id);
-        //
-        // self.terminal.debug.active_term.set(Some(term_id));
-        // self.terminal.debug.daps.update(|daps| {
-        //     daps.insert(
-        //         config.dap_id,
-        //         DapData::new(cx, config.dap_id, term_id, self.common.clone()),
-        //     );
-        // });
-        //
-        // if !self.panel.is_panel_visible(&PanelKind::Terminal) {
-        //     self.panel.show_panel(&PanelKind::Terminal);
-        // }
     }
 
     pub fn open_paths(&self, paths: &[PathObject]) {

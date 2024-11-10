@@ -96,6 +96,7 @@ pub struct Terminal {
     pub(crate) pty: alacritty_terminal::tty::Pty,
     rx: Receiver<Msg>,
     pub tx: Sender<Msg>,
+    shell: Option<Shell>,
 }
 
 impl Terminal {
@@ -106,9 +107,9 @@ impl Terminal {
         height: usize,
     ) -> Result<Terminal> {
         let poll = polling::Poller::new()?.into();
-
+        let shell = Terminal::program(&profile);
         let options = Options {
-            shell: Terminal::program(&profile),
+            shell: shell.clone(),
             working_directory: Terminal::workdir(&profile),
             hold: false,
             env: profile.environment.unwrap_or_default(),
@@ -135,6 +136,7 @@ impl Terminal {
             pty,
             tx,
             rx,
+            shell,
         })
     }
 
@@ -158,7 +160,7 @@ impl Terminal {
         let timeout = Some(Duration::from_secs(2));
         let mut exit_code = None;
         let mut should_exit = false;
-        tracing::debug!("terminal {:?} loop", self.term_id);
+        tracing::debug!("terminal {:?} {:?} loop", self.term_id, self.shell);
         'event_loop: loop {
             events.clear();
             if let Err(err) = self.poller.wait(&mut events, timeout) {
@@ -174,7 +176,11 @@ impl Terminal {
 
             // Handle channel events, if there are any.
             if !self.drain_recv_channel(&mut state) {
-                tracing::debug!("terminal {:?} end by Msg::Shutdown", self.term_id);
+                tracing::debug!(
+                    "terminal {:?} {:?} end by Msg::Shutdown",
+                    self.term_id,
+                    self.shell
+                );
                 if let Err(err) = self.pty.deregister(&self.poller) {
                     tracing::error!("{:?}", err);
                 }
@@ -191,8 +197,8 @@ impl Terminal {
                                 tracing::error!("{:?}", err);
                             }
                             tracing::debug!(
-                                "terminal {:?} end by exit_code {exited_code:?}",
-                                self.term_id
+                                "terminal {:?} {:?} end by exit_code {exited_code:?}",
+                                self.term_id, self.shell
                             );
                             exit_code = exited_code;
                             should_exit = true;

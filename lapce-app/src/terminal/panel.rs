@@ -15,7 +15,7 @@ use lapce_rpc::{
 };
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use tracing::error;
+use tracing::{debug, error};
 
 use super::{data::TerminalData, tab::TerminalTabData};
 use crate::terminal::event::TermEvent;
@@ -136,7 +136,7 @@ impl TerminalPanelData {
                 }
 
                 let daps = daps.get();
-                let dap = daps.values().find(|d| d.term_id == active_term);
+                let dap = daps.values().find(|d| d.term_id == Some(active_term));
                 dap.and_then(|dap| dap.breakline.get())
             })
         };
@@ -387,10 +387,11 @@ impl TerminalPanelData {
     pub fn terminal_stopped(&self, term_id: &TermId, exit_code: Option<i32>) {
         if let Some(terminal) = self.get_terminal(*term_id) {
             if terminal.run_debug.with_untracked(|r| r.is_some()) {
-                let was_prelaunch = terminal
+                let (was_prelaunch, dap_id) = terminal
                     .run_debug
                     .try_update(|run_debug| {
                         if let Some(run_debug) = run_debug.as_mut() {
+                            let dap_id = run_debug.origin_config.dap_id;
                             if run_debug.is_prelaunch
                                 && run_debug.config.prelaunch.is_some()
                             {
@@ -399,18 +400,24 @@ impl TerminalPanelData {
                                     // set it to be stopped so that the dap can pick the same terminal session
                                     run_debug.stopped = true;
                                 }
-                                Some(true)
+                                Some((true, dap_id))
                             } else {
                                 run_debug.stopped = true;
-                                Some(false)
+                                Some((false, dap_id))
                             }
                         } else {
                             None
                         }
                     })
+                    .flatten()
                     .unwrap();
                 let exit_code = exit_code.unwrap_or(0);
-                if was_prelaunch == Some(true) && exit_code == 0 {
+                if was_prelaunch == true && exit_code == 0 {
+                    self.debug.daps.try_update(|x| {
+                        if let Some(process) = x.get_mut(&dap_id) {
+                            process.term_id = Some(*term_id);
+                        }
+                    });
                     let run_debug = terminal.run_debug.get_untracked();
                     if let Some(mut run_debug) = run_debug {
                         if run_debug.mode == RunDebugMode::Debug {
@@ -585,14 +592,26 @@ impl TerminalPanelData {
         let Some(run_debug) = terminal
             .run_debug
             .try_update(|x| {
-                x.as_mut().map(|x| x.stopped = true);
-                x.clone()
+                let mut stopped = false;
+                if let Some(x) = x.as_mut() {
+                    stopped = x.stopped;
+                    x.stopped = true
+                }
+                if stopped {
+                    None
+                } else {
+                    x.clone()
+                }
             })
             .flatten()
         else {
             return Ok(());
         };
 
+        debug!(
+            "manual_stop_run_debug {:?} {:?}",
+            run_debug.mode, terminal.term_id
+        );
         match run_debug.mode {
             RunDebugMode::Run => {
                 self.common.proxy.terminal_close(terminal.term_id);
@@ -602,14 +621,17 @@ impl TerminalPanelData {
             }
             RunDebugMode::Debug => {
                 let dap_id = run_debug.config.dap_id;
-                let daps = self.debug.daps.get_untracked();
-                let dap = daps
-                    .get(&dap_id)
+                self.debug
+                    .daps
+                    .try_update(|x| x.remove(&dap_id))
+                    .flatten()
                     .ok_or(anyhow!("not found dap data {dap_id:?}"))?;
-                self.common.proxy.dap_stop(dap.dap_id);
-                self.common
-                    .term_tx
-                    .send((terminal.term_id, TermEvent::CloseTerminal))?;
+
+                self.common.proxy.dap_stop(dap_id);
+                // terminal close by dap
+                // self.common
+                //     .term_tx
+                //     .send((terminal.term_id, TermEvent::CloseTerminal))?;
             }
         }
         self.focus_terminal(terminal_id);

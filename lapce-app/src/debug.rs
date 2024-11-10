@@ -185,7 +185,7 @@ pub struct DapVariable {
 
 #[derive(Clone)]
 pub struct DapData {
-    pub term_id: TermId,
+    pub term_id: Option<TermId>,
     pub dap_id: DapId,
     pub stopped: RwSignal<bool>,
     pub thread_id: RwSignal<Option<ThreadId>>,
@@ -200,7 +200,7 @@ impl DapData {
     pub fn new(
         cx: Scope,
         dap_id: DapId,
-        term_id: TermId,
+        term_id: Option<TermId>,
         common: Rc<CommonData>,
     ) -> Self {
         let stopped = cx.create_rw_signal(false);

@@ -517,12 +517,14 @@ impl DapRpcHandler {
                 // }
                 DapRpc::Disconnected => {
                     dap_client.disconnected = true;
-                    if let Some(term_id) = dap_client.term_id {
-                        dap_client.plugin_rpc.proxy_rpc.terminal_close(term_id);
-                    }
-                    if let Err(err) = dap_client.check_restart() {
-                        error!("{:?}", err);
-                    }
+                    // close by main thread
+                    // if let Some(term_id) = dap_client.term_id {
+                    //     dap_client.plugin_rpc.proxy_rpc.terminal_close(term_id);
+                    // }
+                    // ??
+                    // if let Err(err) = dap_client.check_restart() {
+                    //     error!("{:?}", err);
+                    // }
                 }
             }
             if dap_client.terminated {

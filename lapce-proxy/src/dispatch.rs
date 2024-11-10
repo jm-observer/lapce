@@ -152,6 +152,11 @@ impl ProxyHandler for Dispatcher {
                     terminal.run(rpc);
                 });
             }
+            TerminalClose { term_id } => {
+                if let Some(tx) = self.terminals.remove(&term_id) {
+                    tx.send(Msg::Shutdown);
+                }
+            }
             TerminalWrite { term_id, content } => {
                 if let Some(tx) = self.terminals.get(&term_id) {
                     tx.send(Msg::Input(content.into_bytes().into()));
@@ -171,11 +176,6 @@ impl ProxyHandler for Dispatcher {
                     };
 
                     tx.send(Msg::Resize(size));
-                }
-            }
-            TerminalClose { term_id } => {
-                if let Some(tx) = self.terminals.remove(&term_id) {
-                    tx.send(Msg::Shutdown);
                 }
             }
             DapStart {
