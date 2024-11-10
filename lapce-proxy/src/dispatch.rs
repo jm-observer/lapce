@@ -99,7 +99,7 @@ impl ProxyHandler for Dispatcher {
             }
             Shutdown {} => {
                 self.catalog_rpc.shutdown();
-                for (_, sender) in self.terminals.iter() {
+                for (_, (_, sender)) in self.terminals.iter() {
                     sender.send(Msg::Shutdown);
                 }
                 self.proxy_rpc.shutdown();
@@ -121,14 +121,20 @@ impl ProxyHandler for Dispatcher {
                     tracing::error!("{:?}", err);
                 }
             }
-            NewTerminal { term_id, profile } => {
-                let mut terminal = match Terminal::new(term_id, profile, 50, 10) {
-                    Ok(terminal) => terminal,
-                    Err(e) => {
-                        self.core_rpc.terminal_launch_failed(term_id, e.to_string());
-                        return;
-                    }
-                };
+            NewTerminal {
+                term_id,
+                raw_id,
+                profile,
+            } => {
+                let mut terminal =
+                    match Terminal::new(raw_id, term_id, profile, 50, 10) {
+                        Ok(terminal) => terminal,
+                        Err(e) => {
+                            self.core_rpc
+                                .terminal_launch_failed(term_id, e.to_string());
+                            return;
+                        }
+                    };
 
                 #[allow(unused)]
                 let mut child_id = None;
@@ -146,19 +152,23 @@ impl ProxyHandler for Dispatcher {
                 let tx = terminal.tx.clone();
                 let poller = terminal.poller.clone();
                 let sender = TerminalSender::new(term_id, tx, poller);
-                self.terminals.insert(term_id, sender);
+                self.terminals.insert(term_id, raw_id, sender);
                 let rpc = self.core_rpc.clone();
                 thread::spawn(move || {
                     terminal.run(rpc);
                 });
             }
-            TerminalClose { term_id } => {
-                if let Some(tx) = self.terminals.remove(&term_id) {
+            TerminalClose { term_id, raw_id } => {
+                if let Some(tx) = self.terminals.remove(term_id, raw_id) {
                     tx.send(Msg::Shutdown);
                 }
             }
-            TerminalWrite { term_id, content } => {
-                if let Some(tx) = self.terminals.get(&term_id) {
+            TerminalWrite {
+                term_id,
+                raw_id,
+                content,
+            } => {
+                if let Some(tx) = self.terminals.get(term_id, raw_id) {
                     tx.send(Msg::Input(content.into_bytes().into()));
                 }
             }
@@ -167,7 +177,7 @@ impl ProxyHandler for Dispatcher {
                 width,
                 height,
             } => {
-                if let Some(tx) = self.terminals.get(&term_id) {
+                if let Some(tx) = self.terminals.get_without_raw(term_id) {
                     let size = WindowSize {
                         num_lines: height as u16,
                         num_cols: width as u16,

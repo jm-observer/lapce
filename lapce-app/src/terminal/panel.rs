@@ -412,7 +412,7 @@ impl TerminalPanelData {
                     .flatten()
                     .unwrap();
                 let exit_code = exit_code.unwrap_or(0);
-                if was_prelaunch == true && exit_code == 0 {
+                if was_prelaunch && exit_code == 0 {
                     self.debug.daps.try_update(|x| {
                         if let Some(process) = x.get_mut(&dap_id) {
                             process.term_id = Some(*term_id);
@@ -491,7 +491,9 @@ impl TerminalPanelData {
         let mut is_debug = false;
         let new_term_id = match run_debug.mode {
             RunDebugMode::Run => {
-                self.common.proxy.terminal_close(terminal.term_id);
+                self.common
+                    .proxy
+                    .terminal_close(terminal.term_id, terminal.raw_id);
                 let mut run_debug = run_debug;
                 run_debug.stopped = false;
                 run_debug.is_prelaunch = true;
@@ -614,7 +616,9 @@ impl TerminalPanelData {
         );
         match run_debug.mode {
             RunDebugMode::Run => {
-                self.common.proxy.terminal_close(terminal.term_id);
+                self.common
+                    .proxy
+                    .terminal_close(terminal.term_id, terminal.raw_id);
                 self.common
                     .term_tx
                     .send((terminal.term_id, TermEvent::CloseTerminal))?;

@@ -17,6 +17,7 @@ use super::event::TermNotification;
 
 pub struct EventProxy {
     term_id: TermId,
+    raw_id: u64,
     proxy: ProxyRpcHandler,
     term_notification_tx: Sender<TermNotification>,
 }
@@ -25,7 +26,7 @@ impl EventListener for EventProxy {
     fn send_event(&self, event: alacritty_terminal::event::Event) {
         match event {
             alacritty_terminal::event::Event::PtyWrite(s) => {
-                self.proxy.terminal_write(self.term_id, s);
+                self.proxy.terminal_write(self.term_id, self.raw_id, s);
             }
             alacritty_terminal::event::Event::MouseCursorDirty => {
                 if let Err(err) = self
@@ -51,6 +52,7 @@ impl EventListener for EventProxy {
 }
 
 pub struct RawTerminal {
+    pub raw_id: u64,
     pub parser: ansi::Processor,
     pub term: Term<EventProxy>,
     pub scroll_delta: f64,
@@ -59,6 +61,7 @@ pub struct RawTerminal {
 impl RawTerminal {
     pub fn new(
         term_id: TermId,
+        raw_id: u64,
         proxy: ProxyRpcHandler,
         term_notification_tx: Sender<TermNotification>,
     ) -> Self {
@@ -67,6 +70,7 @@ impl RawTerminal {
             ..Default::default()
         };
         let event_proxy = EventProxy {
+            raw_id,
             term_id,
             proxy,
             term_notification_tx,
@@ -77,6 +81,7 @@ impl RawTerminal {
         let parser = ansi::Processor::new();
 
         Self {
+            raw_id,
             parser,
             term,
             scroll_delta: 0.0,

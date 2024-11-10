@@ -42,6 +42,7 @@ use crate::{
 pub struct TerminalData {
     pub scope: Scope,
     pub term_id: TermId,
+    pub raw_id: u64,
     pub workspace: Arc<LapceWorkspace>,
     pub title: RwSignal<String>,
     pub launch_error: RwSignal<Option<String>>,
@@ -261,9 +262,11 @@ impl KeyPressFocus for TerminalData {
 
     fn receive_char(&self, c: &str) {
         if self.mode.get_untracked() == Mode::Terminal {
-            self.common
-                .proxy
-                .terminal_write(self.term_id, c.to_string());
+            self.common.proxy.terminal_write(
+                self.term_id,
+                self.raw_id,
+                c.to_string(),
+            );
             self.raw
                 .get_untracked()
                 .write()
@@ -301,7 +304,7 @@ impl TerminalData {
 
         let launch_error = cx.create_rw_signal(None);
 
-        let raw = Self::new_raw_terminal(
+        let (raw, raw_id) = Self::new_raw_terminal(
             &workspace,
             term_id,
             run_debug.as_ref(),
@@ -317,6 +320,7 @@ impl TerminalData {
         Self {
             scope: cx,
             term_id,
+            raw_id,
             workspace,
             raw,
             title,
@@ -335,10 +339,12 @@ impl TerminalData {
         profile: Option<TerminalProfile>,
         common: Rc<CommonData>,
         launch_error: RwSignal<Option<String>>,
-    ) -> Arc<RwLock<RawTerminal>> {
+    ) -> (Arc<RwLock<RawTerminal>>, u64) {
         tracing::debug!("term_id={term_id:?} new_raw_terminal");
+        let raw_id = TermId::next().to_raw();
         let raw = Arc::new(RwLock::new(RawTerminal::new(
             term_id,
+            raw_id,
             common.proxy.clone(),
             common.term_notification_tx.clone(),
         )));
@@ -391,10 +397,10 @@ impl TerminalData {
             {
                 tracing::error!("{:?}", err);
             }
-            common.proxy.new_terminal(term_id, profile);
+            common.proxy.new_terminal(term_id, raw_id, profile);
         }
 
-        raw
+        (raw, raw_id)
     }
 
     pub fn send_keypress(&self, key: &KeyEvent) -> bool {
@@ -694,7 +700,7 @@ impl TerminalData {
             (width, height)
         };
 
-        let raw = Self::new_raw_terminal(
+        let (raw, _) = Self::new_raw_terminal(
             &self.workspace,
             self.term_id,
             run_debug.as_ref(),
@@ -724,7 +730,7 @@ impl TerminalData {
         }) {
             self.common.proxy.dap_stop(dap_id);
         }
-        self.common.proxy.terminal_close(self.term_id);
+        self.common.proxy.terminal_close(self.term_id, self.raw_id);
     }
 }
 

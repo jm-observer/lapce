@@ -1,5 +1,5 @@
+use std::collections::hash_map::Iter;
 use std::collections::HashMap;
-use std::ops::Deref;
 use std::{
     borrow::Cow,
     collections::VecDeque,
@@ -39,28 +39,58 @@ const PTY_CHILD_EVENT_TOKEN: usize = 1;
 
 #[derive(Default)]
 pub struct Terminals {
-    terminals: HashMap<TermId, TerminalSender>,
+    terminals: HashMap<TermId, (u64, TerminalSender)>,
 }
 
 impl Terminals {
-    pub fn insert(&mut self, id: TermId, sender: TerminalSender) {
+    pub fn insert(&mut self, id: TermId, raw_id: u64, sender: TerminalSender) {
         info!("Terminals insert id={id:?}");
-        self.terminals.insert(id, sender);
+        self.terminals.insert(id, (raw_id, sender));
     }
 
-    pub fn remove(&mut self, id: &TermId) -> Option<TerminalSender> {
+    pub fn remove(
+        &mut self,
+        id: TermId,
+        remove_raw_id: u64,
+    ) -> Option<TerminalSender> {
         info!("Terminals remove id={id:?}");
-        self.terminals.remove(id)
+        if let Some((raw_id, sender)) = self.terminals.remove(&id) {
+            if raw_id != remove_raw_id {
+                self.terminals.insert(id, (raw_id, sender));
+            } else {
+                return Some(sender);
+            }
+        }
+        None
+    }
+
+    pub fn get(&self, id: TermId, remove_raw_id: u64) -> Option<&TerminalSender> {
+        if let Some((raw_id, sender)) = self.terminals.get(&id) {
+            if *raw_id == remove_raw_id {
+                return Some(sender);
+            }
+        }
+        None
+    }
+
+    pub fn get_without_raw(&self, id: TermId) -> Option<&TerminalSender> {
+        if let Some((_, sender)) = self.terminals.get(&id) {
+            return Some(sender);
+        }
+        None
+    }
+    pub fn iter(&self) -> Iter<'_, TermId, (u64, TerminalSender)> {
+        self.terminals.iter()
     }
 }
 
-impl Deref for Terminals {
-    type Target = HashMap<TermId, TerminalSender>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.terminals
-    }
-}
+// impl Deref for Terminals {
+//     type Target = HashMap<(TermId, u64), TerminalSender>;
+//
+//     fn deref(&self) -> &Self::Target {
+//         &self.terminals
+//     }
+// }
 
 pub struct TerminalSender {
     term_id: TermId,
@@ -92,6 +122,7 @@ impl TerminalSender {
 
 pub struct Terminal {
     term_id: TermId,
+    raw_id: u64,
     pub(crate) poller: Arc<polling::Poller>,
     pub(crate) pty: alacritty_terminal::tty::Pty,
     rx: Receiver<Msg>,
@@ -101,6 +132,7 @@ pub struct Terminal {
 
 impl Terminal {
     pub fn new(
+        raw_id: u64,
         term_id: TermId,
         profile: TerminalProfile,
         width: usize,
@@ -131,6 +163,7 @@ impl Terminal {
         let (tx, rx) = crossbeam_channel::unbounded();
 
         Ok(Terminal {
+            raw_id,
             term_id,
             poller: poll,
             pty,

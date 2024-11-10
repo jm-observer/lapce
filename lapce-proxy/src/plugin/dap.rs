@@ -317,9 +317,10 @@ impl DapClient {
             DapEvent::Terminated(_) => {
                 self.terminated = true;
                 // self.plugin_rpc.core_rpc.dap_terminated(self.dap_rpc.dap_id);
-                if let Some(term_id) = self.term_id {
-                    self.plugin_rpc.proxy_rpc.terminal_close(term_id);
-                }
+                // close by main thread??
+                // if let Some(term_id) = self.term_id {
+                //     self.plugin_rpc.proxy_rpc.terminal_close(term_id, raw_id);
+                // }
                 if let Err(err) = self.check_restart() {
                     error!("{:?}", err);
                 }

@@ -282,6 +282,7 @@ pub enum ProxyNotification {
     },
     NewTerminal {
         term_id: TermId,
+        raw_id: u64,
         profile: TerminalProfile,
     },
     GitCommit {
@@ -301,6 +302,7 @@ pub enum ProxyNotification {
     },
     TerminalWrite {
         term_id: TermId,
+        raw_id: u64,
         content: String,
     },
     TerminalResize {
@@ -310,6 +312,7 @@ pub enum ProxyNotification {
     },
     TerminalClose {
         term_id: TermId,
+        raw_id: u64,
     },
     DapStart {
         config: RunDebugConfig,
@@ -702,12 +705,21 @@ impl ProxyRpcHandler {
         );
     }
 
-    pub fn new_terminal(&self, term_id: TermId, profile: TerminalProfile) {
-        self.notification(ProxyNotification::NewTerminal { term_id, profile })
+    pub fn new_terminal(
+        &self,
+        term_id: TermId,
+        raw_id: u64,
+        profile: TerminalProfile,
+    ) {
+        self.notification(ProxyNotification::NewTerminal {
+            term_id,
+            raw_id,
+            profile,
+        })
     }
 
-    pub fn terminal_close(&self, term_id: TermId) {
-        self.notification(ProxyNotification::TerminalClose { term_id });
+    pub fn terminal_close(&self, term_id: TermId, raw_id: u64) {
+        self.notification(ProxyNotification::TerminalClose { term_id, raw_id });
     }
 
     pub fn terminal_resize(&self, term_id: TermId, width: usize, height: usize) {
@@ -718,8 +730,12 @@ impl ProxyRpcHandler {
         });
     }
 
-    pub fn terminal_write(&self, term_id: TermId, content: String) {
-        self.notification(ProxyNotification::TerminalWrite { term_id, content });
+    pub fn terminal_write(&self, term_id: TermId, raw_id: u64, content: String) {
+        self.notification(ProxyNotification::TerminalWrite {
+            term_id,
+            raw_id,
+            content,
+        });
     }
 
     pub fn new_buffer(
