@@ -493,7 +493,7 @@ impl TerminalPanelData {
             RunDebugMode::Run => {
                 self.common
                     .proxy
-                    .terminal_close(terminal.term_id, terminal.raw_id);
+                    .terminal_close(terminal.term_id, terminal.raw_id());
                 let mut run_debug = run_debug;
                 run_debug.stopped = false;
                 run_debug.is_prelaunch = true;
@@ -618,7 +618,7 @@ impl TerminalPanelData {
             RunDebugMode::Run => {
                 self.common
                     .proxy
-                    .terminal_close(terminal.term_id, terminal.raw_id);
+                    .terminal_close(terminal.term_id, terminal.raw_id());
                 self.common
                     .term_tx
                     .send((terminal.term_id, TermEvent::CloseTerminal))?;

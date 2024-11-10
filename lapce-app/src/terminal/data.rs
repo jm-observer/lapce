@@ -42,8 +42,8 @@ use crate::{
 pub struct TerminalData {
     pub scope: Scope,
     pub term_id: TermId,
-    pub raw_id: u64,
     pub workspace: Arc<LapceWorkspace>,
+    pub raw_id: RwSignal<u64>,
     pub title: RwSignal<String>,
     pub launch_error: RwSignal<Option<String>>,
     pub mode: RwSignal<Mode>,
@@ -264,7 +264,7 @@ impl KeyPressFocus for TerminalData {
         if self.mode.get_untracked() == Mode::Terminal {
             self.common.proxy.terminal_write(
                 self.term_id,
-                self.raw_id,
+                self.raw_id(),
                 c.to_string(),
             );
             self.raw
@@ -317,6 +317,7 @@ impl TerminalData {
         let mode = cx.create_rw_signal(Mode::Terminal);
         let visual_mode = cx.create_rw_signal(VisualMode::Normal);
         let raw = cx.create_rw_signal(raw);
+        let raw_id = cx.create_rw_signal(raw_id);
         Self {
             scope: cx,
             term_id,
@@ -422,6 +423,10 @@ impl TerminalData {
         } else {
             false
         }
+    }
+
+    pub fn raw_id(&self) -> u64 {
+        self.raw_id.get_untracked()
     }
 
     pub fn resolve_key_event(key: &KeyEvent) -> Option<&str> {
@@ -700,7 +705,7 @@ impl TerminalData {
             (width, height)
         };
 
-        let (raw, _) = Self::new_raw_terminal(
+        let (raw, raw_id) = Self::new_raw_terminal(
             &self.workspace,
             self.term_id,
             run_debug.as_ref(),
@@ -708,12 +713,13 @@ impl TerminalData {
             self.common.clone(),
             self.launch_error,
         );
+        let term_size = TermSize::new(width, height);
+        raw.write().term.resize(term_size);
 
         self.raw.set(raw);
+        self.raw_id.set(raw_id);
         self.run_debug.set(run_debug);
 
-        let term_size = TermSize::new(width, height);
-        self.raw.get_untracked().write().term.resize(term_size);
         self.common
             .proxy
             .terminal_resize(self.term_id, width, height);
@@ -730,7 +736,9 @@ impl TerminalData {
         }) {
             self.common.proxy.dap_stop(dap_id);
         }
-        self.common.proxy.terminal_close(self.term_id, self.raw_id);
+        self.common
+            .proxy
+            .terminal_close(self.term_id, self.raw_id());
     }
 }
 
