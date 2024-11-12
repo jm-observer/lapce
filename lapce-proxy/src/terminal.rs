@@ -119,7 +119,7 @@ impl TerminalSender {
         }
     }
 }
-
+#[allow(dead_code)]
 pub struct Terminal {
     term_id: TermId,
     raw_id: u64,

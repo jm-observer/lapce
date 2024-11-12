@@ -11,6 +11,7 @@ use std::{
     },
 };
 
+use floem::views::editor::phantom_text::PhantomTextMultiLine;
 use floem::{
     ext_event::create_ext_action,
     keyboard::Modifiers,
@@ -2131,7 +2132,7 @@ impl Styling for DocStyling {
     fn apply_layout_styles(
         &self,
         layout: &TextLayout,
-        phantom_text: &PhantomTextLine,
+        phantom_text: &PhantomTextMultiLine,
         _collapsed_line_col: usize,
     ) -> Vec<LineExtraStyle> {
         // if !phantom_text.text.is_empty() {

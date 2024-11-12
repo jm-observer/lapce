@@ -397,18 +397,22 @@ impl FoldedRange {
         config: &LapceConfig,
         line: u32,
     ) -> Option<PhantomText> {
+        let same_line = self.end.line == self.start.line;
         if self.start.line == line {
             let start_char =
                 buffer.char_at_offset(get_offset(buffer, self.start))?;
             let end_char =
                 buffer.char_at_offset(get_offset(buffer, self.end) - 1)?;
+
+            let start_line_len = buffer.line_content(line as usize).len();
             let mut text = String::new();
             text.push(start_char);
             text.push_str("...");
             text.push(end_char);
             Some(PhantomText {
                 kind: PhantomTextKind::FoldedRangStart {
-                    same_line: self.end.line == self.start.line,
+                    same_line,
+                    start_line_len,
                     end_line: self.end.line as usize,
                     end_character: self.end.character as usize,
                 },
@@ -426,7 +430,9 @@ impl FoldedRange {
             let text = String::new();
             Some(PhantomText {
                 kind: PhantomTextKind::CrossLineFoldedRangEnd {
-                    line: line as usize,
+                    same_line,
+                    end_line: line as usize,
+                    start_character: self.start.character as usize,
                 },
                 col: self.end.character as usize,
                 text,
