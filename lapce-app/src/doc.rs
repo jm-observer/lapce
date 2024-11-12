@@ -1948,10 +1948,10 @@ impl DocumentPhantom for Doc {
         PhantomTextLine::new(line, origin_text_len, text)
     }
 
-    fn has_multiline_phantom(&self, _: EditorId, _: &EditorStyle) -> bool {
-        // TODO: actually check
-        true
-    }
+    // fn has_multiline_phantom(&self, _: EditorId, _: &EditorStyle) -> bool {
+    //     // TODO: actually check
+    //     true
+    // }
 }
 impl CommonAction for Doc {
     fn exec_motion_mode(
@@ -2010,6 +2010,7 @@ impl DocStyling {
         // todo it always empty??
         if let Some(bracket_styles) = self.doc.parser.borrow().bracket_pos.get(&line)
         {
+            tracing::error!("bracket_styles.len={}", bracket_styles.len());
             for bracket_style in bracket_styles.iter() {
                 // tracing::info!("{line} {:?}", bracket_style);
                 if let Some(fg_color) = bracket_style.style.fg_color.as_ref() {
@@ -2020,7 +2021,7 @@ impl DocStyling {
                         ) else {
                             continue;
                         };
-                        // tracing::info!("{line} {:?} {start} {end}", bracket_style);
+                        tracing::info!("{line} {:?} {start} {end}", bracket_style);
                         attrs_list.add_span(start..end, attrs.color(fg_color));
                     }
                 }
