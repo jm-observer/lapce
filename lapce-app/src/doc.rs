@@ -19,7 +19,7 @@ use floem::{
     reactive::{
         batch, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
     },
-    text::{Attrs, AttrsList, FamilyOwned, TextLayout},
+    text::{FamilyOwned, TextLayout},
     views::editor::{
         actions::CommonAction,
         command::{Command, CommandExecuted},
@@ -1999,35 +1999,35 @@ pub struct DocStyling {
     doc: Rc<Doc>,
 }
 impl DocStyling {
-    fn apply_colorization(
-        &self,
-        line: usize,
-        attrs: &Attrs,
-        attrs_list: &mut AttrsList,
-        phantom_text: &PhantomTextLine,
-    ) {
-        let config = self.config.get_untracked();
-        // todo it always empty??
-        if let Some(bracket_styles) = self.doc.parser.borrow().bracket_pos.get(&line)
-        {
-            tracing::error!("bracket_styles.len={}", bracket_styles.len());
-            for bracket_style in bracket_styles.iter() {
-                // tracing::info!("{line} {:?}", bracket_style);
-                if let Some(fg_color) = bracket_style.style.fg_color.as_ref() {
-                    if let Some(fg_color) = config.style_color(fg_color) {
-                        let (Some(start), Some(end)) = (
-                            phantom_text.col_at(bracket_style.start),
-                            phantom_text.col_at(bracket_style.end),
-                        ) else {
-                            continue;
-                        };
-                        tracing::info!("{line} {:?} {start} {end}", bracket_style);
-                        attrs_list.add_span(start..end, attrs.color(fg_color));
-                    }
-                }
-            }
-        }
-    }
+    // fn apply_colorization(
+    //     &self,
+    //     line: usize,
+    //     attrs: &Attrs,
+    //     attrs_list: &mut AttrsList,
+    //     phantom_text: &PhantomTextLine,
+    // ) {
+    //     let config = self.config.get_untracked();
+    //     // todo it always empty??
+    //     if let Some(bracket_styles) = self.doc.parser.borrow().bracket_pos.get(&line)
+    //     {
+    //         tracing::error!("bracket_styles.len={}", bracket_styles.len());
+    //         for bracket_style in bracket_styles.iter() {
+    //             // tracing::info!("{line} {:?}", bracket_style);
+    //             if let Some(fg_color) = bracket_style.style.fg_color.as_ref() {
+    //                 if let Some(fg_color) = config.style_color(fg_color) {
+    //                     let (Some(start), Some(end)) = (
+    //                         phantom_text.col_at(bracket_style.start),
+    //                         phantom_text.col_at(bracket_style.end),
+    //                     ) else {
+    //                         continue;
+    //                     };
+    //                     tracing::info!("{line} {:?} {start} {end}", bracket_style);
+    //                     attrs_list.add_span(start..end, attrs.color(fg_color));
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 }
 impl Styling for DocStyling {
     fn id(&self) -> u64 {
@@ -2090,45 +2090,78 @@ impl Styling for DocStyling {
             .with_untracked(|config| config.editor.atomic_soft_tabs)
     }
 
-    fn apply_attr_styles(
-        &self,
-        line: usize,
-        default: Attrs,
-        attrs_list: &mut AttrsList,
-        phantom_text: &PhantomTextLine,
-        collapsed_line_col: usize,
-    ) {
+    fn line_style(&self, line: usize) -> Vec<(usize, usize, Color)> {
         let config = self.doc.common.config.get_untracked();
-
-        // todo
-        self.apply_colorization(line, &default, attrs_list, phantom_text);
-
-        // calculate style of origin text, for example: `self`
-        for line_style in self.doc.line_style(line).iter() {
-            if let Some(fg_color) = line_style.style.fg_color.as_ref() {
-                if let Some(fg_color) = config.style_color(fg_color) {
-                    let (Some(start), Some(end)) = (
-                        phantom_text.col_at(line_style.start),
-                        phantom_text.col_at(line_style.end),
-                    ) else {
-                        continue;
-                    };
-                    // if line == 8 || line == 10 {
-                    //     tracing::info!(
-                    //         "line_style={}-{} => {start}-{end} {:?}",
-                    //         line_style.start,
-                    //         line_style.end,
-                    //         line_style.text
-                    //     )
-                    // }
-                    attrs_list.add_span(
-                        start + collapsed_line_col..end + collapsed_line_col,
-                        default.color(fg_color),
-                    );
+        let mut styles: Vec<(usize, usize, Color)> = self
+            .doc
+            .line_style(line)
+            .iter()
+            .filter_map(|line_style| {
+                if let Some(fg_color) = line_style.style.fg_color.as_ref() {
+                    if let Some(fg_color) = config.style_color(fg_color) {
+                        return Some((line_style.start, line_style.end, fg_color));
+                    }
                 }
-            }
+                None
+            })
+            .collect();
+
+        if let Some(bracket_styles) = self.doc.parser.borrow().bracket_pos.get(&line)
+        {
+            tracing::error!("bracket_styles.len={}", bracket_styles.len());
+            styles.append(
+                &mut bracket_styles
+                    .iter()
+                    .filter_map(|bracket_style| {
+                        if let Some(fg_color) = bracket_style.style.fg_color.as_ref()
+                        {
+                            if let Some(fg_color) = config.style_color(fg_color) {
+                                return Some((
+                                    bracket_style.start,
+                                    bracket_style.end,
+                                    fg_color,
+                                ));
+                            }
+                        }
+                        None
+                    })
+                    .collect(),
+            );
         }
+        styles
     }
+
+    // fn apply_attr_styles(
+    //     &self,
+    //     line: usize,
+    //     default: Attrs,
+    //     attrs_list: &mut AttrsList,
+    //     phantom_text: &PhantomTextLine,
+    //     collapsed_line_col: usize,
+    // ) {
+    //     let config = self.doc.common.config.get_untracked();
+    //
+    //     // todo
+    //     self.apply_colorization(line, &default, attrs_list, phantom_text);
+    //
+    //     // calculate style of origin text, for example: `self`
+    //     for line_style in self.doc.line_style(line).iter() {
+    //         if let Some(fg_color) = line_style.style.fg_color.as_ref() {
+    //             if let Some(fg_color) = config.style_color(fg_color) {
+    //                 let (Some(start), Some(end)) = (
+    //                     phantom_text.col_at(line_style.start),
+    //                     phantom_text.col_at(line_style.end),
+    //                 ) else {
+    //                     continue;
+    //                 };
+    //                 attrs_list.add_span(
+    //                     start + collapsed_line_col..end + collapsed_line_col,
+    //                     default.color(fg_color),
+    //                 );
+    //             }
+    //         }
+    //     }
+    // }
 
     fn apply_layout_styles(
         &self,

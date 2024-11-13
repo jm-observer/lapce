@@ -397,6 +397,7 @@ impl FoldedRange {
         config: &LapceConfig,
         line: u32,
     ) -> Option<PhantomText> {
+        // info!("line={line} start={:?} end={:?}", self.start, self.end);
         let same_line = self.end.line == self.start.line;
         if self.start.line == line {
             let start_char =
@@ -404,44 +405,49 @@ impl FoldedRange {
             let end_char =
                 buffer.char_at_offset(get_offset(buffer, self.end) - 1)?;
 
-            let start_line_len = buffer.line_content(line as usize).len();
             let mut text = String::new();
             text.push(start_char);
             text.push_str("...");
             text.push(end_char);
+            let next_line = if same_line {
+                None
+            } else {
+                Some(self.end.line as usize)
+            };
+            let start = self.start.character as usize;
+            let len = if same_line {
+                self.end.character as usize - start
+            } else {
+                let start_line_len = buffer.line_content(line as usize).len();
+                start_line_len - start
+            };
             Some(PhantomText {
-                kind: PhantomTextKind::FoldedRangStart {
-                    same_line,
-                    start_line_len,
-                    end_line: self.end.line as usize,
-                    end_character: self.end.character as usize,
-                },
-                col: self.start.character as usize,
+                kind: PhantomTextKind::LineFoldedRang { next_line, len },
+                col: start,
                 text,
                 affinity: None,
                 fg: Some(config.color(LapceColor::INLAY_HINT_FOREGROUND)),
                 font_size: Some(config.editor.inlay_hint_font_size()),
                 bg: Some(config.color(LapceColor::INLAY_HINT_BACKGROUND)),
                 under_line: None,
-                final_col: self.start.character as usize,
+                final_col: start,
                 line: line as usize,
             })
         } else if self.end.line == line {
             let text = String::new();
             Some(PhantomText {
-                kind: PhantomTextKind::CrossLineFoldedRangEnd {
-                    same_line,
-                    end_line: line as usize,
-                    start_character: self.start.character as usize,
+                kind: PhantomTextKind::LineFoldedRang {
+                    next_line: None,
+                    len: self.end.character as usize,
                 },
-                col: self.end.character as usize,
+                col: 0,
                 text,
                 affinity: None,
                 fg: None,
                 font_size: None,
                 bg: None,
                 under_line: None,
-                final_col: self.end.character as usize,
+                final_col: 0,
                 line: line as usize,
             })
         } else {
