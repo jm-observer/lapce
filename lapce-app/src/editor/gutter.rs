@@ -432,6 +432,7 @@ impl FoldedRange {
                 under_line: None,
                 final_col: start,
                 line: line as usize,
+                merge_col: start,
             })
         } else if self.end.line == line {
             let text = String::new();
@@ -449,6 +450,7 @@ impl FoldedRange {
                 under_line: None,
                 final_col: 0,
                 line: line as usize,
+                merge_col: 0,
             })
         } else {
             None
