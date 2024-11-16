@@ -332,6 +332,19 @@ impl FoldingRanges {
 }
 
 impl FoldedRanges {
+    pub fn visual_line(&self, line: usize) -> usize {
+        let line = line as u32;
+        for folded in &self.0 {
+            if line <= folded.start.line {
+                return line as usize;
+            } else if folded.start.line < line && line <= folded.end.line {
+                return folded.start.line as usize;
+            }
+        }
+        line as usize
+    }
+    /// ??line: 该行是否被折叠。
+    /// start_index: 下次检查的起始点
     pub fn contain_line(&self, start_index: usize, line: u32) -> (bool, usize) {
         if start_index >= self.0.len() {
             return (false, start_index);

@@ -11,7 +11,6 @@ use std::{
     },
 };
 
-use floem::views::editor::phantom_text::PhantomTextMultiLine;
 use floem::{
     ext_event::create_ext_action,
     keyboard::Modifiers,
@@ -19,12 +18,11 @@ use floem::{
     reactive::{
         batch, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
     },
-    text::{FamilyOwned, TextLayout},
+    text::FamilyOwned,
     views::editor::{
         actions::CommonAction,
         command::{Command, CommandExecuted},
         id::EditorId,
-        layout::LineExtraStyle,
         phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
         text::{Document, DocumentPhantom, PreeditData, Styling, SystemClipboard},
         view::{ScreenLines, ScreenLinesBase},
@@ -70,7 +68,6 @@ use lsp_types::{
 };
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-use tracing::error;
 
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand},
@@ -1576,6 +1573,11 @@ impl Document for Doc {
         self.cache_rev
     }
 
+    fn visual_line_of_line(&self, line: usize) -> usize {
+        self.folding_ranges
+            .with_untracked(|x| x.get_folded_range().visual_line(line))
+    }
+
     fn find_unmatched(&self, offset: usize, previous: bool, ch: char) -> usize {
         self.syntax().with_untracked(|syntax| {
             if syntax.layers.is_some() {
@@ -2224,53 +2226,53 @@ fn should_blink(
     }
 }
 
-fn extra_styles_for_range(
-    text_layout: &TextLayout,
-    start: usize,
-    end: usize,
-    bg_color: Option<Color>,
-    under_line: Option<Color>,
-    wave_line: Option<Color>,
-) -> impl Iterator<Item = LineExtraStyle> + '_ {
-    let start_hit = text_layout.hit_position(start);
-    let end_hit = text_layout.hit_position(end);
-
-    // tracing::info!("start={start_hit:?} end={end_hit:?}");
-    text_layout
-        .layout_runs()
-        .enumerate()
-        .filter_map(move |(current_line, run)| {
-            if current_line < start_hit.line || current_line > end_hit.line {
-                return None;
-            }
-
-            let x = if current_line == start_hit.line {
-                start_hit.point.x
-            } else {
-                run.glyphs.first().map(|g| g.x).unwrap_or(0.0) as f64
-            };
-            let end_x = if current_line == end_hit.line {
-                end_hit.point.x
-            } else {
-                run.glyphs.last().map(|g| g.x + g.w).unwrap_or(0.0) as f64
-            };
-            let width = end_x - x;
-
-            if width == 0.0 {
-                return None;
-            }
-
-            let height = (run.max_ascent + run.max_descent) as f64;
-            let y = run.line_y as f64 - run.max_ascent as f64;
-
-            Some(LineExtraStyle {
-                x,
-                y,
-                width: Some(width),
-                height,
-                bg_color,
-                under_line,
-                wave_line,
-            })
-        })
-}
+// fn extra_styles_for_range(
+//     text_layout: &TextLayout,
+//     start: usize,
+//     end: usize,
+//     bg_color: Option<Color>,
+//     under_line: Option<Color>,
+//     wave_line: Option<Color>,
+// ) -> impl Iterator<Item = LineExtraStyle> + '_ {
+//     let start_hit = text_layout.hit_position(start);
+//     let end_hit = text_layout.hit_position(end);
+//
+//     // tracing::info!("start={start_hit:?} end={end_hit:?}");
+//     text_layout
+//         .layout_runs()
+//         .enumerate()
+//         .filter_map(move |(current_line, run)| {
+//             if current_line < start_hit.line || current_line > end_hit.line {
+//                 return None;
+//             }
+//
+//             let x = if current_line == start_hit.line {
+//                 start_hit.point.x
+//             } else {
+//                 run.glyphs.first().map(|g| g.x).unwrap_or(0.0) as f64
+//             };
+//             let end_x = if current_line == end_hit.line {
+//                 end_hit.point.x
+//             } else {
+//                 run.glyphs.last().map(|g| g.x + g.w).unwrap_or(0.0) as f64
+//             };
+//             let width = end_x - x;
+//
+//             if width == 0.0 {
+//                 return None;
+//             }
+//
+//             let height = (run.max_ascent + run.max_descent) as f64;
+//             let y = run.line_y as f64 - run.max_ascent as f64;
+//
+//             Some(LineExtraStyle {
+//                 x,
+//                 y,
+//                 width: Some(width),
+//                 height,
+//                 bg_color,
+//                 under_line,
+//                 wave_line,
+//             })
+//         })
+// }
