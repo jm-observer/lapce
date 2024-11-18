@@ -11,6 +11,8 @@ use std::{
     },
 };
 
+use floem::reactive::Trigger;
+use floem::views::editor::lines::Lines;
 use floem::{
     ext_event::create_ext_action,
     keyboard::Modifiers,
@@ -216,6 +218,9 @@ pub struct Doc {
     pub common: Rc<CommonData>,
 
     pub document_symbol_data: DocumentSymbolViewData,
+
+    pub update_triger: Trigger,
+    pub lines: RwSignal<Lines>,
 }
 impl Doc {
     pub fn new(
@@ -227,6 +232,7 @@ impl Doc {
     ) -> Self {
         let syntax = Syntax::init(&path);
         let config = common.config.get_untracked();
+        let lines = cx.create_rw_signal(Lines::new(cx));
         Doc {
             scope: cx,
             buffer_id: BufferId::next(),
@@ -263,6 +269,8 @@ impl Doc {
             document_symbol_data: DocumentSymbolViewData::new(cx),
             folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
             semantic_previous_rs_id: cx.create_rw_signal(None),
+            update_triger: cx.create_trigger(),
+            lines,
         }
     }
 
@@ -278,6 +286,7 @@ impl Doc {
     ) -> Doc {
         let cx = cx.create_child();
         let config = common.config.get_untracked();
+        let lines = cx.create_rw_signal(Lines::new(cx));
         Self {
             scope: cx,
             buffer_id: BufferId::next(),
@@ -315,6 +324,8 @@ impl Doc {
             document_symbol_data: DocumentSymbolViewData::new(cx),
             folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
             semantic_previous_rs_id: cx.create_rw_signal(None),
+            update_triger: cx.create_trigger(),
+            lines,
         }
     }
 
@@ -330,6 +341,7 @@ impl Doc {
         } else {
             Syntax::plaintext()
         };
+        let lines = cx.create_rw_signal(Lines::new(cx));
         Self {
             scope: cx,
             buffer_id: BufferId::next(),
@@ -367,6 +379,8 @@ impl Doc {
             document_symbol_data: DocumentSymbolViewData::new(cx),
             folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
             semantic_previous_rs_id: cx.create_rw_signal(None),
+            update_triger: cx.create_trigger(),
+            lines,
         }
     }
 
@@ -405,6 +419,16 @@ impl Doc {
         editor.register = register;
         editor.cursor_info = cursor_info;
         editor.ime_allowed = common.window_common.ime_allowed;
+
+        let doc_trigger = self.update_triger;
+        let update_editor = editor.clone();
+        let config = common.config;
+        cx.create_effect(move |_| {
+            tracing::error!("doc_trigger");
+            doc_trigger.track();
+            config.get();
+            update_editor.update_lines();
+        });
 
         editor.recreate_view_effects();
 
@@ -455,6 +479,7 @@ impl Doc {
                 });
             });
             self.loaded.set(true);
+            tracing::error!("init_content");
             self.on_update(None);
             self.init_parser();
             self.init_diagnostics();
@@ -771,14 +796,16 @@ impl Doc {
 
     /// Inform any dependents on this document that they should clear any cached text.
     pub fn clear_text_cache(&self) {
-        self.cache_rev.try_update(|cache_rev| {
-            *cache_rev += 1;
-
-            // TODO: ???
-            // Update the text layouts within the callback so that those alerted to cache rev
-            // will see the now empty layouts.
-            // self.text_layouts.borrow_mut().clear(*cache_rev, None);
-        });
+        batch(|| {
+            self.cache_rev.try_update(|cache_rev| {
+                *cache_rev += 1;
+                // TODO: ???
+                // Update the text layouts within the callback so that those alerted to cache rev
+                // will see the now empty layouts.
+                // self.text_layouts.borrow_mut().clear(*cache_rev, None);
+            });
+            self.update_triger.notify();
+        })
     }
 
     fn clear_sticky_headers_cache(&self) {
@@ -1142,6 +1169,7 @@ impl Doc {
                         doc.folding_ranges.update(|symbol| {
                             symbol.update_ranges(folding);
                         });
+                        doc.clear_text_cache();
                     }
                 }
             });
@@ -1569,6 +1597,10 @@ impl Document for Doc {
         self.buffer.with_untracked(|buffer| buffer.text().clone())
     }
 
+    fn lines(&self) -> RwSignal<Lines> {
+        self.lines
+    }
+
     fn cache_rev(&self) -> RwSignal<u64> {
         self.cache_rev
     }
@@ -1634,7 +1666,6 @@ impl Document for Doc {
             base,
             editor_data.kind.read_only(),
             &editor_data.doc_signal().get(),
-            &editor.lines(),
             editor.text_prov(),
             editor.config_id(),
         )

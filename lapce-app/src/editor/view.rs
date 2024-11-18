@@ -464,7 +464,7 @@ impl EditorView {
                     for (_, end) in cursor.regions_iter() {
                         // TODO: unsure if this is correct for wrapping lines
                         let rvline =
-                            ed.visual_line_of_offset(end, cursor.affinity).0;
+                            ed.visual_line_of_offset(end, cursor.affinity).0.rvline;
 
                         if let Some(info) = screen_lines
                             .info(rvline)
@@ -562,10 +562,12 @@ impl EditorView {
         let end = region.max();
 
         // TODO(minor): the proper affinity here should probably be tracked by selregion
-        let (start_rvline, _, start_col) =
+        let (start_rvline, start_col) =
             ed.visual_line_of_offset(start, CursorAffinity::Forward);
-        let (end_rvline, _, end_col) =
+        let (end_rvline, end_col) =
             ed.visual_line_of_offset(end, CursorAffinity::Backward);
+        let start_rvline = start_rvline.rvline;
+        let end_rvline = end_rvline.rvline;
 
         for line_info in screen_lines.iter_line_info() {
             let rvline_info = line_info.vline_info;
@@ -992,9 +994,9 @@ impl EditorView {
 
             let bracket_line_cols = bracket_offsets.map(|bracket_offsets| {
                 bracket_offsets.map(|offset| {
-                    let (rvline, _, col) =
+                    let (rvline, col) =
                         ed.visual_line_of_offset(offset, CursorAffinity::Forward);
-                    (rvline, col)
+                    (rvline.rvline, col)
                 })
             });
 
@@ -1157,6 +1159,7 @@ impl View for EditorView {
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_bracket_highlights_scope_lines(cx, viewport, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
+
         FloemEditorView::paint_text(cx, ed, viewport, is_active, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_sticky_headers(cx, viewport, &screen_lines);
@@ -1762,34 +1765,36 @@ fn editor_gutter_folding_range(
                 .on_click_stop({
                     let value = doc_clone;
                     move |_| {
-                        value.get_untracked().folding_ranges.update(
-                            |x| match item.ty {
-                                FoldingDisplayType::UnfoldStart
-                                | FoldingDisplayType::Folded => {
-                                    x.0.iter_mut().find_map(|mut range| {
-                                        let range = range.deref_mut();
-                                        if range.start == item.position {
-                                            range.status.click();
-                                            Some(())
-                                        } else {
-                                            None
-                                        }
-                                    });
+                        batch(|| {
+                            value.get_untracked().folding_ranges.update(|x| {
+                                match item.ty {
+                                    FoldingDisplayType::UnfoldStart
+                                    | FoldingDisplayType::Folded => {
+                                        x.0.iter_mut().find_map(|mut range| {
+                                            let range = range.deref_mut();
+                                            if range.start == item.position {
+                                                range.status.click();
+                                                Some(())
+                                            } else {
+                                                None
+                                            }
+                                        });
+                                    }
+                                    FoldingDisplayType::UnfoldEnd => {
+                                        x.0.iter_mut().find_map(|mut range| {
+                                            let range = range.deref_mut();
+                                            if range.end == item.position {
+                                                range.status.click();
+                                                Some(())
+                                            } else {
+                                                None
+                                            }
+                                        });
+                                    }
                                 }
-                                FoldingDisplayType::UnfoldEnd => {
-                                    x.0.iter_mut().find_map(|mut range| {
-                                        let range = range.deref_mut();
-                                        if range.end == item.position {
-                                            range.status.click();
-                                            Some(())
-                                        } else {
-                                            None
-                                        }
-                                    });
-                                }
-                            },
-                        );
-                        doc.get_untracked().clear_text_cache();
+                            });
+                            doc.get_untracked().clear_text_cache();
+                        });
                     }
                 })
         },
@@ -2160,7 +2165,7 @@ fn editor_content(
     })
     .ensure_visible(move || {
         let e_data = e_data.get_untracked();
-        let cursor = cursor.get_untracked();
+        let cursor = cursor.get();
         let offset = cursor.offset();
         tracing::info!("ensure_visible offset={offset}");
         let offset_line_from_top = e_data.offset_line_from_top.get();
@@ -2189,10 +2194,10 @@ fn editor_content(
             rect.y0 -= offset_height;
             rect.y1 = rect.y1 + height - offset_height;
         }
-        // tracing::debug!(
-        //     "{:?} height()={} {rect:?} offset_line_from_top={offset_line_from_top:?} vline={vline} offset={offset}",
-        //     e_data.doc().content.get_untracked().path(), height
-        // );
+        tracing::info!(
+            "{:?} height()={} {rect:?} offset_line_from_top={offset_line_from_top:?} vline={vline} offset={offset}",
+            e_data.doc().content.get_untracked().path(), height
+        );
         rect
     })
     .style(|s| s.size_full().set(PropagatePointerWheel, false))

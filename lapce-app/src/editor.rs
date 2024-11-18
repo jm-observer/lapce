@@ -3599,7 +3599,6 @@ pub(crate) fn compute_screen_lines(
     base: RwSignal<ScreenLinesBase>,
     view_kind: ReadSignal<EditorViewKind>,
     doc: &Doc,
-    _lines: &Lines,
     text_prov: &Editor,
     _config_id: ConfigId,
 ) -> ScreenLines {
