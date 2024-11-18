@@ -1634,7 +1634,7 @@ impl Document for Doc {
             base,
             editor_data.kind.read_only(),
             &editor_data.doc_signal().get(),
-            editor.lines(),
+            &editor.lines(),
             editor.text_prov(),
             editor.config_id(),
         )

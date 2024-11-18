@@ -463,7 +463,8 @@ impl EditorView {
                 if !is_local && highlight_current_line {
                     for (_, end) in cursor.regions_iter() {
                         // TODO: unsure if this is correct for wrapping lines
-                        let rvline = ed.rvline_of_offset(end, cursor.affinity);
+                        let rvline =
+                            ed.visual_line_of_offset(end, cursor.affinity).0;
 
                         if let Some(info) = screen_lines
                             .info(rvline)
@@ -561,10 +562,10 @@ impl EditorView {
         let end = region.max();
 
         // TODO(minor): the proper affinity here should probably be tracked by selregion
-        let (start_rvline, start_col) =
-            ed.rvline_col_of_offset(start, CursorAffinity::Forward);
-        let (end_rvline, end_col) =
-            ed.rvline_col_of_offset(end, CursorAffinity::Backward);
+        let (start_rvline, _, start_col) =
+            ed.visual_line_of_offset(start, CursorAffinity::Forward);
+        let (end_rvline, _, end_col) =
+            ed.visual_line_of_offset(end, CursorAffinity::Backward);
 
         for line_info in screen_lines.iter_line_info() {
             let rvline_info = line_info.vline_info;
@@ -667,7 +668,7 @@ impl EditorView {
             .iter()
             .copied()
             .map(|line| {
-                let layout = self.editor.editor.text_layout(line);
+                let layout = self.editor.editor.text_layout_of_visual_line(line);
                 layout.line_count() * line_height
             })
             .sum::<usize>() as f64
@@ -699,7 +700,7 @@ impl EditorView {
                 0.0
             };
 
-            let text_layout = self.editor.editor.text_layout(line);
+            let text_layout = self.editor.editor.text_layout_of_visual_line(line);
 
             let text_height = (text_layout.line_count() * line_height) as f64;
             let height = text_height - y_diff;
@@ -991,8 +992,8 @@ impl EditorView {
 
             let bracket_line_cols = bracket_offsets.map(|bracket_offsets| {
                 bracket_offsets.map(|offset| {
-                    let (rvline, col) =
-                        ed.rvline_col_of_offset(offset, CursorAffinity::Forward);
+                    let (rvline, _, col) =
+                        ed.visual_line_of_offset(offset, CursorAffinity::Forward);
                     (rvline, col)
                 })
             });
@@ -1067,7 +1068,7 @@ impl View for EditorView {
             for (line, ..) in screen_lines.iter_lines_y() {
                 // fill in text layout cache so that max width is correct.
                 line_unique.insert(line);
-                editor.text_layout(line);
+                editor.text_layout_of_visual_line(line);
             }
 
             let inner_node = self.inner_node.unwrap();
@@ -1263,7 +1264,7 @@ fn get_sticky_header_info(
                 0.0
             };
 
-            let layout = editor.text_layout(*line);
+            let layout = editor.text_layout_of_visual_line(*line);
             layout.line_count() as f64 * line_height - y_diff
         })
         .sum();
@@ -2585,18 +2586,18 @@ pub fn changes_colors_screen(
                 colors.pop();
             }
 
-            let rvline = editor.rvline_of_line(pre_line);
-            let vline = editor.vline_of_line(pre_line);
-            let y = (vline.0 * line_height) as f64;
-            let height = {
-                // Accumulate the number of line indices each potentially wrapped line spans
-                let end_line = rvline.line + len;
-
-                editor.iter_rvlines_over(false, rvline, end_line).count()
-            };
-            let removed = len == 0;
-
-            colors.push((y, height, removed, color));
+            // let rvline = editor.rvline_of_line(pre_line);
+            // let vline = editor.vline_of_line(pre_line);
+            // let y = (vline.0 * line_height) as f64;
+            // let height = {
+            //     // Accumulate the number of line indices each potentially wrapped line spans
+            //     let end_line = rvline.line + len;
+            //
+            //     editor.iter_rvlines_over(false, rvline, end_line).count()
+            // };
+            // let removed = len == 0;
+            //
+            // colors.push((y, height, removed, color));
         }
 
         if line > max.line {
@@ -2612,53 +2613,54 @@ pub fn changes_colors_screen(
 /// Get the position and coloring information for over the entire current [`ScreenLines`]
 /// Returns `(y, height_idx, removed, color)`
 pub fn changes_colors_all(
-    config: &LapceConfig,
-    ed: &Editor,
-    changes: im::Vector<DiffLines>,
+    _config: &LapceConfig,
+    _ed: &Editor,
+    _changes: im::Vector<DiffLines>,
 ) -> Vec<(f64, usize, bool, Color)> {
-    let line_height = config.editor.line_height();
-
-    let mut line = 0;
+    // let line_height = config.editor.line_height();
+    //
+    // let mut line = 0;
     let mut colors = Vec::new();
 
-    let mut vline_iter = ed.iter_vlines(false, VLine(0)).peekable();
-
-    for (len, color, modified) in changes_color_iter(&changes, config) {
-        let pre_line = line;
-
-        line += len;
-
-        // Skip over all vlines that are before the current line
-        vline_iter
-            .by_ref()
-            .peeking_take_while(|info| info.rvline.line < pre_line)
-            .count();
-
-        if let Some(color) = color {
-            if modified {
-                colors.pop();
-            }
-
-            // Find the info with a line == pre_line
-            let Some(info) = vline_iter.peek() else {
-                continue;
-            };
-
-            let y = info.vline.get() * line_height;
-            let end_line = info.rvline.line + len;
-            let height = vline_iter
-                .by_ref()
-                .peeking_take_while(|info| info.rvline.line < end_line)
-                .count();
-            let removed = len == 0;
-
-            colors.push((y as f64, height, removed, color));
-        }
-
-        if vline_iter.peek().is_none() {
-            break;
-        }
-    }
+    // todo
+    // let mut vline_iter = ed.iter_vlines(false, VLine(0)).peekable();
+    //
+    // for (len, color, modified) in changes_color_iter(&changes, config) {
+    //     let pre_line = line;
+    //
+    //     line += len;
+    //
+    //     // Skip over all vlines that are before the current line
+    //     vline_iter
+    //         .by_ref()
+    //         .peeking_take_while(|info| info.rvline.line < pre_line)
+    //         .count();
+    //
+    //     if let Some(color) = color {
+    //         if modified {
+    //             colors.pop();
+    //         }
+    //
+    //         // Find the info with a line == pre_line
+    //         let Some(info) = vline_iter.peek() else {
+    //             continue;
+    //         };
+    //
+    //         let y = info.vline.get() * line_height;
+    //         let end_line = info.rvline.line + len;
+    //         let height = vline_iter
+    //             .by_ref()
+    //             .peeking_take_while(|info| info.rvline.line < end_line)
+    //             .count();
+    //         let removed = len == 0;
+    //
+    //         colors.push((y as f64, height, removed, color));
+    //     }
+    //
+    //     if vline_iter.peek().is_none() {
+    //         break;
+    //     }
+    // }
 
     colors
 }

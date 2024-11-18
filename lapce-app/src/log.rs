@@ -11,16 +11,16 @@ pub fn log(window: &WindowTabData) {
 pub fn print_screen_lines(window: &WindowTabData) {
     for (_, editor) in &window.main_split.editors.0.get_untracked() {
         let screen_lines = editor.editor.screen_lines.get_untracked();
-        for line in screen_lines.lines.as_ref() {
+        for line in screen_lines.lines {
             info!("line={line:?}");
         }
-        for (line, info) in screen_lines
-            .info
-            .as_ref()
-            .iter()
-            .sorted_by(|x, y| x.0.line.cmp(&y.0.line))
-        {
-            info!("line={line:?} info={info:?}");
-        }
+        // for (line, info) in screen_lines
+        //     .info
+        //     .as_ref()
+        //     .iter()
+        //     .sorted_by(|x, y| x.0.line.cmp(&y.0.line))
+        // {
+        //     info!("line={line:?} info={info:?}");
+        // }
     }
 }
