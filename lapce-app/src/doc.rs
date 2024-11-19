@@ -2161,7 +2161,7 @@ impl Styling for Doc {
             .with_untracked(|config| config.editor.atomic_soft_tabs)
     }
 
-    fn line_style(&self, line: usize) -> Vec<(usize, usize, Color)> {
+    fn line_styles(&self, line: usize) -> Vec<(usize, usize, Color)> {
         let config = self.common.config.get_untracked();
         let mut styles: Vec<(usize, usize, Color)> = self
             .line_style(line)
@@ -2302,7 +2302,7 @@ impl Styling for DocStyling {
             .with_untracked(|config| config.editor.atomic_soft_tabs)
     }
 
-    fn line_style(&self, line: usize) -> Vec<(usize, usize, Color)> {
+    fn line_styles(&self, line: usize) -> Vec<(usize, usize, Color)> {
         let config = self.config.get_untracked();
         let mut styles: Vec<(usize, usize, Color)> = self
             .doc

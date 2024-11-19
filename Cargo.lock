@@ -2978,6 +2978,7 @@ dependencies = [
  "dmg",
  "flate2",
  "floem",
+ "floem-editor-core",
  "fs_extra",
  "globset",
  "im",
