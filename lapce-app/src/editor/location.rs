@@ -28,7 +28,7 @@ impl EditorPosition {
         match self {
             EditorPosition::Line(n) => text.first_non_blank_character_on_line(*n),
             EditorPosition::Position(position) => text.offset_of_position(position),
-            EditorPosition::Offset(offset) => *offset,
+            EditorPosition::Offset(offset) => (*offset).min(text.len()),
         }
     }
 }

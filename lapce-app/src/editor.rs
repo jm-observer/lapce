@@ -6,6 +6,7 @@ use std::{
     time::Duration,
 };
 
+use floem::views::editor::phantom_text::PhantomTextKind;
 use floem::{
     action::{exec_after, show_context_menu, TimerToken},
     ext_event::create_ext_action,
@@ -57,11 +58,15 @@ use lsp_types::{
 };
 use nucleo::Utf32Str;
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 use view::StickyHeaderInfo;
 
 use self::{
     diff::DiffInfo,
     location::{EditorLocation, EditorPosition},
+};
+use crate::editor::FindHintRs::{
+    Match, MatchWithoutLocation, NoMatchBreak, NoMatchContinue,
 };
 use crate::panel::call_hierarchy_view::CallHierarchyData;
 use crate::{
@@ -2833,37 +2838,59 @@ impl EditorData {
     }
 
     fn find_hint(&self, pos: Point) -> FindHintRs {
-        let rs = self.editor.line_col_of_point_with_phantom(pos);
-        let line = rs.0 as u32;
-        let index = rs.1 as u32;
-        self.doc().inlay_hints.with_untracked(|x| {
-            if let Some(hints) = x {
-                let mut pre_len = 0;
-                for hint in hints
-                    .iter()
-                    .filter_map(|(_, hint)| {
-                        if hint.position.line == line {
-                            Some(hint)
+        let (_, line_index, text_layout) =
+            self.editor.line_col_of_point_with_phantom(pos);
+        let Some((phantom, phantom_offset)) = text_layout
+            .phantom_text
+            .phantom_text_of_final_col(line_index)
+        else {
+            return FindHintRs::NoMatchBreak;
+        };
+        if let PhantomTextKind::InlayHint = phantom.kind {
+            let line = phantom.line as u32;
+            let index = phantom.col as u32;
+            let rs = self.doc().inlay_hints.with_untracked(|x| {
+                if let Some(hints) = x {
+                    if let Some(rs) = hints.iter().find_map(|(_, hint)| {
+                        if hint.position.line == line
+                            && hint.position.character == index
+                        {
+                            match &hint.label {
+                                InlayHintLabel::String(..) => {
+                                    Some(MatchWithoutLocation)
+                                }
+                                InlayHintLabel::LabelParts(parts) => {
+                                    let mut start = 0;
+                                    for part in parts {
+                                        let end = start + part.value.len();
+                                        if start <= phantom_offset
+                                            && phantom_offset < end
+                                        {
+                                            return Some(match &part.location {
+                                                None => MatchWithoutLocation,
+                                                Some(location) => {
+                                                    Match(location.clone())
+                                                }
+                                            });
+                                        }
+                                    }
+                                    // should not be reach
+                                    warn!("should not be reach");
+                                    Some(MatchWithoutLocation)
+                                }
+                            }
                         } else {
                             None
                         }
-                    })
-                    .sorted_by(|pre, next| {
-                        pre.position.character.cmp(&next.position.character)
-                    })
-                {
-                    match find_hint(pre_len, index, hint) {
-                        FindHintRs::NoMatchContinue { pre_hint_len } => {
-                            pre_len = pre_hint_len;
-                        }
-                        rs => return rs,
+                    }) {
+                        return rs;
                     }
                 }
-                FindHintRs::NoMatchBreak
-            } else {
-                FindHintRs::NoMatchBreak
-            }
-        })
+                NoMatchBreak
+            });
+            return rs;
+        }
+        NoMatchBreak
     }
 
     fn left_click(&self, pointer_event: &PointerInputEvent) {
@@ -3904,40 +3931,4 @@ enum FindHintRs {
     NoMatchContinue { pre_hint_len: u32 },
     MatchWithoutLocation,
     Match(Location),
-}
-
-fn find_hint(mut pre_hint_len: u32, index: u32, hint: &InlayHint) -> FindHintRs {
-    use FindHintRs::*;
-    match &hint.label {
-        InlayHintLabel::String(text) => {
-            let actual_col = pre_hint_len + hint.position.character;
-            let actual_col_end = actual_col + (text.len() as u32);
-            if actual_col > index {
-                NoMatchBreak
-            } else if actual_col <= index && index < actual_col_end {
-                MatchWithoutLocation
-            } else {
-                pre_hint_len += text.len() as u32;
-                NoMatchContinue { pre_hint_len }
-            }
-        }
-        InlayHintLabel::LabelParts(parts) => {
-            for part in parts {
-                let actual_col = pre_hint_len + hint.position.character;
-                let actual_col_end = actual_col + part.value.len() as u32;
-                if index < actual_col {
-                    return NoMatchBreak;
-                } else if actual_col <= index && index < actual_col_end {
-                    if let Some(location) = &part.location {
-                        return Match(location.clone());
-                    } else {
-                        return MatchWithoutLocation;
-                    }
-                } else {
-                    pre_hint_len += part.value.len() as u32;
-                }
-            }
-            NoMatchContinue { pre_hint_len }
-        }
-    }
 }
