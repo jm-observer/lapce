@@ -166,6 +166,7 @@ pub type AllCodeLens = im::HashMap<usize, (PluginId, usize, im::Vector<CodeLens>
 
 #[derive(Clone)]
 pub struct Doc {
+    pub editor_id: EditorId,
     pub scope: Scope,
     pub buffer_id: BufferId,
     pub content: RwSignal<DocContent>,
@@ -230,10 +231,12 @@ impl Doc {
         editors: Editors,
         common: Rc<CommonData>,
     ) -> Self {
+        let editor_id = EditorId::next();
         let syntax = Syntax::init(&path);
         let config = common.config.get_untracked();
         let lines = cx.create_rw_signal(Lines::new(cx));
         Doc {
+            editor_id,
             scope: cx,
             buffer_id: BufferId::next(),
             buffer: cx.create_rw_signal(Buffer::new("")),
@@ -284,10 +287,12 @@ impl Doc {
         editors: Editors,
         common: Rc<CommonData>,
     ) -> Doc {
+        let editor_id = EditorId::next();
         let cx = cx.create_child();
         let config = common.config.get_untracked();
         let lines = cx.create_rw_signal(Lines::new(cx));
         Self {
+            editor_id,
             scope: cx,
             buffer_id: BufferId::next(),
             buffer: cx.create_rw_signal(Buffer::new("")),
@@ -335,6 +340,7 @@ impl Doc {
         editors: Editors,
         common: Rc<CommonData>,
     ) -> Doc {
+        let editor_id = EditorId::next();
         let config = common.config.get_untracked();
         let syntax = if let DocContent::History(history) = &content {
             Syntax::init(&history.path)
@@ -343,6 +349,7 @@ impl Doc {
         };
         let lines = cx.create_rw_signal(Lines::new(cx));
         Self {
+            editor_id,
             scope: cx,
             buffer_id: BufferId::next(),
             buffer: cx.create_rw_signal(Buffer::new("")),
@@ -413,8 +420,7 @@ impl Doc {
             hidden: common.window_common.hide_cursor,
             should_blink: Rc::new(should_blink(common.focus, common.keyboard_focus)),
         };
-        let mut editor =
-            Editor::new_direct(cx, id, self.clone(), self.styling(), modal);
+        let mut editor = Editor::new(cx, self.clone(), self.styling(), modal);
 
         editor.register = register;
         editor.cursor_info = cursor_info;
@@ -1709,15 +1715,14 @@ impl Document for Doc {
             .unwrap();
         self.apply_deltas(&[delta]);
     }
+
+    fn editor_id(&self) -> EditorId {
+        self.editor_id
+    }
 }
 
 impl DocumentPhantom for Doc {
-    fn phantom_text(
-        &self,
-        _: EditorId,
-        _: &EditorStyle,
-        line: usize,
-    ) -> PhantomTextLine {
+    fn phantom_text(&self, _: &EditorStyle, line: usize) -> PhantomTextLine {
         let config = &self.common.config.get_untracked();
 
         let buffer = self.buffer.get_untracked();
@@ -2072,19 +2077,18 @@ impl Styling for DocStyling {
         self.config.with_untracked(|config| config.id)
     }
 
-    fn font_size(&self, _: EditorId, _line: usize) -> usize {
+    fn font_size(&self, _line: usize) -> usize {
         self.config
             .with_untracked(|config| config.editor.font_size())
     }
 
-    fn line_height(&self, _: EditorId, _line: usize) -> f32 {
+    fn line_height(&self, _line: usize) -> f32 {
         self.config
             .with_untracked(|config| config.editor.line_height()) as f32
     }
 
     fn font_family(
         &self,
-        _: EditorId,
         _line: usize,
     ) -> std::borrow::Cow<[floem::text::FamilyOwned]> {
         // TODO: cache this
@@ -2105,7 +2109,7 @@ impl Styling for DocStyling {
         floem::text::Stretch::Normal
     }
 
-    fn indent_line(&self, _: EditorId, line: usize, line_content: &str) -> usize {
+    fn indent_line(&self, line: usize, line_content: &str) -> usize {
         if line_content.trim().is_empty() {
             let text = self.doc.rope_text();
             let offset = text.offset_of_line(line);

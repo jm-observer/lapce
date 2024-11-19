@@ -65,9 +65,7 @@ use self::{
     diff::DiffInfo,
     location::{EditorLocation, EditorPosition},
 };
-use crate::editor::FindHintRs::{
-    Match, MatchWithoutLocation, NoMatchBreak, NoMatchContinue,
-};
+use crate::editor::FindHintRs::{Match, MatchWithoutLocation, NoMatchBreak};
 use crate::panel::call_hierarchy_view::CallHierarchyData;
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand},
@@ -2799,8 +2797,7 @@ impl EditorData {
                 {
                     let rs = self.find_hint(pointer_event.pos);
                     match rs {
-                        FindHintRs::NoMatchBreak
-                        | FindHintRs::NoMatchContinue { .. } => {
+                        FindHintRs::NoMatchBreak => {
                             self.common.lapce_command.send(LapceCommand {
                                 kind: CommandKind::Focus(
                                     FocusCommand::GotoDefinition,
@@ -3928,7 +3925,6 @@ fn parse_hover_resp(
 #[derive(Debug)]
 enum FindHintRs {
     NoMatchBreak,
-    NoMatchContinue { pre_hint_len: u32 },
     MatchWithoutLocation,
     Match(Location),
 }
