@@ -562,9 +562,9 @@ impl EditorView {
         let end = region.max();
 
         // TODO(minor): the proper affinity here should probably be tracked by selregion
-        let (start_rvline, start_col) =
+        let (start_rvline, start_col, _) =
             ed.visual_line_of_offset(start, CursorAffinity::Forward);
-        let (end_rvline, end_col) =
+        let (end_rvline, end_col, _) =
             ed.visual_line_of_offset(end, CursorAffinity::Backward);
         let start_rvline = start_rvline.rvline;
         let end_rvline = end_rvline.rvline;
@@ -592,7 +592,7 @@ impl EditorView {
 
             // TODO(minor): sel region should have the affinity of the start/end
             let x0 = ed
-                .line_point_of_line_col(
+                .line_point_of_visual_line_col(
                     line,
                     left_col,
                     CursorAffinity::Forward,
@@ -600,7 +600,7 @@ impl EditorView {
                 )
                 .x;
             let x1 = ed
-                .line_point_of_line_col(
+                .line_point_of_visual_line_col(
                     line,
                     right_col,
                     CursorAffinity::Backward,
@@ -796,7 +796,7 @@ impl EditorView {
             // Is the given line on screen?
             if let Some(line_info) = screen_lines.info(rvline) {
                 let x0 = editor
-                    .line_point_of_line_col(
+                    .line_point_of_visual_line_col(
                         rvline.line,
                         col,
                         CursorAffinity::Forward,
@@ -804,7 +804,7 @@ impl EditorView {
                     )
                     .x;
                 let x1 = editor
-                    .line_point_of_line_col(
+                    .line_point_of_visual_line_col(
                         rvline.line,
                         col + 1,
                         CursorAffinity::Backward,
@@ -843,7 +843,7 @@ impl EditorView {
             if let Some(line_info) = screen_lines.info(start) {
                 // TODO: Due to line wrapping the y positions of these two spots could be different, do we need to change it?
                 let x0 = editor
-                    .line_point_of_line_col(
+                    .line_point_of_visual_line_col(
                         start.line,
                         start_col + 1,
                         CursorAffinity::Forward,
@@ -851,7 +851,7 @@ impl EditorView {
                     )
                     .x;
                 let x1 = editor
-                    .line_point_of_line_col(
+                    .line_point_of_visual_line_col(
                         end.line,
                         end_col,
                         CursorAffinity::Backward,
@@ -897,7 +897,7 @@ impl EditorView {
 
             if let [Some(y0), Some(y1)] = [y0, y1] {
                 let start_x = editor
-                    .line_point_of_line_col(
+                    .line_point_of_visual_line_col(
                         start.line,
                         start_col + 1,
                         CursorAffinity::Forward,
@@ -905,7 +905,7 @@ impl EditorView {
                     )
                     .x;
                 let end_x = editor
-                    .line_point_of_line_col(
+                    .line_point_of_visual_line_col(
                         end.line,
                         end_col,
                         CursorAffinity::Backward,
@@ -926,7 +926,7 @@ impl EditorView {
                                 editor.offset_to_line_col(non_blank_offset);
 
                             editor
-                                .line_point_of_line_col(
+                                .line_point_of_visual_line_col(
                                     line,
                                     col,
                                     CursorAffinity::Backward,
@@ -994,7 +994,7 @@ impl EditorView {
 
             let bracket_line_cols = bracket_offsets.map(|bracket_offsets| {
                 bracket_offsets.map(|offset| {
-                    let (rvline, col) =
+                    let (rvline, col, _) =
                         ed.visual_line_of_offset(offset, CursorAffinity::Forward);
                     (rvline.rvline, col)
                 })

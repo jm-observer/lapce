@@ -5,6 +5,7 @@ use std::{
 };
 
 use floem::reactive::batch;
+use floem::views::editor::core::cursor::CursorAffinity;
 use floem::{
     action::save_as,
     ext_event::create_ext_action,
@@ -694,17 +695,22 @@ impl MainSplitData {
         let mut off_top_line = None;
         if let Some(tab) = self.get_active_editor_untracked() {
             let cursor = tab.editor.cursor.get_untracked();
-            if let Some(min_visual_line) =
-                tab.editor.screen_lines.with_untracked(|x| {
-                    x.lines
-                        .iter()
-                        .min_by(|x, y| x.line.cmp(&y.line))
-                        .map(|x| x.line)
-                })
+            if let Some(min_visual_line) = tab
+                .editor
+                .screen_lines
+                .with_untracked(|x| x.info.get(&x.lines[0]).cloned())
             {
                 tab.editor.cursor.get_untracked().offset();
-                let line = tab.editor.line_of_offset(cursor.offset());
-                off_top_line = Some(line.saturating_sub(min_visual_line).max(5))
+                let line = tab
+                    .editor
+                    .visual_line_of_offset(cursor.offset(), CursorAffinity::Forward)
+                    .0
+                    .vline
+                    .0;
+                off_top_line = Some(
+                    line.saturating_sub(min_visual_line.vline_info.vline.0)
+                        .max(5),
+                )
             }
         }
         let path = location.path.clone();
