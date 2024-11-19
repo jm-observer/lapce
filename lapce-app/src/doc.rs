@@ -11,6 +11,7 @@ use std::{
     },
 };
 
+use floem::kurbo::Rect;
 use floem::reactive::Trigger;
 use floem::views::editor::lines::Lines;
 use floem::{
@@ -222,6 +223,8 @@ pub struct Doc {
 
     pub update_triger: Trigger,
     pub lines: RwSignal<Lines>,
+    pub editor_style: RwSignal<EditorStyle>,
+    pub viewport: RwSignal<Rect>,
 }
 impl Doc {
     pub fn new(
@@ -235,8 +238,12 @@ impl Doc {
         let syntax = Syntax::init(&path);
         let config = common.config.get_untracked();
         let lines = cx.create_rw_signal(Lines::new(cx));
+        let viewport = cx.create_rw_signal(Rect::ZERO);
+        let editor_style = cx.create_rw_signal(EditorStyle::default());
         Doc {
             editor_id,
+            viewport,
+            editor_style,
             scope: cx,
             buffer_id: BufferId::next(),
             buffer: cx.create_rw_signal(Buffer::new("")),
@@ -291,6 +298,8 @@ impl Doc {
         let cx = cx.create_child();
         let config = common.config.get_untracked();
         let lines = cx.create_rw_signal(Lines::new(cx));
+        let viewport = cx.create_rw_signal(Rect::ZERO);
+        let editor_style = cx.create_rw_signal(EditorStyle::default());
         Self {
             editor_id,
             scope: cx,
@@ -331,6 +340,8 @@ impl Doc {
             semantic_previous_rs_id: cx.create_rw_signal(None),
             update_triger: cx.create_trigger(),
             lines,
+            viewport,
+            editor_style,
         }
     }
 
@@ -348,6 +359,8 @@ impl Doc {
             Syntax::plaintext()
         };
         let lines = cx.create_rw_signal(Lines::new(cx));
+        let viewport = cx.create_rw_signal(Rect::ZERO);
+        let editor_style = cx.create_rw_signal(EditorStyle::default());
         Self {
             editor_id,
             scope: cx,
@@ -388,6 +401,8 @@ impl Doc {
             semantic_previous_rs_id: cx.create_rw_signal(None),
             update_triger: cx.create_trigger(),
             lines,
+            viewport,
+            editor_style,
         }
     }
 
@@ -420,7 +435,7 @@ impl Doc {
             hidden: common.window_common.hide_cursor,
             should_blink: Rc::new(should_blink(common.focus, common.keyboard_focus)),
         };
-        let mut editor = Editor::new(cx, self.clone(), self.styling(), modal);
+        let mut editor = Editor::new(cx, self.clone(), modal);
 
         editor.register = register;
         editor.cursor_info = cursor_info;
@@ -1719,6 +1734,14 @@ impl Document for Doc {
     fn editor_id(&self) -> EditorId {
         self.editor_id
     }
+
+    fn viewport(&self) -> RwSignal<Rect> {
+        self.viewport
+    }
+
+    fn editor_style(&self) -> RwSignal<EditorStyle> {
+        self.editor_style
+    }
 }
 
 impl DocumentPhantom for Doc {
@@ -2072,6 +2095,153 @@ impl DocStyling {
     //     }
     // }
 }
+
+impl Styling for Doc {
+    fn id(&self) -> u64 {
+        self.common.config.with_untracked(|config| config.id)
+    }
+
+    fn font_size(&self, _line: usize) -> usize {
+        self.common
+            .config
+            .with_untracked(|config| config.editor.font_size())
+    }
+
+    fn line_height(&self, _line: usize) -> f32 {
+        self.common
+            .config
+            .with_untracked(|config| config.editor.line_height()) as f32
+    }
+
+    fn font_family(
+        &self,
+        _line: usize,
+    ) -> std::borrow::Cow<[floem::text::FamilyOwned]> {
+        // TODO: cache this
+        Cow::Owned(self.common.config.with_untracked(|config| {
+            FamilyOwned::parse_list(&config.editor.font_family).collect()
+        }))
+    }
+
+    fn weight(&self, _: EditorId, _line: usize) -> floem::text::Weight {
+        floem::text::Weight::NORMAL
+    }
+
+    fn italic_style(&self, _: EditorId, _line: usize) -> floem::text::Style {
+        floem::text::Style::Normal
+    }
+
+    fn stretch(&self, _: EditorId, _line: usize) -> floem::text::Stretch {
+        floem::text::Stretch::Normal
+    }
+
+    fn indent_line(&self, line: usize, line_content: &str) -> usize {
+        if line_content.trim().is_empty() {
+            let text = self.rope_text();
+            let offset = text.offset_of_line(line);
+            if let Some(offset) =
+                self.syntax.with_untracked(|s| s.parent_offset(offset))
+            {
+                return text.line_of_offset(offset);
+            }
+        }
+
+        line
+    }
+
+    fn tab_width(&self, _: EditorId, _line: usize) -> usize {
+        self.common
+            .config
+            .with_untracked(|config| config.editor.tab_width)
+    }
+
+    fn atomic_soft_tabs(&self, _: EditorId, _line: usize) -> bool {
+        self.common
+            .config
+            .with_untracked(|config| config.editor.atomic_soft_tabs)
+    }
+
+    fn line_style(&self, line: usize) -> Vec<(usize, usize, Color)> {
+        let config = self.common.config.get_untracked();
+        let mut styles: Vec<(usize, usize, Color)> = self
+            .line_style(line)
+            .iter()
+            .filter_map(|line_style| {
+                if let Some(fg_color) = line_style.style.fg_color.as_ref() {
+                    if let Some(fg_color) = config.style_color(fg_color) {
+                        return Some((line_style.start, line_style.end, fg_color));
+                    }
+                }
+                None
+            })
+            .collect();
+
+        if let Some(bracket_styles) = self.parser.borrow().bracket_pos.get(&line) {
+            tracing::error!("bracket_styles.len={}", bracket_styles.len());
+            styles.append(
+                &mut bracket_styles
+                    .iter()
+                    .filter_map(|bracket_style| {
+                        if let Some(fg_color) = bracket_style.style.fg_color.as_ref()
+                        {
+                            if let Some(fg_color) = config.style_color(fg_color) {
+                                return Some((
+                                    bracket_style.start,
+                                    bracket_style.end,
+                                    fg_color,
+                                ));
+                            }
+                        }
+                        None
+                    })
+                    .collect(),
+            );
+        }
+        styles
+    }
+
+    // fn apply_attr_styles(
+    //     &self,
+    //     line: usize,
+    //     default: Attrs,
+    //     attrs_list: &mut AttrsList,
+    //     phantom_text: &PhantomTextLine,
+    //     collapsed_line_col: usize,
+    // ) {
+    //     let config = self.doc.common.config.get_untracked();
+    //
+    //     // todo
+    //     self.apply_colorization(line, &default, attrs_list, phantom_text);
+    //
+    //     // calculate style of origin text, for example: `self`
+    //     for line_style in self.doc.line_style(line).iter() {
+    //         if let Some(fg_color) = line_style.style.fg_color.as_ref() {
+    //             if let Some(fg_color) = config.style_color(fg_color) {
+    //                 let (Some(start), Some(end)) = (
+    //                     phantom_text.col_at(line_style.start),
+    //                     phantom_text.col_at(line_style.end),
+    //                 ) else {
+    //                     continue;
+    //                 };
+    //                 attrs_list.add_span(
+    //                     start + collapsed_line_col..end + collapsed_line_col,
+    //                     default.color(fg_color),
+    //                 );
+    //             }
+    //         }
+    //     }
+    // }
+
+    fn paint_caret(&self, edid: EditorId, _line: usize) -> bool {
+        let Some(e_data) = self.editor_data(edid) else {
+            return true;
+        };
+
+        // If the find is active, then we don't want to paint the caret
+        !e_data.find_focus.get_untracked()
+    }
+}
+
 impl Styling for DocStyling {
     fn id(&self) -> u64 {
         self.config.with_untracked(|config| config.id)
@@ -2133,7 +2303,7 @@ impl Styling for DocStyling {
     }
 
     fn line_style(&self, line: usize) -> Vec<(usize, usize, Color)> {
-        let config = self.doc.common.config.get_untracked();
+        let config = self.config.get_untracked();
         let mut styles: Vec<(usize, usize, Color)> = self
             .doc
             .line_style(line)

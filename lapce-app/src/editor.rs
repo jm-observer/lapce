@@ -309,8 +309,7 @@ impl EditorData {
 
     /// Swap out the document this editor is for
     pub fn update_doc(&self, doc: Rc<Doc>) {
-        let style = doc.styling();
-        self.editor.update_doc(doc, Some(style));
+        self.editor.update_doc(doc);
     }
 
     /// Create a new editor using the same underlying [`Doc`]  
