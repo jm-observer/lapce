@@ -187,17 +187,13 @@ impl BracketParser {
         *(self.active.borrow_mut()) = false;
     }*/
 
-    pub fn update_code(
-        &mut self,
-        code: String,
-        buffer: &Buffer,
-        syntax: Option<&Syntax>,
-    ) {
+    pub fn update_code(&mut self, buffer: &Buffer, syntax: Option<&Syntax>) {
         let palette = vec![
             "bracket.color.1".to_string(),
             "bracket.color.2".to_string(),
             "bracket.color.3".to_string(),
         ];
+        let code = buffer.to_string();
         if self.active
             && code
                 .chars()

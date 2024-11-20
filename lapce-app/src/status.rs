@@ -372,7 +372,7 @@ pub fn status(
             let language_info = status_text(config, editor, move || {
                 if let Some(editor) = editor.get() {
                     let doc = editor.doc_signal().get();
-                    doc.syntax().with(|s| s.language.name())
+                    doc.syntax().language.name()
                 } else {
                     "unknown"
                 }

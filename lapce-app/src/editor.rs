@@ -89,6 +89,7 @@ use crate::{
 };
 
 pub mod diff;
+mod editor;
 pub mod gutter;
 pub mod lines;
 pub mod location;

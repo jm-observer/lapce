@@ -1,12 +1,19 @@
 use floem::kurbo::Rect;
 use floem::peniko::Color;
-use floem::reactive::{batch, Scope, SignalGet, SignalUpdate, SignalWith};
+use floem::reactive::{
+    batch, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
+};
 use floem::text::{
-    Attrs, AttrsList, LineHeightValue, TextLayout, Wrap, FONT_SYSTEM,
+    Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout, Wrap, FONT_SYSTEM,
 };
 use lapce_xi_rope::{Interval, RopeDelta, Transformer};
+use std::borrow::Cow;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
-use std::sync::Arc;
+use std::rc::Rc;
+use std::sync::atomic::AtomicUsize;
+use std::sync::{atomic, Arc};
 
 use floem_editor_core::buffer::rope_text::RopeText;
 use floem_editor_core::cursor::CursorAffinity;
@@ -32,12 +39,18 @@ use floem_editor_core::buffer::Buffer;
 use floem_editor_core::word::{get_char_property, CharClassification};
 use itertools::Itertools;
 use lapce_core::rope_text_pos::RopeTextPosition;
+use lapce_core::style::line_styles;
+use lapce_core::syntax::edit::SyntaxEdit;
+use lapce_core::syntax::{BracketParser, Syntax};
+use lapce_rpc::style::{LineStyle, Style};
 use lapce_xi_rope::spans::{Spans, SpansBuilder};
 use lsp_types::{DiagnosticSeverity, InlayHint, InlayHintLabel, Position};
 use smallvec::SmallVec;
 
 /// Minimum width that we'll allow the view to be wrapped at.
 const MIN_WRAPPED_WIDTH: f32 = 100.0;
+
+type LineStyles = HashMap<usize, Vec<LineStyle>>;
 
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug)]
@@ -132,13 +145,36 @@ pub struct DocLines {
     /// (line, col)
     pub inline_completion: Option<(String, usize, usize)>,
     pub preedit: PreeditData,
+    // tree-sitter
+    pub syntax: Syntax,
+    // lsp
+    pub semantic_styles: Option<(Option<String>, Spans<Style>)>,
+    pub parser: BracketParser,
+    pub line_styles: LineStyles,
+    pub editor_style: RwSignal<EditorStyle>,
+    pub viewport: RwSignal<Rect>,
+    pub config: ReadSignal<Arc<LapceConfig>>,
+    pub buffer: RwSignal<Buffer>,
 }
 
 impl DocLines {
-    pub fn new(cx: Scope, diagnostics: DiagnosticData) -> Self {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        cx: Scope,
+        diagnostics: DiagnosticData,
+        syntax: Syntax,
+        parser: BracketParser,
+        viewport: RwSignal<Rect>,
+        editor_style: RwSignal<EditorStyle>,
+        config: ReadSignal<Arc<LapceConfig>>,
+        buffer: RwSignal<Buffer>,
+    ) -> Self {
         Self {
             // font_size_cache_id: id,
-            layout_event: Listener::new_empty(cx),
+            layout_event: Listener::new_empty(cx), // font_size_cache_id: id,
+            viewport,
+            config,
+            editor_style,
             origin_lines: vec![],
             origin_folded_lines: vec![],
             visual_lines: vec![],
@@ -152,6 +188,11 @@ impl DocLines {
             completion_lens: None,
             inline_completion: None,
             preedit: PreeditData::new(cx),
+            syntax,
+            semantic_styles: None,
+            parser,
+            line_styles: Default::default(),
+            buffer,
         }
     }
 
@@ -176,16 +217,16 @@ impl DocLines {
     }
 
     // return do_update
-    pub fn update(&mut self, doc: &Doc) -> bool {
+    pub fn update(&mut self) -> bool {
         self.clear();
-        let buffer = doc.buffer.get_untracked();
+        let buffer = self.buffer.get_untracked();
         let last_line = buffer.last_line();
 
         let mut current_line = 0;
         let mut origin_folded_line_index = 0;
         let mut visual_line_index = 0;
         while current_line <= last_line {
-            let text_layout = self.new_text_layout(doc, current_line, &buffer);
+            let text_layout = self.new_text_layout(current_line, &buffer);
             let origin_line_start = text_layout.phantom_text.line;
             let origin_line_end = text_layout.phantom_text.last_line;
 
@@ -679,46 +720,41 @@ impl DocLines {
     }
 
     fn new_text_layout(
-        &self,
-        doc: &Doc,
+        &mut self,
         mut line: usize,
         buffer: &Buffer,
     ) -> Arc<TextLayoutLine> {
         // TODO: we could share text layouts between different editor views given some knowledge of
         // their wrapping
-        let style = doc.clone();
-        let es = doc.editor_style().get_untracked();
-        let viewport = doc.viewport().get_untracked();
-        let config: Arc<LapceConfig> = doc.common.config.get_untracked();
-
-        let text = doc.rope_text();
-        if true {
-            todo!();
-        }
-        line = self.folding_ranges.get_folded_range().visual_line(line);
-        // line = doc.visual_line_of_line(line);
+        let es = self.editor_style.get_untracked();
+        let viewport = self.viewport.get_untracked();
+        let config: Arc<LapceConfig> = self.config.get_untracked();
 
         let mut line_content = String::new();
         // Get the line content with newline characters replaced with spaces
         // and the content without the newline characters
         // TODO: cache or add some way that text layout is created to auto insert the spaces instead
         // though we immediately combine with phantom text so that's a thing.
-        let line_content_original = text.line_content(line);
+        let line_content_original = buffer.line_content(line);
         let mut font_system = FONT_SYSTEM.lock();
         push_strip_suffix(&line_content_original, &mut line_content);
 
-        let family = style.font_family(line);
-        let font_size = style.font_size(line);
+        let family = Cow::Owned(
+            FamilyOwned::parse_list(&config.editor.font_family).collect(),
+        );
+        let font_size = config.editor.font_size();
+        let line_height = config.editor.line_height();
+
         let attrs = Attrs::new()
             .color(es.ed_text_color())
             .family(&family)
             .font_size(font_size as f32)
-            .line_height(LineHeightValue::Px(style.line_height(line)));
+            .line_height(LineHeightValue::Px(line_height as f32));
 
         let phantom_text = self.phantom_text(&es, line, &config, buffer);
         let mut collapsed_line_col = phantom_text.folded_line();
-        let multi_styles: Vec<(usize, usize, Color, Attrs)> = style
-            .line_styles(line)
+        let multi_styles: Vec<(usize, usize, Color, Attrs)> = self
+            .line_styles(line, buffer, config.as_ref())
             .into_iter()
             .map(|(start, end, color)| (start, end, color, attrs))
             .collect();
@@ -735,24 +771,25 @@ impl DocLines {
         }
 
         while let Some(collapsed_line) = collapsed_line_col.take() {
-            push_strip_suffix(&text.line_content(collapsed_line), &mut line_content);
+            push_strip_suffix(
+                &buffer.line_content(collapsed_line),
+                &mut line_content,
+            );
 
             let offset_col = phantom_text.final_text_len();
-            let family = style.font_family(line);
-            let font_size = style.font_size(line) as f32;
             let attrs = Attrs::new()
                 .color(es.ed_text_color())
                 .family(&family)
-                .font_size(font_size)
-                .line_height(LineHeightValue::Px(style.line_height(line)));
+                .font_size(font_size as f32)
+                .line_height(LineHeightValue::Px(line_height as f32));
             // let (next_phantom_text, collapsed_line_content, styles, next_collapsed_line_col)
             //     = calcuate_line_text_and_style(collapsed_line, &next_line_content, style.clone(), edid, &es, doc.clone(), offset_col, attrs);
 
             let next_phantom_text =
                 self.phantom_text(&es, collapsed_line, &config, buffer);
             collapsed_line_col = next_phantom_text.folded_line();
-            let styles: Vec<(usize, usize, Color, Attrs)> = style
-                .line_styles(collapsed_line)
+            let styles: Vec<(usize, usize, Color, Attrs)> = self
+                .line_styles(collapsed_line, buffer, config.as_ref())
                 .into_iter()
                 .map(|(start, end, color)| {
                     (start + offset_col, end + offset_col, color, attrs)
@@ -820,7 +857,7 @@ impl DocLines {
         //     es.render_whitespace(),
         // );
         // tracing::info!("line={line} {:?}", whitespaces);
-        let indent_line = style.indent_line(line, &line_content_original);
+        let indent_line = self.indent_line(line, &line_content_original, buffer);
 
         // let indent = if indent_line != line {
         //     // TODO: This creates the layout if it isn't already cached, but it doesn't cache the
@@ -838,8 +875,8 @@ impl DocLines {
         //     let (_, col) = text.offset_to_line_col(offset);
         //     text_layout.hit_position(col).point.x
         // };
-        let offset = text.first_non_blank_character_on_line(indent_line);
-        let (_, col) = text.offset_to_line_col(offset);
+        let offset = buffer.first_non_blank_character_on_line(indent_line);
+        let (_, col) = buffer.offset_to_line_col(offset);
         let indent = text_layout.hit_position(col).point.x;
 
         let layout_line = TextLayoutLine {
@@ -912,11 +949,11 @@ impl DocLines {
         self.completion_lens = None;
     }
 
-    pub fn update_completion_lens(&mut self, delta: &RopeDelta, buffer: &Buffer) {
+    pub fn update_completion_lens(&mut self, delta: &RopeDelta) {
         let Some(completion) = &mut self.completion_lens else {
             return;
         };
-
+        let buffer = self.buffer.get_untracked();
         let (line, col) = self.completion_pos;
         let offset = buffer.offset_of_line_col(line, col);
 
@@ -949,7 +986,8 @@ impl DocLines {
         self.completion_pos = new_pos;
     }
 
-    pub fn init_diagnostics(&self, buffer: &Buffer) {
+    pub fn init_diagnostics(&self) {
+        let buffer = self.buffer.get_untracked();
         let len = buffer.len();
         let diagnostics = self.diagnostics.diagnostics.get_untracked();
         let mut span = SpansBuilder::new(len);
@@ -989,10 +1027,11 @@ impl DocLines {
         self.inline_completion = None;
     }
 
-    pub fn update_inline_completion(&mut self, delta: &RopeDelta, buffer: Buffer) {
+    pub fn update_inline_completion(&mut self, delta: &RopeDelta) {
         let Some((completion, ..)) = self.inline_completion.take() else {
             return;
         };
+        let buffer = self.buffer.get_untracked();
 
         let (line, col) = self.completion_pos;
         let offset = buffer.offset_of_line_col(line, col);
@@ -1019,6 +1058,129 @@ impl DocLines {
         } else {
             self.inline_completion = Some((completion, new_pos.0, new_pos.1));
         }
+    }
+
+    pub fn set_syntax(&mut self, syntax: Syntax) {
+        self.syntax = syntax;
+        if self.semantic_styles.is_none() {
+            self.line_styles.clear();
+        }
+    }
+
+    pub fn update_styles(&mut self, delta: &RopeDelta) {
+        if let Some(styles) = self.syntax.styles.as_mut() {
+            styles.apply_shape(delta);
+        }
+        self.syntax.lens.apply_delta(delta);
+        if let Some(styles) = &mut self.semantic_styles {
+            styles.1.apply_shape(delta);
+        }
+    }
+
+    pub fn trigger_syntax_change(
+        &mut self,
+        _edits: Option<SmallVec<[SyntaxEdit; 3]>>,
+    ) {
+        self.syntax.cancel_flag.store(1, atomic::Ordering::Relaxed);
+        self.syntax.cancel_flag = Arc::new(AtomicUsize::new(0));
+    }
+
+    pub fn styles(&self) -> Option<Spans<Style>> {
+        if let Some(semantic_styles) = &self.semantic_styles {
+            Some(semantic_styles.1.clone())
+        } else {
+            self.syntax.styles.clone()
+        }
+    }
+
+    pub fn init_parser(&mut self) {
+        let buffer = self.buffer.get_untracked();
+        if self.syntax.styles.is_some() {
+            self.parser.update_code(&buffer, Some(&self.syntax));
+        } else {
+            self.parser.update_code(&buffer, None);
+        }
+    }
+
+    pub fn do_bracket_colorization(&mut self) {
+        let buffer = self.buffer.get_untracked();
+        if self.parser.active {
+            if self.syntax.styles.is_some() {
+                self.parser.update_code(&buffer, Some(&self.syntax));
+            } else {
+                self.parser.update_code(&buffer, None);
+            }
+        }
+    }
+
+    fn line_styles(
+        &mut self,
+        line: usize,
+        buffer: &Buffer,
+        config: &LapceConfig,
+    ) -> Vec<(usize, usize, Color)> {
+        let mut styles: Vec<(usize, usize, Color)> = self
+            .line_style(line, buffer)
+            .iter()
+            .filter_map(|line_style| {
+                if let Some(fg_color) = line_style.style.fg_color.as_ref() {
+                    if let Some(fg_color) = config.style_color(fg_color) {
+                        return Some((line_style.start, line_style.end, fg_color));
+                    }
+                }
+                None
+            })
+            .collect();
+        if let Some(bracket_styles) = self.parser.bracket_pos.get(&line) {
+            let mut bracket_styles = bracket_styles
+                .iter()
+                .filter_map(|bracket_style| {
+                    if let Some(fg_color) = bracket_style.style.fg_color.as_ref() {
+                        if let Some(fg_color) = config.style_color(fg_color) {
+                            return Some((
+                                bracket_style.start,
+                                bracket_style.end,
+                                fg_color,
+                            ));
+                        }
+                    }
+                    None
+                })
+                .collect();
+            styles.append(&mut bracket_styles);
+        }
+        styles
+    }
+
+    fn line_style(&mut self, line: usize, buffer: &Buffer) -> Vec<LineStyle> {
+        let styles = self.styles();
+        self.line_styles
+            .entry(line)
+            .or_insert_with(|| {
+                let line_styles = styles
+                    .map(|styles| {
+                        let text = buffer.text();
+                        line_styles(text, line, &styles)
+                    })
+                    .unwrap_or_default();
+                line_styles
+            })
+            .clone()
+    }
+
+    fn indent_line(
+        &self,
+        line: usize,
+        line_content: &str,
+        buffer: &Buffer,
+    ) -> usize {
+        if line_content.trim().is_empty() {
+            let offset = buffer.offset_of_line(line);
+            if let Some(offset) = self.syntax.parent_offset(offset) {
+                return buffer.line_of_offset(offset);
+            }
+        }
+        line
     }
 }
 

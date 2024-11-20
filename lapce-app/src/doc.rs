@@ -175,9 +175,9 @@ pub struct Doc {
     /// Whether the buffer's content has been loaded/initialized into the buffer.
     pub loaded: RwSignal<bool>,
     pub buffer: RwSignal<Buffer>,
-    pub syntax: RwSignal<Syntax>,
-    semantic_styles: RwSignal<Option<Spans<Style>>>,
-    semantic_previous_rs_id: RwSignal<Option<String>>,
+    // pub syntax: RwSignal<Syntax>,
+    // semantic_styles: RwSignal<Option<Spans<Style>>>,
+    // semantic_previous_rs_id: RwSignal<Option<String>>,
     /// Inlay hints for the document
     // pub inlay_hints: RwSignal<Option<Spans<InlayHint>>>,
     /// Current completion lens text, if any.
@@ -202,9 +202,8 @@ pub struct Doc {
     histories: RwSignal<im::HashMap<String, DocumentHistory>>,
     pub head_changes: RwSignal<im::Vector<DiffLines>>,
 
-    line_styles: Rc<RefCell<LineStyles>>,
-    pub parser: Rc<RefCell<BracketParser>>,
-
+    // line_styles: Rc<RefCell<LineStyles>>,
+    // pub parser: Rc<RefCell<BracketParser>>,
     /// A cache for the sticky headers which maps a line to the lines it should show in the header.
     pub sticky_headers: Rc<RefCell<HashMap<usize, Option<Vec<usize>>>>>,
 
@@ -234,30 +233,18 @@ impl Doc {
         let editor_id = EditorId::next();
         let syntax = Syntax::init(&path);
         let config = common.config.get_untracked();
+        let rw_config = common.config;
         let lines = cx.create_rw_signal(Lines::new(cx));
         let viewport = cx.create_rw_signal(Rect::ZERO);
         let editor_style = cx.create_rw_signal(EditorStyle::default());
+        let buffer = cx.create_rw_signal(Buffer::new(""));
         Doc {
             editor_id,
             viewport,
             editor_style,
             scope: cx,
             buffer_id: BufferId::next(),
-            buffer: cx.create_rw_signal(Buffer::new("")),
-            syntax: cx.create_rw_signal(syntax),
-            line_styles: Rc::new(RefCell::new(HashMap::new())),
-            parser: Rc::new(RefCell::new(BracketParser::new(
-                String::new(),
-                config.editor.bracket_pair_colorization,
-                config.editor.bracket_colorization_limit,
-            ))),
-            semantic_styles: cx.create_rw_signal(None),
-            // inlay_hints: cx.create_rw_signal(None),
-            // diagnostics,
-            // completion_lens: cx.create_rw_signal(None),
-            // completion_pos: cx.create_rw_signal((0, 0)),
-            // inline_completion: cx.create_rw_signal(None),
-            // inline_completion_pos: cx.create_rw_signal((0, 0)),
+            buffer,
             cache_rev: cx.create_rw_signal(0),
             content: cx.create_rw_signal(DocContent::File {
                 path,
@@ -275,9 +262,22 @@ impl Doc {
             code_lens: cx.create_rw_signal(im::HashMap::new()),
             document_symbol_data: DocumentSymbolViewData::new(cx),
             // folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
-            semantic_previous_rs_id: cx.create_rw_signal(None),
+            // semantic_previous_rs_id: cx.create_rw_signal(None),
             lines,
-            doc_lines: cx.create_rw_signal(DocLines::new(cx, diagnostics)),
+            doc_lines: cx.create_rw_signal(DocLines::new(
+                cx,
+                diagnostics,
+                syntax,
+                BracketParser::new(
+                    String::new(),
+                    config.editor.bracket_pair_colorization,
+                    config.editor.bracket_colorization_limit,
+                ),
+                viewport,
+                editor_style,
+                rw_config,
+                buffer,
+            )),
         }
     }
 
@@ -294,6 +294,7 @@ impl Doc {
         let editor_id = EditorId::next();
         let cx = cx.create_child();
         let config = common.config.get_untracked();
+        let rw_config = common.config;
         let lines = cx.create_rw_signal(Lines::new(cx));
         let viewport = cx.create_rw_signal(Rect::ZERO);
         let editor_style = cx.create_rw_signal(EditorStyle::default());
@@ -302,19 +303,20 @@ impl Doc {
             diagnostics: cx.create_rw_signal(im::Vector::new()),
             diagnostics_span: cx.create_rw_signal(SpansBuilder::new(0).build()),
         };
+        let syntax = Syntax::plaintext();
+        let buffer = cx.create_rw_signal(Buffer::new(""));
         Self {
             editor_id,
             scope: cx,
             buffer_id: BufferId::next(),
-            buffer: cx.create_rw_signal(Buffer::new("")),
-            syntax: cx.create_rw_signal(Syntax::plaintext()),
-            line_styles: Rc::new(RefCell::new(HashMap::new())),
-            parser: Rc::new(RefCell::new(BracketParser::new(
-                String::new(),
-                config.editor.bracket_pair_colorization,
-                config.editor.bracket_colorization_limit,
-            ))),
-            semantic_styles: cx.create_rw_signal(None),
+            buffer,
+            // line_styles: Rc::new(RefCell::new(HashMap::new())),
+            // parser: Rc::new(RefCell::new(BracketParser::new(
+            //     String::new(),
+            //     config.editor.bracket_pair_colorization,
+            //     config.editor.bracket_colorization_limit,
+            // ))),
+            // semantic_styles: cx.create_rw_signal(None),
             // inlay_hints: cx.create_rw_signal(None),
             // diagnostics: DiagnosticData {
             //     expanded: cx.create_rw_signal(true),
@@ -339,11 +341,24 @@ impl Doc {
             code_lens: cx.create_rw_signal(im::HashMap::new()),
             document_symbol_data: DocumentSymbolViewData::new(cx),
             // folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
-            semantic_previous_rs_id: cx.create_rw_signal(None),
+            // semantic_previous_rs_id: cx.create_rw_signal(None),
             lines,
             viewport,
             editor_style,
-            doc_lines: cx.create_rw_signal(DocLines::new(cx, diagnostics)),
+            doc_lines: cx.create_rw_signal(DocLines::new(
+                cx,
+                diagnostics,
+                syntax,
+                BracketParser::new(
+                    String::new(),
+                    config.editor.bracket_pair_colorization,
+                    config.editor.bracket_colorization_limit,
+                ),
+                viewport,
+                editor_style,
+                rw_config,
+                buffer,
+            )),
         }
     }
 
@@ -355,6 +370,7 @@ impl Doc {
     ) -> Doc {
         let editor_id = EditorId::next();
         let config = common.config.get_untracked();
+        let rw_config = common.config;
         let syntax = if let DocContent::History(history) = &content {
             Syntax::init(&history.path)
         } else {
@@ -368,19 +384,15 @@ impl Doc {
             diagnostics: cx.create_rw_signal(im::Vector::new()),
             diagnostics_span: cx.create_rw_signal(SpansBuilder::new(0).build()),
         };
+        let buffer = cx.create_rw_signal(Buffer::new(""));
         Self {
             editor_id,
             scope: cx,
             buffer_id: BufferId::next(),
-            buffer: cx.create_rw_signal(Buffer::new("")),
-            syntax: cx.create_rw_signal(syntax),
-            line_styles: Rc::new(RefCell::new(HashMap::new())),
-            parser: Rc::new(RefCell::new(BracketParser::new(
-                String::new(),
-                config.editor.bracket_pair_colorization,
-                config.editor.bracket_colorization_limit,
-            ))),
-            semantic_styles: cx.create_rw_signal(None),
+            buffer,
+            // syntax: cx.create_rw_signal(syntax),
+            // line_styles: Rc::new(RefCell::new(HashMap::new())),
+            // semantic_styles: cx.create_rw_signal(None),
             // inlay_hints: cx.create_rw_signal(None),
             // completion_lens: cx.create_rw_signal(None),
             // completion_pos: cx.create_rw_signal((0, 0)),
@@ -400,11 +412,24 @@ impl Doc {
             code_lens: cx.create_rw_signal(im::HashMap::new()),
             document_symbol_data: DocumentSymbolViewData::new(cx),
             // folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
-            semantic_previous_rs_id: cx.create_rw_signal(None),
+            // semantic_previous_rs_id: cx.create_rw_signal(None),
             lines,
             viewport,
             editor_style,
-            doc_lines: cx.create_rw_signal(DocLines::new(cx, diagnostics)),
+            doc_lines: cx.create_rw_signal(DocLines::new(
+                cx,
+                diagnostics,
+                syntax,
+                BracketParser::new(
+                    String::new(),
+                    config.editor.bracket_pair_colorization,
+                    config.editor.bracket_colorization_limit,
+                ),
+                viewport,
+                editor_style,
+                rw_config,
+                buffer,
+            )),
         }
     }
 
@@ -447,15 +472,21 @@ impl Doc {
         self.editors.editor_untracked(id)
     }
 
-    pub fn syntax(&self) -> ReadSignal<Syntax> {
-        self.syntax.read_only()
+    pub fn syntax(&self) -> Syntax {
+        self.doc_lines.with_untracked(|x| x.syntax.clone())
     }
 
     pub fn set_syntax(&self, syntax: Syntax) {
         batch(|| {
-            self.syntax.set(syntax);
-            if self.semantic_styles.with_untracked(|s| s.is_none()) {
-                self.clear_style_cache();
+            if self
+                .doc_lines
+                .try_update(|x| {
+                    x.set_syntax(syntax);
+                    x.semantic_styles.is_none()
+                })
+                .is_none()
+            {
+                self.clear_text_cache();
             }
             self.clear_sticky_headers_cache();
         });
@@ -463,7 +494,8 @@ impl Doc {
 
     /// Set the syntax highlighting this document should use.
     pub fn set_language(&self, language: LapceLanguage) {
-        self.syntax.set(Syntax::from_language(language));
+        self.doc_lines
+            .update(|x| x.set_syntax(Syntax::from_language(language)));
     }
 
     pub fn find(&self) -> &Find {
@@ -478,12 +510,11 @@ impl Doc {
     //// Initialize the content with some text, this marks the document as loaded.
     pub fn init_content(&self, content: Rope) {
         batch(|| {
-            self.syntax.with_untracked(|syntax| {
-                self.buffer.update(|buffer| {
-                    buffer.init_content(content);
-                    buffer.detect_indent(|| {
-                        IndentStyle::from_str(syntax.language.indent_unit())
-                    });
+            let syntax = self.syntax();
+            self.buffer.update(|buffer| {
+                buffer.init_content(content);
+                buffer.detect_indent(|| {
+                    IndentStyle::from_str(syntax.language.indent_unit())
                 });
             });
             self.loaded.set(true);
@@ -496,22 +527,22 @@ impl Doc {
     }
 
     fn init_parser(&self) {
-        let code = self.buffer.get_untracked().to_string();
-        self.syntax.with_untracked(|syntax| {
-            if syntax.styles.is_some() {
-                self.parser.borrow_mut().update_code(
-                    code,
-                    &self.buffer.get_untracked(),
-                    Some(syntax),
-                );
-            } else {
-                self.parser.borrow_mut().update_code(
-                    code,
-                    &self.buffer.get_untracked(),
-                    None,
-                );
-            }
-        });
+        self.doc_lines.update(|x| x.init_parser());
+        // let code = self.buffer.get_untracked().to_string();
+        // let syntax = self.syntax();
+        // if syntax.styles.is_some() {
+        //     self.parser.borrow_mut().update_code(
+        //         code,
+        //         &self.buffer.get_untracked(),
+        //         Some(&syntax),
+        //     );
+        // } else {
+        //     self.parser.borrow_mut().update_code(
+        //         code,
+        //         &self.buffer.get_untracked(),
+        //         None,
+        //     );
+        // }
     }
 
     /// Reload the document's content, and is what you should typically use when you want to *set*
@@ -543,22 +574,22 @@ impl Doc {
         }
 
         let old_cursor = cursor.mode.clone();
-        let deltas = self.syntax.with_untracked(|syntax| {
-            self.buffer
-                .try_update(|buffer| {
-                    Action::insert(
-                        cursor,
-                        buffer,
-                        s,
-                        &|buffer, c, offset| {
-                            syntax_prev_unmatched(buffer, syntax, c, offset)
-                        },
-                        config.editor.auto_closing_matching_pairs,
-                        config.editor.auto_surround,
-                    )
-                })
-                .unwrap()
-        });
+        let syntax = self.syntax();
+        let deltas = self
+            .buffer
+            .try_update(|buffer| {
+                Action::insert(
+                    cursor,
+                    buffer,
+                    s,
+                    &|buffer, c, offset| {
+                        syntax_prev_unmatched(buffer, &syntax, c, offset)
+                    },
+                    config.editor.auto_closing_matching_pairs,
+                    config.editor.auto_surround,
+                )
+            })
+            .unwrap();
         // Keep track of the change in the cursor mode for undo/redo
         self.buffer.update(|buffer| {
             buffer.set_cursor_before(old_cursor);
@@ -601,26 +632,26 @@ impl Doc {
 
         let mut clipboard = SystemClipboard::new();
         let old_cursor = cursor.mode.clone();
-        let deltas = self.syntax.with_untracked(|syntax| {
-            self.buffer
-                .try_update(|buffer| {
-                    Action::do_edit(
-                        cursor,
-                        buffer,
-                        cmd,
-                        &mut clipboard,
-                        register,
-                        EditConf {
-                            comment_token: syntax.language.comment_token(),
-                            modal,
-                            smart_tab,
-                            keep_indent: true,
-                            auto_indent: true,
-                        },
-                    )
-                })
-                .unwrap()
-        });
+        let syntax = self.syntax();
+        let deltas = self
+            .buffer
+            .try_update(|buffer| {
+                Action::do_edit(
+                    cursor,
+                    buffer,
+                    cmd,
+                    &mut clipboard,
+                    register,
+                    EditConf {
+                        comment_token: syntax.language.comment_token(),
+                        modal,
+                        smart_tab,
+                        keep_indent: true,
+                        auto_indent: true,
+                    },
+                )
+            })
+            .unwrap();
 
         if !deltas.is_empty() {
             self.buffer.update(|buffer| {
@@ -703,23 +734,7 @@ impl Doc {
     }
 
     fn do_bracket_colorization(&self) {
-        if self.parser.borrow().active {
-            self.syntax.with_untracked(|syntax| {
-                if syntax.rev == self.rev() && syntax.styles.is_some() {
-                    self.parser.borrow_mut().update_code(
-                        self.buffer.get_untracked().to_string(),
-                        &self.buffer.get_untracked(),
-                        Some(syntax),
-                    );
-                } else {
-                    self.parser.borrow_mut().update_code(
-                        self.buffer.get_untracked().to_string(),
-                        &self.buffer.get_untracked(),
-                        None,
-                    );
-                }
-            })
-        }
+        self.doc_lines.update(|x| x.do_bracket_colorization());
     }
 
     pub fn do_text_edit(&self, edits: &[TextEdit]) {
@@ -742,19 +757,7 @@ impl Doc {
     /// Update the styles after an edit, so the highlights are at the correct positions.
     /// This does not do a reparse of the document itself.
     fn update_styles(&self, delta: &RopeDelta) {
-        batch(|| {
-            self.semantic_styles.update(|styles| {
-                if let Some(styles) = styles.as_mut() {
-                    styles.apply_shape(delta);
-                }
-            });
-            self.syntax.update(|syntax| {
-                if let Some(styles) = syntax.styles.as_mut() {
-                    styles.apply_shape(delta);
-                }
-                syntax.lens.apply_delta(delta);
-            });
-        });
+        self.doc_lines.update(|x| x.update_styles(delta));
     }
 
     /// Update the inlay hints so their positions are correct after an edit.
@@ -771,18 +774,18 @@ impl Doc {
         let doc = self.clone();
         let send = create_ext_action(self.scope, move |syntax| {
             if doc.buffer.with_untracked(|b| b.rev()) == rev {
-                doc.syntax.set(syntax);
+                doc.doc_lines.update(|x| {
+                    x.set_syntax(syntax);
+                });
                 doc.do_bracket_colorization();
-                doc.clear_style_cache();
                 doc.clear_sticky_headers_cache();
+                doc.clear_text_cache();
             }
         });
 
-        self.syntax.update(|syntax| {
-            syntax.cancel_flag.store(1, atomic::Ordering::Relaxed);
-            syntax.cancel_flag = Arc::new(AtomicUsize::new(0));
-        });
-        let mut syntax = self.syntax.get_untracked();
+        self.doc_lines
+            .update(|x| x.trigger_syntax_change(edits.clone()));
+        let mut syntax = self.syntax();
         rayon::spawn(move || {
             syntax.parse(rev, text, edits.as_deref());
             send(syntax);
@@ -790,7 +793,6 @@ impl Doc {
     }
 
     fn clear_style_cache(&self) {
-        self.line_styles.borrow_mut().clear();
         self.clear_text_cache();
     }
 
@@ -818,32 +820,17 @@ impl Doc {
     /// Get the active style information, either the semantic styles or the
     /// tree-sitter syntax styles.
     fn styles(&self) -> Option<Spans<Style>> {
-        if let Some(semantic_styles) = self.semantic_styles.get_untracked() {
-            Some(semantic_styles)
-        } else {
-            self.syntax.with_untracked(|syntax| syntax.styles.clone())
-        }
+        self.doc_lines.with_untracked(|lines| lines.styles())
     }
 
     /// Get the style information for the particular line from semantic/syntax highlighting.
     /// This caches the result if possible.
-    pub fn line_style(&self, line: usize) -> Arc<Vec<LineStyle>> {
-        if self.line_styles.borrow().get(&line).is_none() {
-            let styles = self.styles();
-
-            let line_styles = styles
-                .map(|styles| {
-                    let text =
-                        self.buffer.with_untracked(|buffer| buffer.text().clone());
-                    line_styles(&text, line, &styles)
-                })
-                .unwrap_or_default();
-            self.line_styles
-                .borrow_mut()
-                .insert(line, Arc::new(line_styles));
-        }
-        self.line_styles.borrow().get(&line).cloned().unwrap()
-    }
+    // pub fn line_style(&self, line: usize) -> Vec<LineStyle> {
+    //     let buffer = self.buffer.get_untracked();
+    //     self.doc_lines
+    //         .try_update(|x| x.line_style(line, &buffer))
+    //         .unwrap()
+    // }
 
     /// Request semantic styles for the buffer from the LSP through the proxy.
     // pub fn get_semantic_styles(&self) {
@@ -866,8 +853,8 @@ impl Doc {
         let send = create_ext_action(self.scope, move |(styles, result_id)| {
             if let Some(styles) = styles {
                 if doc.buffer.with_untracked(|b| b.rev()) == rev {
-                    doc.semantic_styles.set(Some(styles));
-                    doc.semantic_previous_rs_id.set(result_id);
+                    doc.doc_lines
+                        .update(|x| x.semantic_styles = Some((result_id, styles)));
                     doc.clear_style_cache();
                 }
             }
@@ -1121,9 +1108,8 @@ impl Doc {
 
     /// init diagnostics offset ranges from lsp positions
     pub fn init_diagnostics(&self) {
-        let buffer = self.buffer.get_untracked();
         self.doc_lines.update(|x| {
-            x.init_diagnostics(&buffer);
+            x.init_diagnostics();
         });
         self.clear_text_cache();
         self.clear_code_actions();
@@ -1216,9 +1202,7 @@ impl Doc {
 
     /// Update the completion lens position after an edit so that it appears in the correct place.
     pub fn update_completion_lens(&self, delta: &RopeDelta) {
-        let buffer = self.buffer.get_untracked();
-        self.doc_lines
-            .update(|x| x.update_completion_lens(delta, &buffer));
+        self.doc_lines.update(|x| x.update_completion_lens(delta));
     }
 
     fn update_find_result(&self, delta: &RopeDelta) {
@@ -1320,22 +1304,20 @@ impl Doc {
         }
         let lines = self.buffer.with_untracked(|buffer| {
             let offset = buffer.offset_of_line(line + 1);
-            self.syntax.with_untracked(|syntax| {
-                syntax.sticky_headers(offset).map(|offsets| {
-                    offsets
-                        .iter()
-                        .filter_map(|offset| {
-                            let l = buffer.line_of_offset(*offset);
-                            if l <= line {
-                                Some(l)
-                            } else {
-                                None
-                            }
-                        })
-                        .dedup()
-                        .sorted()
-                        .collect()
-                })
+            self.syntax().sticky_headers(offset).map(|offsets| {
+                offsets
+                    .iter()
+                    .filter_map(|offset| {
+                        let l = buffer.line_of_offset(*offset);
+                        if l <= line {
+                            Some(l)
+                        } else {
+                            None
+                        }
+                    })
+                    .dedup()
+                    .sorted()
+                    .collect()
             })
         });
         self.sticky_headers.borrow_mut().insert(line, lines.clone());
@@ -1471,9 +1453,8 @@ impl Doc {
     }
 
     pub fn update_inline_completion(&self, delta: &RopeDelta) {
-        let buffer = self.buffer.get_untracked();
         self.doc_lines.update(|x| {
-            x.update_inline_completion(delta, buffer);
+            x.update_inline_completion(delta);
         })
     }
 
@@ -1486,11 +1467,9 @@ impl Doc {
     /// else falls back to a language unaware algorithm.
     pub fn find_enclosing_brackets(&self, offset: usize) -> Option<(usize, usize)> {
         let rev = self.rev();
-        self.syntax
-            .with_untracked(|syntax| {
-                (!syntax.text.is_empty() && syntax.rev == rev)
-                    .then(|| syntax.find_enclosing_pair(offset))
-            })
+        let syntax = self.syntax();
+        (!syntax.text.is_empty() && syntax.rev == rev)
+            .then(|| syntax.find_enclosing_pair(offset))
             // If syntax.text is empty, either the buffer is empty or we don't have syntax support
             // for the current language.
             // Try a language unaware search for enclosing brackets in case it is the latter.
@@ -1520,36 +1499,34 @@ impl Document for Doc {
     // }
 
     fn find_unmatched(&self, offset: usize, previous: bool, ch: char) -> usize {
-        self.syntax().with_untracked(|syntax| {
-            if syntax.layers.is_some() {
-                syntax
-                    .find_tag(offset, previous, &CharBuffer::from(ch))
-                    .unwrap_or(offset)
+        let syntax = self.syntax();
+        if syntax.layers.is_some() {
+            syntax
+                .find_tag(offset, previous, &CharBuffer::from(ch))
+                .unwrap_or(offset)
+        } else {
+            let text = self.text();
+            let mut cursor = WordCursor::new(&text, offset);
+            let new_offset = if previous {
+                cursor.previous_unmatched(ch)
             } else {
-                let text = self.text();
-                let mut cursor = WordCursor::new(&text, offset);
-                let new_offset = if previous {
-                    cursor.previous_unmatched(ch)
-                } else {
-                    cursor.next_unmatched(ch)
-                };
+                cursor.next_unmatched(ch)
+            };
 
-                new_offset.unwrap_or(offset)
-            }
-        })
+            new_offset.unwrap_or(offset)
+        }
     }
 
     fn find_matching_pair(&self, offset: usize) -> usize {
-        self.syntax().with_untracked(|syntax| {
-            if syntax.layers.is_some() {
-                syntax.find_matching_pair(offset).unwrap_or(offset)
-            } else {
-                let text = self.text();
-                WordCursor::new(&text, offset)
-                    .match_pairs()
-                    .unwrap_or(offset)
-            }
-        })
+        let syntax = self.syntax();
+        if syntax.layers.is_some() {
+            syntax.find_matching_pair(offset).unwrap_or(offset)
+        } else {
+            let text = self.text();
+            WordCursor::new(&text, offset)
+                .match_pairs()
+                .unwrap_or(offset)
+        }
     }
 
     fn preedit(&self) -> PreeditData {
@@ -2028,9 +2005,7 @@ impl Styling for Doc {
         if line_content.trim().is_empty() {
             let text = self.rope_text();
             let offset = text.offset_of_line(line);
-            if let Some(offset) =
-                self.syntax.with_untracked(|s| s.parent_offset(offset))
-            {
+            if let Some(offset) = self.syntax().parent_offset(offset) {
                 return text.line_of_offset(offset);
             }
         }
@@ -2050,43 +2025,46 @@ impl Styling for Doc {
             .with_untracked(|config| config.editor.atomic_soft_tabs)
     }
 
-    fn line_styles(&self, line: usize) -> Vec<(usize, usize, Color)> {
-        let config = self.common.config.get_untracked();
-        let mut styles: Vec<(usize, usize, Color)> = self
-            .line_style(line)
-            .iter()
-            .filter_map(|line_style| {
-                if let Some(fg_color) = line_style.style.fg_color.as_ref() {
-                    if let Some(fg_color) = config.style_color(fg_color) {
-                        return Some((line_style.start, line_style.end, fg_color));
-                    }
-                }
-                None
-            })
-            .collect();
-
-        if let Some(bracket_styles) = self.parser.borrow().bracket_pos.get(&line) {
-            tracing::error!("bracket_styles.len={}", bracket_styles.len());
-            styles.append(
-                &mut bracket_styles
-                    .iter()
-                    .filter_map(|bracket_style| {
-                        if let Some(fg_color) = bracket_style.style.fg_color.as_ref()
-                        {
-                            if let Some(fg_color) = config.style_color(fg_color) {
-                                return Some((
-                                    bracket_style.start,
-                                    bracket_style.end,
-                                    fg_color,
-                                ));
-                            }
-                        }
-                        None
-                    })
-                    .collect(),
-            );
-        }
-        styles
+    fn line_styles(&self, _line: usize) -> Vec<(usize, usize, Color)> {
+        // let config = self.common.config.get_untracked();
+        // let mut styles: Vec<(usize, usize, Color)> = self
+        //     .line_style(line)
+        //     .iter()
+        //     .filter_map(|line_style| {
+        //         if let Some(fg_color) = line_style.style.fg_color.as_ref() {
+        //             if let Some(fg_color) = config.style_color(fg_color) {
+        //                 return Some((line_style.start, line_style.end, fg_color));
+        //             }
+        //         }
+        //         None
+        //     })
+        //     .collect();
+        //
+        // if let Some(bracket_styles) =
+        //     self.doc_lines.with_untracked(|x| x.line_styles(line))
+        // {
+        //     tracing::error!("bracket_styles.len={}", bracket_styles.len());
+        //     styles.append(
+        //         &mut bracket_styles
+        //             .iter()
+        //             .filter_map(|bracket_style| {
+        //                 if let Some(fg_color) = bracket_style.style.fg_color.as_ref()
+        //                 {
+        //                     if let Some(fg_color) = config.style_color(fg_color) {
+        //                         return Some((
+        //                             bracket_style.start,
+        //                             bracket_style.end,
+        //                             fg_color,
+        //                         ));
+        //                     }
+        //                 }
+        //                 None
+        //             })
+        //             .collect(),
+        //     );
+        // }
+        // styles
+        vec![]
     }
 
     // fn apply_attr_styles(
@@ -2172,9 +2150,7 @@ impl Styling for DocStyling {
         if line_content.trim().is_empty() {
             let text = self.doc.rope_text();
             let offset = text.offset_of_line(line);
-            if let Some(offset) =
-                self.doc.syntax.with_untracked(|s| s.parent_offset(offset))
-            {
+            if let Some(offset) = self.doc.syntax().parent_offset(offset) {
                 return text.line_of_offset(offset);
             }
         }
@@ -2192,44 +2168,7 @@ impl Styling for DocStyling {
     }
 
     fn line_styles(&self, line: usize) -> Vec<(usize, usize, Color)> {
-        let config = self.config.get_untracked();
-        let mut styles: Vec<(usize, usize, Color)> = self
-            .doc
-            .line_style(line)
-            .iter()
-            .filter_map(|line_style| {
-                if let Some(fg_color) = line_style.style.fg_color.as_ref() {
-                    if let Some(fg_color) = config.style_color(fg_color) {
-                        return Some((line_style.start, line_style.end, fg_color));
-                    }
-                }
-                None
-            })
-            .collect();
-
-        if let Some(bracket_styles) = self.doc.parser.borrow().bracket_pos.get(&line)
-        {
-            tracing::error!("bracket_styles.len={}", bracket_styles.len());
-            styles.append(
-                &mut bracket_styles
-                    .iter()
-                    .filter_map(|bracket_style| {
-                        if let Some(fg_color) = bracket_style.style.fg_color.as_ref()
-                        {
-                            if let Some(fg_color) = config.style_color(fg_color) {
-                                return Some((
-                                    bracket_style.start,
-                                    bracket_style.end,
-                                    fg_color,
-                                ));
-                            }
-                        }
-                        None
-                    })
-                    .collect(),
-            );
-        }
-        styles
+        self.doc.line_styles(line)
     }
 
     // fn apply_attr_styles(
