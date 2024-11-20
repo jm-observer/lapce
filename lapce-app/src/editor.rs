@@ -21,18 +21,14 @@ use floem::{
     views::editor::{
         command::CommandExecuted,
         id::EditorId,
-        lines::Lines,
         movement,
         text::Document,
-        view::{
-            DiffSection, DiffSectionKind, LineInfo, ScreenLines, ScreenLinesBase,
-        },
-        visual_line::{ConfigId, VLine, VLineInfo},
+        view::{LineInfo, ScreenLines, ScreenLinesBase},
+        visual_line::{ConfigId, VLine},
         Editor,
     },
     ViewId,
 };
-use itertools::Itertools;
 use lapce_core::{
     buffer::{
         diff::DiffLines,
@@ -53,7 +49,7 @@ use lapce_rpc::{buffer::BufferId, plugin::PluginId, proxy::ProxyResponse};
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{
     CodeActionResponse, CompletionItem, CompletionTextEdit, GotoDefinitionResponse,
-    HoverContents, InlayHint, InlayHintLabel, InlineCompletionTriggerKind, Location,
+    HoverContents, InlayHintLabel, InlineCompletionTriggerKind, Location,
     MarkedString, MarkupKind, Range, TextEdit,
 };
 use nucleo::Utf32Str;
@@ -94,7 +90,7 @@ use crate::{
 
 pub mod diff;
 pub mod gutter;
-mod lines;
+pub mod lines;
 pub mod location;
 pub mod view;
 
@@ -276,7 +272,7 @@ impl EditorData {
     /// You should prefer calling [`Editors::make_local`] / [`Editors::new_local`] instead to
     /// register the editor.
     pub fn new_local(cx: Scope, editors: Editors, common: Rc<CommonData>) -> Self {
-        Self::new_local_id(cx, EditorId::next(), editors, common)
+        Self::new_local_id(cx, editors, common)
     }
 
     /// Create a new local editor with the given id.  
@@ -284,13 +280,12 @@ impl EditorData {
     /// register the editor.
     pub fn new_local_id(
         cx: Scope,
-        editor_id: EditorId,
         editors: Editors,
         common: Rc<CommonData>,
     ) -> Self {
         let cx = cx.create_child();
         let doc = Rc::new(Doc::new_local(cx, editors, common.clone()));
-        let editor = doc.create_editor(cx, editor_id, true);
+        let editor = doc.create_editor(cx, true);
         Self::new(cx, editor, None, None, None, common)
     }
 
@@ -304,7 +299,7 @@ impl EditorData {
         confirmed: Option<RwSignal<bool>>,
         common: Rc<CommonData>,
     ) -> Self {
-        let editor = doc.create_editor(cx, EditorId::next(), false);
+        let editor = doc.create_editor(cx, false);
         Self::new(cx, editor, editor_tab_id, diff_editor_id, confirmed, common)
     }
 
@@ -2846,8 +2841,8 @@ impl EditorData {
         if let PhantomTextKind::InlayHint = phantom.kind {
             let line = phantom.line as u32;
             let index = phantom.col as u32;
-            let rs = self.doc().inlay_hints.with_untracked(|x| {
-                if let Some(hints) = x {
+            let rs = self.doc().doc_lines.with_untracked(|x| {
+                if let Some(hints) = &x.inlay_hints {
                     if let Some(rs) = hints.iter().find_map(|(_, hint)| {
                         if hint.position.line == line
                             && hint.position.character == index
@@ -2870,6 +2865,7 @@ impl EditorData {
                                                 }
                                             });
                                         }
+                                        start = end;
                                     }
                                     // should not be reach
                                     warn!("should not be reach");

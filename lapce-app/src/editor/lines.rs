@@ -1,11 +1,11 @@
+use floem::kurbo::Rect;
 use floem::peniko::Color;
-use floem::reactive::{RwSignal, Scope, SignalGet};
+use floem::reactive::{batch, Scope, SignalGet, SignalUpdate, SignalWith};
 use floem::text::{
     Attrs, AttrsList, LineHeightValue, TextLayout, Wrap, FONT_SYSTEM,
 };
-use lapce_xi_rope::Interval;
+use lapce_xi_rope::{Interval, RopeDelta, Transformer};
 use std::fmt::{Debug, Formatter};
-use std::rc::Rc;
 use std::sync::Arc;
 
 use floem_editor_core::buffer::rope_text::RopeText;
@@ -15,7 +15,9 @@ use tracing::warn;
 use crate::config::color::LapceColor;
 use crate::config::LapceConfig;
 use crate::doc::{DiagnosticData, Doc};
-use crate::editor::gutter::FoldingRanges;
+use crate::editor::gutter::{
+    FoldingDisplayItem, FoldingDisplayType, FoldingRange, FoldingRanges,
+};
 use floem::views::editor::layout::TextLayoutLine;
 use floem::views::editor::listener::Listener;
 use floem::views::editor::phantom_text::{
@@ -23,15 +25,19 @@ use floem::views::editor::phantom_text::{
 };
 use floem::views::editor::text::{Document, PreeditData, Styling, WrapMethod};
 use floem::views::editor::visual_line::{
-    LayoutEvent, RVLine, ResolvedWrap, TextLayoutProvider, VLine, VLineInfo,
+    LayoutEvent, RVLine, ResolvedWrap, VLine, VLineInfo,
 };
 use floem::views::editor::{Editor, EditorStyle};
 use floem_editor_core::buffer::Buffer;
 use floem_editor_core::word::{get_char_property, CharClassification};
 use itertools::Itertools;
+use lapce_core::rope_text_pos::RopeTextPosition;
 use lapce_xi_rope::spans::{Spans, SpansBuilder};
 use lsp_types::{DiagnosticSeverity, InlayHint, InlayHintLabel, Position};
 use smallvec::SmallVec;
+
+/// Minimum width that we'll allow the view to be wrapped at.
+const MIN_WRAPPED_WIDTH: f32 = 100.0;
 
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug)]
@@ -103,36 +109,34 @@ impl From<&VisualLine> for VLine {
     }
 }
 #[derive(Clone)]
-pub struct Lines {
+pub struct DocLines {
     origin_lines: Vec<OriginLine>,
     origin_folded_lines: Vec<OriginFoldedLine>,
     visual_lines: Vec<VisualLine>,
     // pub font_sizes: Rc<EditorFontSizes>,
     // font_size_cache_id: FontSizeCacheId,
-    wrap: ResolvedWrap,
+    // wrap: ResolvedWrap,
     pub layout_event: Listener<LayoutEvent>,
     max_width: f64,
 
     // editor: Editor
     pub inlay_hints: Option<Spans<InlayHint>>,
+    pub completion_lens: Option<String>,
     pub completion_pos: (usize, usize),
     pub folding_ranges: FoldingRanges,
-    pub buffer: Buffer,
+    // pub buffer: Buffer,
     pub diagnostics: DiagnosticData,
-    pub completion_lens: Option<String>,
 
     /// Current inline completion text, if any.
     /// This will be displayed even on views that are not focused.
-    pub inline_completion: Option<String>,
     /// (line, col)
-    pub inline_completion_pos: (usize, usize),
+    pub inline_completion: Option<(String, usize, usize)>,
     pub preedit: PreeditData,
 }
 
-impl Lines {
-    pub fn new(cx: Scope) -> Self {
+impl DocLines {
+    pub fn new(cx: Scope, diagnostics: DiagnosticData) -> Self {
         Self {
-            wrap: ResolvedWrap::None,
             // font_size_cache_id: id,
             layout_event: Listener::new_empty(cx),
             origin_lines: vec![],
@@ -143,15 +147,10 @@ impl Lines {
             inlay_hints: None,
             completion_pos: (0, 0),
             folding_ranges: Default::default(),
-            buffer: Buffer::new(""),
-            diagnostics: DiagnosticData {
-                expanded: cx.create_rw_signal(true),
-                diagnostics: cx.create_rw_signal(im::Vector::new()),
-                diagnostics_span: cx.create_rw_signal(SpansBuilder::new(0).build()),
-            },
+            // buffer: Buffer::new(""),
+            diagnostics,
             completion_lens: None,
             inline_completion: None,
-            inline_completion_pos: (0, 0),
             preedit: PreeditData::new(cx),
         }
     }
@@ -177,16 +176,16 @@ impl Lines {
     }
 
     // return do_update
-    pub fn update(&mut self, editor: &Editor) -> bool {
+    pub fn update(&mut self, doc: &Doc) -> bool {
         self.clear();
-        let rope_text = editor.rope_text();
-        let last_line = rope_text.last_line();
+        let buffer = doc.buffer.get_untracked();
+        let last_line = buffer.last_line();
 
         let mut current_line = 0;
         let mut origin_folded_line_index = 0;
         let mut visual_line_index = 0;
         while current_line <= last_line {
-            let text_layout = editor.new_text_layout(current_line);
+            let text_layout = self.new_text_layout(doc, current_line, &buffer);
             let origin_line_start = text_layout.phantom_text.line;
             let origin_line_end = text_layout.phantom_text.last_line;
 
@@ -198,7 +197,7 @@ impl Lines {
             for origin_line in origin_line_start..=origin_line_end {
                 self.origin_lines.push(OriginLine {
                     line_index: origin_line,
-                    start_offset: rope_text.offset_of_line(origin_line),
+                    start_offset: buffer.offset_of_line(origin_line),
                 });
             }
 
@@ -214,13 +213,13 @@ impl Lines {
                     .phantom_text
                     .origin_position_of_final_col(visual_offset_start);
                 let origin_interval_start =
-                    rope_text.offset_of_line_col(offset_info.0, offset_info.1);
+                    buffer.offset_of_line_col(offset_info.0, offset_info.1);
 
                 let offset_info = text_layout
                     .phantom_text
                     .origin_position_of_final_col(visual_offset_end);
                 let origin_interval_end =
-                    rope_text.offset_of_line_col(offset_info.0, offset_info.1);
+                    buffer.offset_of_line_col(offset_info.0, offset_info.1);
                 let origin_interval = Interval {
                     start: origin_interval_start,
                     end: origin_interval_end,
@@ -238,8 +237,8 @@ impl Lines {
             }
 
             let origin_interval = Interval {
-                start: rope_text.offset_of_line(origin_line_start),
-                end: rope_text.offset_of_line(origin_line_end + 1),
+                start: buffer.offset_of_line(origin_line_start),
+                end: buffer.offset_of_line(origin_line_end + 1),
             };
             self.origin_folded_lines.push(OriginFoldedLine {
                 line_index: origin_folded_line_index,
@@ -262,21 +261,28 @@ impl Lines {
         true
     }
 
-    pub fn wrap(&self) -> ResolvedWrap {
-        self.wrap
-    }
+    // pub fn wrap(&self, viewport: Rect, es: &EditorStyle) -> ResolvedWrap {
+    //     match es.wrap_method() {
+    //         WrapMethod::None => ResolvedWrap::None,
+    //         WrapMethod::EditorWidth => {
+    //             ResolvedWrap::Width((viewport.width() as f32).max(MIN_WRAPPED_WIDTH))
+    //         }
+    //         WrapMethod::WrapColumn { .. } => todo!(),
+    //         WrapMethod::WrapWidth { width } => ResolvedWrap::Width(width),
+    //     }
+    // }
 
     /// Set the wrapping style
     ///
     /// Does nothing if the wrapping style is the same as the current one.
     /// Will trigger a clear of the text layouts if the wrapping style is different.
-    pub fn set_wrap(&mut self, wrap: ResolvedWrap, editor: &Editor) {
-        if wrap == self.wrap {
-            return;
-        }
-        self.wrap = wrap;
-        self.update(editor);
-    }
+    // pub fn set_wrap(&mut self, wrap: ResolvedWrap, _editor: &Editor) {
+    //     if wrap == self.wrap {
+    //         return;
+    //     }
+    //     self.wrap = wrap;
+    //     // self.update(editor);
+    // }
 
     pub fn max_width(&self) -> f64 {
         self.max_width
@@ -403,8 +409,8 @@ impl Lines {
         _: &EditorStyle,
         line: usize,
         config: &LapceConfig,
+        buffer: &Buffer,
     ) -> PhantomTextLine {
-        let buffer = &self.buffer;
         let (start_offset, end_offset) =
             (buffer.offset_of_line(line), buffer.offset_of_line(line + 1));
 
@@ -623,34 +629,36 @@ impl Lines {
         // TODO: don't display completion lens and inline completion at the same time
         // and/or merge them so that they can be shifted between like multiple inline completions
         // can
-        let (inline_completion_line, inline_completion_col) =
-            self.inline_completion_pos;
+        // let (inline_completion_line, inline_completion_col) =
+        //     self.inline_completion_pos;
         let inline_completion_text = config
             .editor
             .enable_inline_completion
             .then_some(())
             .and(self.inline_completion.as_ref())
-            .filter(|_| {
-                line == inline_completion_line
+            .filter(|(_, inline_completion_line, inline_completion_col)| {
+                line == *inline_completion_line
                     && !folded_ranges.contain_position(Position {
-                        line: inline_completion_line as u32,
-                        character: inline_completion_col as u32,
+                        line: *inline_completion_line as u32,
+                        character: *inline_completion_col as u32,
                     })
             })
-            .map(|completion| PhantomText {
-                kind: PhantomTextKind::Completion,
-                col: inline_completion_col,
-                text: completion.clone(),
-                affinity: Some(CursorAffinity::Backward),
-                fg: Some(config.color(LapceColor::COMPLETION_LENS_FOREGROUND)),
-                font_size: Some(config.editor.completion_lens_font_size()),
-                // font_family: Some(config.editor.completion_lens_font_family()),
-                bg: None,
-                under_line: None,
-                final_col: inline_completion_col,
-                line,
-                merge_col: inline_completion_col,
-                // TODO: italics?
+            .map(|(completion, _, inline_completion_col)| {
+                PhantomText {
+                    kind: PhantomTextKind::Completion,
+                    col: *inline_completion_col,
+                    text: completion.clone(),
+                    affinity: Some(CursorAffinity::Backward),
+                    fg: Some(config.color(LapceColor::COMPLETION_LENS_FOREGROUND)),
+                    font_size: Some(config.editor.completion_lens_font_size()),
+                    // font_family: Some(config.editor.completion_lens_font_family()),
+                    bg: None,
+                    under_line: None,
+                    final_col: *inline_completion_col,
+                    line,
+                    merge_col: *inline_completion_col,
+                    // TODO: italics?
+                }
             });
         if let Some(inline_completion_text) = inline_completion_text {
             text.push(inline_completion_text);
@@ -659,18 +667,23 @@ impl Lines {
         // todo filter by folded?
         if let Some(preedit) = preedit_phantom(
             &self.preedit,
-            &self.buffer,
+            buffer,
             Some(config.color(LapceColor::EDITOR_FOREGROUND)),
             line,
         ) {
             text.push(preedit)
         }
-        text.extend(folded_ranges.into_phantom_text(&buffer, &config, line));
+        text.extend(folded_ranges.into_phantom_text(buffer, config, line));
 
         PhantomTextLine::new(line, origin_text_len, text)
     }
 
-    fn new_text_layout(&self, doc: &Doc, mut line: usize) -> Arc<TextLayoutLine> {
+    fn new_text_layout(
+        &self,
+        doc: &Doc,
+        mut line: usize,
+        buffer: &Buffer,
+    ) -> Arc<TextLayoutLine> {
         // TODO: we could share text layouts between different editor views given some knowledge of
         // their wrapping
         let style = doc.clone();
@@ -679,7 +692,11 @@ impl Lines {
         let config: Arc<LapceConfig> = doc.common.config.get_untracked();
 
         let text = doc.rope_text();
-        line = doc.visual_line_of_line(line);
+        if true {
+            todo!();
+        }
+        line = self.folding_ranges.get_folded_range().visual_line(line);
+        // line = doc.visual_line_of_line(line);
 
         let mut line_content = String::new();
         // Get the line content with newline characters replaced with spaces
@@ -698,7 +715,7 @@ impl Lines {
             .font_size(font_size as f32)
             .line_height(LineHeightValue::Px(style.line_height(line)));
 
-        let phantom_text = self.phantom_text(&es, line, &config);
+        let phantom_text = self.phantom_text(&es, line, &config, buffer);
         let mut collapsed_line_col = phantom_text.folded_line();
         let multi_styles: Vec<(usize, usize, Color, Attrs)> = style
             .line_styles(line)
@@ -731,7 +748,8 @@ impl Lines {
             // let (next_phantom_text, collapsed_line_content, styles, next_collapsed_line_col)
             //     = calcuate_line_text_and_style(collapsed_line, &next_line_content, style.clone(), edid, &es, doc.clone(), offset_col, attrs);
 
-            let next_phantom_text = self.phantom_text(&es, collapsed_line, &config);
+            let next_phantom_text =
+                self.phantom_text(&es, collapsed_line, &config, buffer);
             collapsed_line_col = next_phantom_text.folded_line();
             let styles: Vec<(usize, usize, Color, Attrs)> = style
                 .line_styles(collapsed_line)
@@ -838,6 +856,169 @@ impl Lines {
         // layout_line.extra_style.extend(extra_style);
 
         Arc::new(layout_line)
+    }
+
+    pub(crate) fn update_inlay_hints(&mut self, delta: &RopeDelta) {
+        if let Some(hints) = self.inlay_hints.as_mut() {
+            hints.apply_shape(delta);
+        }
+        // todo update
+    }
+    pub(crate) fn set_inlay_hints(&mut self, inlay_hint: Spans<InlayHint>) {
+        self.inlay_hints = Some(inlay_hint);
+        // todo update
+    }
+
+    pub fn set_completion_lens(
+        &mut self,
+        completion_lens: String,
+        line: usize,
+        col: usize,
+    ) {
+        self.completion_lens = Some(completion_lens);
+        self.completion_pos = (line, col);
+    }
+
+    pub fn update_folding_item(&mut self, item: FoldingDisplayItem) {
+        match item.ty {
+            FoldingDisplayType::UnfoldStart | FoldingDisplayType::Folded => {
+                self.folding_ranges.0.iter_mut().find_map(|range| {
+                    if range.start == item.position {
+                        range.status.click();
+                        Some(())
+                    } else {
+                        None
+                    }
+                });
+            }
+            FoldingDisplayType::UnfoldEnd => {
+                self.folding_ranges.0.iter_mut().find_map(|range| {
+                    if range.end == item.position {
+                        range.status.click();
+                        Some(())
+                    } else {
+                        None
+                    }
+                });
+            }
+        }
+    }
+
+    pub fn update_folding_ranges(&mut self, new: Vec<FoldingRange>) {
+        self.folding_ranges.update_ranges(new);
+    }
+
+    pub fn clear_completion_lens(&mut self) {
+        self.completion_lens = None;
+    }
+
+    pub fn update_completion_lens(&mut self, delta: &RopeDelta, buffer: &Buffer) {
+        let Some(completion) = &mut self.completion_lens else {
+            return;
+        };
+
+        let (line, col) = self.completion_pos;
+        let offset = buffer.offset_of_line_col(line, col);
+
+        // If the edit is easily checkable + updateable from, then we alter the lens' text.
+        // In normal typing, if we didn't do this, then the text would jitter forward and then
+        // backwards as the completion lens is updated.
+        // TODO: this could also handle simple deletion, but we don't currently keep track of
+        // the past copmletion lens string content in the field.
+        if delta.as_simple_insert().is_some() {
+            let (iv, new_len) = delta.summary();
+            if iv.start() == iv.end()
+                && iv.start() == offset
+                && new_len <= completion.len()
+            {
+                // Remove the # of newly inserted characters
+                // These aren't necessarily the same as the characters literally in the
+                // text, but the completion will be updated when the completion widget
+                // receives the update event, and it will fix this if needed.
+                // TODO: this could be smarter and use the insert's content
+                self.completion_lens = Some(completion[new_len..].to_string());
+            }
+        }
+
+        // Shift the position by the rope delta
+        let mut transformer = Transformer::new(delta);
+
+        let new_offset = transformer.transform(offset, true);
+        let new_pos = buffer.offset_to_line_col(new_offset);
+
+        self.completion_pos = new_pos;
+    }
+
+    pub fn init_diagnostics(&self, buffer: &Buffer) {
+        let len = buffer.len();
+        let diagnostics = self.diagnostics.diagnostics.get_untracked();
+        let mut span = SpansBuilder::new(len);
+        for diag in diagnostics.iter() {
+            let start = buffer.offset_of_position(&diag.range.start);
+            let end = buffer.offset_of_position(&diag.range.end);
+            span.add_span(Interval::new(start, end), diag.to_owned());
+        }
+        let span = span.build();
+        self.diagnostics.diagnostics_span.set(span);
+    }
+
+    pub fn update_diagnostics(&self, delta: &RopeDelta) {
+        if self
+            .diagnostics
+            .diagnostics
+            .with_untracked(|d| d.is_empty())
+        {
+            return;
+        }
+
+        self.diagnostics.diagnostics_span.update(|diagnostics| {
+            diagnostics.apply_shape(delta);
+        });
+    }
+
+    pub fn set_inline_completion(
+        &mut self,
+        inline_completion: String,
+        line: usize,
+        col: usize,
+    ) {
+        self.inline_completion = Some((inline_completion, line, col));
+    }
+
+    pub fn clear_inline_completion(&mut self) {
+        self.inline_completion = None;
+    }
+
+    pub fn update_inline_completion(&mut self, delta: &RopeDelta, buffer: Buffer) {
+        let Some((completion, ..)) = self.inline_completion.take() else {
+            return;
+        };
+
+        let (line, col) = self.completion_pos;
+        let offset = buffer.offset_of_line_col(line, col);
+
+        // Shift the position by the rope delta
+        let mut transformer = Transformer::new(delta);
+
+        let new_offset = transformer.transform(offset, true);
+        let new_pos = buffer.offset_to_line_col(new_offset);
+
+        if delta.as_simple_insert().is_some() {
+            let (iv, new_len) = delta.summary();
+            if iv.start() == iv.end()
+                && iv.start() == offset
+                && new_len <= completion.len()
+            {
+                // Remove the # of newly inserted characters
+                // These aren't necessarily the same as the characters literally in the
+                // text, but the completion will be updated when the completion widget
+                // receives the update event, and it will fix this if needed.
+                self.inline_completion =
+                    Some((completion[new_len..].to_string(), new_pos.0, new_pos.1));
+            }
+        } else {
+            self.inline_completion = Some((completion, new_pos.0, new_pos.1));
+        }
     }
 }
 

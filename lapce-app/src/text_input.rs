@@ -1,5 +1,6 @@
 use std::{rc::Rc, sync::Arc};
 
+use floem::views::editor::text::Document;
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
     context::EventCx,
@@ -150,11 +151,12 @@ fn text_input_full<T: KeyPressFocus + 'static>(
 
     {
         let doc = doc.get();
+        let preedit = doc.preedit();
         create_effect(move |_| {
             let offset = cursor.with(|c| c.offset());
             let (content, offset, preedit_range) = {
                 let content = doc.buffer.with(|b| b.to_string());
-                if let Some(preedit) = doc.preedit.preedit.get().as_ref() {
+                if let Some(preedit) = preedit.preedit.get().as_ref() {
                     let mut new_content = String::new();
                     new_content.push_str(&content[..offset]);
                     new_content.push_str(&preedit.text);

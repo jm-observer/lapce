@@ -27,7 +27,7 @@ use floem::{
                 cursor_caret, DiffSectionKind, EditorView as FloemEditorView,
                 EditorViewClass, LineRegion, ScreenLines,
             },
-            visual_line::{RVLine, VLine},
+            visual_line::RVLine,
             CurrentLineColor, CursorSurroundingLines, Editor, EditorStyle,
             IndentGuideColor, IndentStyleProp, Modal, ModalRelativeLine,
             PhantomColor, PlaceholderColor, PreeditUnderlineColor,
@@ -40,7 +40,6 @@ use floem::{
     },
     Renderer, View, ViewId,
 };
-use itertools::Itertools;
 use lapce_xi_rope::find::CaseMatching;
 use lsp_types::CodeLens;
 
@@ -1755,8 +1754,9 @@ fn editor_gutter_folding_range(
     dyn_stack(
         move || {
             doc.get()
-                .folding_ranges
+                .doc_lines
                 .get()
+                .folding_ranges
                 .to_display_items(screen_lines.get())
         },
         move |item| *item,
@@ -1766,32 +1766,8 @@ fn editor_gutter_folding_range(
                     let value = doc_clone;
                     move |_| {
                         batch(|| {
-                            value.get_untracked().folding_ranges.update(|x| {
-                                match item.ty {
-                                    FoldingDisplayType::UnfoldStart
-                                    | FoldingDisplayType::Folded => {
-                                        x.0.iter_mut().find_map(|mut range| {
-                                            let range = range.deref_mut();
-                                            if range.start == item.position {
-                                                range.status.click();
-                                                Some(())
-                                            } else {
-                                                None
-                                            }
-                                        });
-                                    }
-                                    FoldingDisplayType::UnfoldEnd => {
-                                        x.0.iter_mut().find_map(|mut range| {
-                                            let range = range.deref_mut();
-                                            if range.end == item.position {
-                                                range.status.click();
-                                                Some(())
-                                            } else {
-                                                None
-                                            }
-                                        });
-                                    }
-                                }
+                            value.get_untracked().doc_lines.update(|x| {
+                                x.update_folding_item(item);
                             });
                             doc.get_untracked().clear_text_cache();
                         });
@@ -2574,19 +2550,19 @@ pub fn changes_colors_screen(
         return Vec::new();
     };
 
-    let line_height = config.editor.line_height();
+    let _line_height = config.editor.line_height();
     let mut line = 0;
     let mut colors = Vec::new();
 
     for (len, color, modified) in changes_color_iter(&changes, config) {
-        let pre_line = line;
+        let _pre_line = line;
 
         line += len;
         if line < min.line {
             continue;
         }
 
-        if let Some(color) = color {
+        if let Some(_color) = color {
             if modified {
                 colors.pop();
             }
@@ -2625,9 +2601,7 @@ pub fn changes_colors_all(
     // let line_height = config.editor.line_height();
     //
     // let mut line = 0;
-    let mut colors = Vec::new();
-
-    // todo
+    // let colors = Vec::new();
     // let mut vline_iter = ed.iter_vlines(false, VLine(0)).peekable();
     //
     // for (len, color, modified) in changes_color_iter(&changes, config) {
@@ -2667,5 +2641,7 @@ pub fn changes_colors_all(
     //     }
     // }
 
-    colors
+    // colors
+
+    Vec::new()
 }

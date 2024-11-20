@@ -66,15 +66,15 @@ use lapce_xi_rope::{
     Interval, Rope, RopeDelta, Transformer,
 };
 use lsp_types::{
-    CodeActionOrCommand, CodeLens, Diagnostic, DiagnosticSeverity,
-    DocumentSymbolResponse, InlayHint, InlayHintLabel, Position, TextEdit,
+    CodeActionOrCommand, CodeLens, Diagnostic, DocumentSymbolResponse, TextEdit,
 };
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
+use crate::editor::lines::DocLines;
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand},
-    config::{color::LapceColor, LapceConfig},
+    config::LapceConfig,
     editor::{
         compute_screen_lines,
         gutter::FoldingRanges,
@@ -179,26 +179,25 @@ pub struct Doc {
     semantic_styles: RwSignal<Option<Spans<Style>>>,
     semantic_previous_rs_id: RwSignal<Option<String>>,
     /// Inlay hints for the document
-    pub inlay_hints: RwSignal<Option<Spans<InlayHint>>>,
+    // pub inlay_hints: RwSignal<Option<Spans<InlayHint>>>,
     /// Current completion lens text, if any.
     /// This will be displayed even on views that are not focused.
-    pub completion_lens: RwSignal<Option<String>>,
+    // pub completion_lens: RwSignal<Option<String>>,
     /// (line, col)
-    pub completion_pos: RwSignal<(usize, usize)>,
+    // pub completion_pos: RwSignal<(usize, usize)>,
 
     /// Current inline completion text, if any.
     /// This will be displayed even on views that are not focused.
-    pub inline_completion: RwSignal<Option<String>>,
-    /// (line, col)
-    pub inline_completion_pos: RwSignal<(usize, usize)>,
+    // pub inline_completion: RwSignal<Option<String>>,
+    // /// (line, col)
+    // pub inline_completion_pos: RwSignal<(usize, usize)>,
 
     /// (Offset -> (Plugin the code actions are from, Code Actions))
     pub code_actions: RwSignal<CodeActions>,
 
     pub code_lens: RwSignal<AllCodeLens>,
 
-    pub folding_ranges: RwSignal<FoldingRanges>,
-
+    // pub folding_ranges: RwSignal<FoldingRanges>,
     /// Stores information about different versions of the document from source control.
     histories: RwSignal<im::HashMap<String, DocumentHistory>>,
     pub head_changes: RwSignal<im::Vector<DiffLines>>,
@@ -209,22 +208,20 @@ pub struct Doc {
     /// A cache for the sticky headers which maps a line to the lines it should show in the header.
     pub sticky_headers: Rc<RefCell<HashMap<usize, Option<Vec<usize>>>>>,
 
-    pub preedit: PreeditData,
-
+    // pub preedit: PreeditData,
     pub find_result: FindResult,
 
     /// The diagnostics for the document
-    pub diagnostics: DiagnosticData,
-
+    // pub diagnostics: DiagnosticData,
     editors: Editors,
     pub common: Rc<CommonData>,
 
     pub document_symbol_data: DocumentSymbolViewData,
 
-    pub update_triger: Trigger,
     pub lines: RwSignal<Lines>,
     pub editor_style: RwSignal<EditorStyle>,
     pub viewport: RwSignal<Rect>,
+    pub doc_lines: RwSignal<DocLines>,
 }
 impl Doc {
     pub fn new(
@@ -255,12 +252,12 @@ impl Doc {
                 config.editor.bracket_colorization_limit,
             ))),
             semantic_styles: cx.create_rw_signal(None),
-            inlay_hints: cx.create_rw_signal(None),
-            diagnostics,
-            completion_lens: cx.create_rw_signal(None),
-            completion_pos: cx.create_rw_signal((0, 0)),
-            inline_completion: cx.create_rw_signal(None),
-            inline_completion_pos: cx.create_rw_signal((0, 0)),
+            // inlay_hints: cx.create_rw_signal(None),
+            // diagnostics,
+            // completion_lens: cx.create_rw_signal(None),
+            // completion_pos: cx.create_rw_signal((0, 0)),
+            // inline_completion: cx.create_rw_signal(None),
+            // inline_completion_pos: cx.create_rw_signal((0, 0)),
             cache_rev: cx.create_rw_signal(0),
             content: cx.create_rw_signal(DocContent::File {
                 path,
@@ -272,15 +269,15 @@ impl Doc {
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
-            preedit: PreeditData::new(cx),
+            // preedit: PreeditData::new(cx),
             editors,
             common,
             code_lens: cx.create_rw_signal(im::HashMap::new()),
             document_symbol_data: DocumentSymbolViewData::new(cx),
-            folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
+            // folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
             semantic_previous_rs_id: cx.create_rw_signal(None),
-            update_triger: cx.create_trigger(),
             lines,
+            doc_lines: cx.create_rw_signal(DocLines::new(cx, diagnostics)),
         }
     }
 
@@ -300,6 +297,11 @@ impl Doc {
         let lines = cx.create_rw_signal(Lines::new(cx));
         let viewport = cx.create_rw_signal(Rect::ZERO);
         let editor_style = cx.create_rw_signal(EditorStyle::default());
+        let diagnostics = DiagnosticData {
+            expanded: cx.create_rw_signal(true),
+            diagnostics: cx.create_rw_signal(im::Vector::new()),
+            diagnostics_span: cx.create_rw_signal(SpansBuilder::new(0).build()),
+        };
         Self {
             editor_id,
             scope: cx,
@@ -313,16 +315,16 @@ impl Doc {
                 config.editor.bracket_colorization_limit,
             ))),
             semantic_styles: cx.create_rw_signal(None),
-            inlay_hints: cx.create_rw_signal(None),
-            diagnostics: DiagnosticData {
-                expanded: cx.create_rw_signal(true),
-                diagnostics: cx.create_rw_signal(im::Vector::new()),
-                diagnostics_span: cx.create_rw_signal(SpansBuilder::new(0).build()),
-            },
-            completion_lens: cx.create_rw_signal(None),
-            completion_pos: cx.create_rw_signal((0, 0)),
-            inline_completion: cx.create_rw_signal(None),
-            inline_completion_pos: cx.create_rw_signal((0, 0)),
+            // inlay_hints: cx.create_rw_signal(None),
+            // diagnostics: DiagnosticData {
+            //     expanded: cx.create_rw_signal(true),
+            //     diagnostics: cx.create_rw_signal(im::Vector::new()),
+            //     diagnostics_span: cx.create_rw_signal(SpansBuilder::new(0).build()),
+            // },
+            // completion_lens: cx.create_rw_signal(None),
+            // completion_pos: cx.create_rw_signal((0, 0)),
+            // inline_completion: cx.create_rw_signal(None),
+            // inline_completion_pos: cx.create_rw_signal((0, 0)),
             cache_rev: cx.create_rw_signal(0),
             content: cx.create_rw_signal(content),
             histories: cx.create_rw_signal(im::HashMap::new()),
@@ -331,17 +333,17 @@ impl Doc {
             loaded: cx.create_rw_signal(true),
             find_result: FindResult::new(cx),
             code_actions: cx.create_rw_signal(im::HashMap::new()),
-            preedit: PreeditData::new(cx),
+            // preedit: PreeditData::new(cx),
             editors,
             common,
             code_lens: cx.create_rw_signal(im::HashMap::new()),
             document_symbol_data: DocumentSymbolViewData::new(cx),
-            folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
+            // folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
             semantic_previous_rs_id: cx.create_rw_signal(None),
-            update_triger: cx.create_trigger(),
             lines,
             viewport,
             editor_style,
+            doc_lines: cx.create_rw_signal(DocLines::new(cx, diagnostics)),
         }
     }
 
@@ -361,6 +363,11 @@ impl Doc {
         let lines = cx.create_rw_signal(Lines::new(cx));
         let viewport = cx.create_rw_signal(Rect::ZERO);
         let editor_style = cx.create_rw_signal(EditorStyle::default());
+        let diagnostics = DiagnosticData {
+            expanded: cx.create_rw_signal(true),
+            diagnostics: cx.create_rw_signal(im::Vector::new()),
+            diagnostics_span: cx.create_rw_signal(SpansBuilder::new(0).build()),
+        };
         Self {
             editor_id,
             scope: cx,
@@ -374,16 +381,11 @@ impl Doc {
                 config.editor.bracket_colorization_limit,
             ))),
             semantic_styles: cx.create_rw_signal(None),
-            inlay_hints: cx.create_rw_signal(None),
-            diagnostics: DiagnosticData {
-                expanded: cx.create_rw_signal(true),
-                diagnostics: cx.create_rw_signal(im::Vector::new()),
-                diagnostics_span: cx.create_rw_signal(SpansBuilder::new(0).build()),
-            },
-            completion_lens: cx.create_rw_signal(None),
-            completion_pos: cx.create_rw_signal((0, 0)),
-            inline_completion: cx.create_rw_signal(None),
-            inline_completion_pos: cx.create_rw_signal((0, 0)),
+            // inlay_hints: cx.create_rw_signal(None),
+            // completion_lens: cx.create_rw_signal(None),
+            // completion_pos: cx.create_rw_signal((0, 0)),
+            // inline_completion: cx.create_rw_signal(None),
+            // inline_completion_pos: cx.create_rw_signal((0, 0)),
             cache_rev: cx.create_rw_signal(0),
             content: cx.create_rw_signal(content),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
@@ -392,17 +394,17 @@ impl Doc {
             head_changes: cx.create_rw_signal(im::Vector::new()),
             code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
-            preedit: PreeditData::new(cx),
+            // preedit: PreeditData::new(cx),
             editors,
             common,
             code_lens: cx.create_rw_signal(im::HashMap::new()),
             document_symbol_data: DocumentSymbolViewData::new(cx),
-            folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
+            // folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
             semantic_previous_rs_id: cx.create_rw_signal(None),
-            update_triger: cx.create_trigger(),
             lines,
             viewport,
             editor_style,
+            doc_lines: cx.create_rw_signal(DocLines::new(cx, diagnostics)),
         }
     }
 
@@ -416,12 +418,7 @@ impl Doc {
 
     /// Create an [`Editor`] instance from this [`Doc`]. Note that this needs to be registered
     /// appropriately to create the [`EditorData`] and such.
-    pub fn create_editor(
-        self: &Rc<Doc>,
-        cx: Scope,
-        id: EditorId,
-        is_local: bool,
-    ) -> Editor {
+    pub fn create_editor(self: &Rc<Doc>, cx: Scope, is_local: bool) -> Editor {
         let common = &self.common;
         let config = common.config.get_untracked();
         let modal = config.core.modal && !is_local;
@@ -440,16 +437,6 @@ impl Doc {
         editor.register = register;
         editor.cursor_info = cursor_info;
         editor.ime_allowed = common.window_common.ime_allowed;
-
-        let doc_trigger = self.update_triger;
-        let update_editor = editor.clone();
-        let config = common.config;
-        cx.create_effect(move |_| {
-            tracing::error!("doc_trigger");
-            doc_trigger.track();
-            config.get();
-            update_editor.update_lines();
-        });
 
         editor.recreate_view_effects();
 
@@ -772,10 +759,8 @@ impl Doc {
 
     /// Update the inlay hints so their positions are correct after an edit.
     fn update_inlay_hints(&self, delta: &RopeDelta) {
-        self.inlay_hints.update(|inlay_hints| {
-            if let Some(hints) = inlay_hints.as_mut() {
-                hints.apply_shape(delta);
-            }
+        self.doc_lines.update(|lines| {
+            lines.update_inlay_hints(delta);
         });
     }
 
@@ -817,16 +802,13 @@ impl Doc {
 
     /// Inform any dependents on this document that they should clear any cached text.
     pub fn clear_text_cache(&self) {
-        batch(|| {
-            self.cache_rev.try_update(|cache_rev| {
-                *cache_rev += 1;
-                // TODO: ???
-                // Update the text layouts within the callback so that those alerted to cache rev
-                // will see the now empty layouts.
-                // self.text_layouts.borrow_mut().clear(*cache_rev, None);
-            });
-            self.update_triger.notify();
-        })
+        self.cache_rev.try_update(|cache_rev| {
+            *cache_rev += 1;
+            // TODO: ???
+            // Update the text layouts within the callback so that those alerted to cache rev
+            // will see the now empty layouts.
+            // self.text_layouts.borrow_mut().clear(*cache_rev, None);
+        });
     }
 
     fn clear_sticky_headers_cache(&self) {
@@ -1100,7 +1082,9 @@ impl Doc {
         let doc = self.clone();
         let send = create_ext_action(self.scope, move |hints| {
             if doc.buffer.with_untracked(|b| b.rev()) == rev {
-                doc.inlay_hints.set(Some(hints));
+                doc.doc_lines.update(|x| {
+                    x.set_inlay_hints(hints);
+                });
                 doc.clear_text_cache();
             }
         });
@@ -1126,41 +1110,21 @@ impl Doc {
         });
     }
 
-    pub fn diagnostics(&self) -> &DiagnosticData {
-        &self.diagnostics
+    pub fn diagnostics(&self) -> DiagnosticData {
+        self.doc_lines.with_untracked(|x| x.diagnostics.clone())
     }
 
     /// Update the diagnostics' positions after an edit so that they appear in the correct place.
     fn update_diagnostics(&self, delta: &RopeDelta) {
-        if self
-            .diagnostics
-            .diagnostics
-            .with_untracked(|d| d.is_empty())
-        {
-            return;
-        }
-
-        self.diagnostics.diagnostics_span.update(|diagnostics| {
-            diagnostics.apply_shape(delta);
-        });
+        self.doc_lines.update(|x| x.update_diagnostics(delta));
     }
 
     /// init diagnostics offset ranges from lsp positions
     pub fn init_diagnostics(&self) {
-        let len = self.buffer.with_untracked(|b| b.len());
-        let diagnostics = self.diagnostics.diagnostics.get_untracked();
-
-        let span = self.buffer.with_untracked(|buffer| {
-            let mut span = SpansBuilder::new(len);
-            for diag in diagnostics.iter() {
-                let start = buffer.offset_of_position(&diag.range.start);
-                let end = buffer.offset_of_position(&diag.range.end);
-                span.add_span(Interval::new(start, end), diag.to_owned());
-            }
-            span.build()
+        let buffer = self.buffer.get_untracked();
+        self.doc_lines.update(|x| {
+            x.init_diagnostics(&buffer);
         });
-        self.diagnostics.diagnostics_span.set(span);
-
         self.clear_text_cache();
         self.clear_code_actions();
     }
@@ -1187,8 +1151,8 @@ impl Doc {
                             })
                             .sorted_by(|x, y| x.start.line.cmp(&y.start.line))
                             .collect();
-                        doc.folding_ranges.update(|symbol| {
-                            symbol.update_ranges(folding);
+                        doc.doc_lines.update(|symbol| {
+                            symbol.update_folding_ranges(folding);
                         });
                         doc.clear_text_cache();
                     }
@@ -1205,7 +1169,7 @@ impl Doc {
 
     /// Get the current completion lens text
     pub fn completion_lens(&self) -> Option<String> {
-        self.completion_lens.get_untracked()
+        self.doc_lines.with_untracked(|x| x.completion_lens.clone())
     }
 
     pub fn set_completion_lens(
@@ -1214,18 +1178,12 @@ impl Doc {
         line: usize,
         col: usize,
     ) {
-        // TODO: more granular invalidation
-        self.completion_lens.set(Some(completion_lens));
-        self.completion_pos.set((line, col));
-        self.clear_text_cache();
+        self.doc_lines
+            .update(|x| x.set_completion_lens(completion_lens, line, col));
     }
 
     pub fn clear_completion_lens(&self) {
-        // TODO: more granular invalidation
-        if self.completion_lens.get_untracked().is_some() {
-            self.completion_lens.set(None);
-            self.clear_text_cache();
-        }
+        self.doc_lines.update(|x| x.clear_completion_lens());
     }
 
     fn update_breakpoints(&self, delta: &RopeDelta, path: &Path, old_text: &Rope) {
@@ -1258,45 +1216,9 @@ impl Doc {
 
     /// Update the completion lens position after an edit so that it appears in the correct place.
     pub fn update_completion_lens(&self, delta: &RopeDelta) {
-        let Some(completion) = self.completion_lens.get_untracked() else {
-            return;
-        };
-
-        let (line, col) = self.completion_pos.get_untracked();
-        let offset = self
-            .buffer
-            .with_untracked(|b| b.offset_of_line_col(line, col));
-
-        // If the edit is easily checkable + updateable from, then we alter the lens' text.
-        // In normal typing, if we didn't do this, then the text would jitter forward and then
-        // backwards as the completion lens is updated.
-        // TODO: this could also handle simple deletion, but we don't currently keep track of
-        // the past copmletion lens string content in the field.
-        if delta.as_simple_insert().is_some() {
-            let (iv, new_len) = delta.summary();
-            if iv.start() == iv.end()
-                && iv.start() == offset
-                && new_len <= completion.len()
-            {
-                // Remove the # of newly inserted characters
-                // These aren't necessarily the same as the characters literally in the
-                // text, but the completion will be updated when the completion widget
-                // receives the update event, and it will fix this if needed.
-                // TODO: this could be smarter and use the insert's content
-                self.completion_lens
-                    .set(Some(completion[new_len..].to_string()));
-            }
-        }
-
-        // Shift the position by the rope delta
-        let mut transformer = Transformer::new(delta);
-
-        let new_offset = transformer.transform(offset, true);
-        let new_pos = self
-            .buffer
-            .with_untracked(|b| b.offset_to_line_col(new_offset));
-
-        self.completion_pos.set(new_pos);
+        let buffer = self.buffer.get_untracked();
+        self.doc_lines
+            .update(|x| x.update_completion_lens(delta, &buffer));
     }
 
     fn update_find_result(&self, delta: &RopeDelta) {
@@ -1535,58 +1457,24 @@ impl Doc {
     ) {
         // TODO: more granular invalidation
         batch(|| {
-            self.inline_completion.set(Some(inline_completion));
-            self.inline_completion_pos.set((line, col));
+            self.doc_lines
+                .update(|x| x.set_inline_completion(inline_completion, line, col));
             self.clear_text_cache();
         });
     }
 
     pub fn clear_inline_completion(&self) {
-        if self.inline_completion.with_untracked(Option::is_some) {
-            self.inline_completion.set(None);
+        batch(|| {
+            self.doc_lines.update(|x| x.clear_inline_completion());
             self.clear_text_cache();
-        }
+        });
     }
 
     pub fn update_inline_completion(&self, delta: &RopeDelta) {
-        let Some(completion) = self.inline_completion.get_untracked() else {
-            return;
-        };
-
-        let (line, col) = self.completion_pos.get_untracked();
-        let offset = self
-            .buffer
-            .with_untracked(|b| b.offset_of_line_col(line, col));
-
-        // If the edit is easily checkable + updateable from, then we alter the text.
-        // In normal typing, if we didn't do this, then the text would jitter forward and then
-        // backwards as the completion is updated.
-        // TODO: this could also handle simple deletion, but we don't currently keep track of
-        // the past completion string content in the field.
-        if delta.as_simple_insert().is_some() {
-            let (iv, new_len) = delta.summary();
-            if iv.start() == iv.end()
-                && iv.start() == offset
-                && new_len <= completion.len()
-            {
-                // Remove the # of newly inserted characters
-                // These aren't necessarily the same as the characters literally in the
-                // text, but the completion will be updated when the completion widget
-                // receives the update event, and it will fix this if needed.
-                self.inline_completion
-                    .set(Some(completion[new_len..].to_string()));
-            }
-        }
-
-        // Shift the position by the rope delta
-        let mut transformer = Transformer::new(delta);
-
-        let new_offset = transformer.transform(offset, true);
-        let new_pos = self
-            .buffer
-            .with_untracked(|b| b.offset_to_line_col(new_offset));
-
-        self.inline_completion_pos.set(new_pos);
+        let buffer = self.buffer.get_untracked();
+        self.doc_lines.update(|x| {
+            x.update_inline_completion(delta, buffer);
+        })
     }
 
     pub fn code_actions(&self) -> RwSignal<CodeActions> {
@@ -1626,10 +1514,10 @@ impl Document for Doc {
         self.cache_rev
     }
 
-    fn visual_line_of_line(&self, line: usize) -> usize {
-        self.folding_ranges
-            .with_untracked(|x| x.get_folded_range().visual_line(line))
-    }
+    // fn visual_line_of_line(&self, line: usize) -> usize {
+    //     self.folding_ranges
+    //         .with_untracked(|x| x.get_folded_range().visual_line(line))
+    // }
 
     fn find_unmatched(&self, offset: usize, previous: bool, ch: char) -> usize {
         self.syntax().with_untracked(|syntax| {
@@ -1665,7 +1553,7 @@ impl Document for Doc {
     }
 
     fn preedit(&self) -> PreeditData {
-        self.preedit.clone()
+        self.doc_lines.with_untracked(|x| x.preedit.clone())
     }
 
     fn compute_screen_lines(
@@ -1745,273 +1633,274 @@ impl Document for Doc {
 }
 
 impl DocumentPhantom for Doc {
-    fn phantom_text(&self, _: &EditorStyle, line: usize) -> PhantomTextLine {
-        let config = &self.common.config.get_untracked();
-
-        let buffer = self.buffer.get_untracked();
-        let (start_offset, end_offset) =
-            (buffer.offset_of_line(line), buffer.offset_of_line(line + 1));
-
-        let origin_text_len = end_offset - start_offset;
-        // lsp返回的字符包括换行符，现在长度不考虑，后续会有问题
-        // let line_ending = buffer.line_ending().get_chars().len();
-        // if origin_text_len >= line_ending {
-        //     origin_text_len -= line_ending;
+    fn phantom_text(&self, _: &EditorStyle, _line: usize) -> PhantomTextLine {
+        // let config = &self.common.config.get_untracked();
+        //
+        // let buffer = self.buffer.get_untracked();
+        // let (start_offset, end_offset) =
+        //     (buffer.offset_of_line(line), buffer.offset_of_line(line + 1));
+        //
+        // let origin_text_len = end_offset - start_offset;
+        // // lsp返回的字符包括换行符，现在长度不考虑，后续会有问题
+        // // let line_ending = buffer.line_ending().get_chars().len();
+        // // if origin_text_len >= line_ending {
+        // //     origin_text_len -= line_ending;
+        // // }
+        // // if line == 8 {
+        // //     tracing::info!("start_offset={start_offset} end_offset={end_offset} line_ending={line_ending} origin_text_len={origin_text_len}");
+        // // }
+        //
+        // let folded_ranges = self
+        //     .folding_ranges
+        //     .get_untracked()
+        //     .get_folded_range_by_line(line as u32);
+        //
+        // let inlay_hints = self.doc_linesinlay_hints.get_untracked();
+        // // If hints are enabled, and the hints field is filled, then get the hints for this line
+        // // and convert them into PhantomText instances
+        // let hints = config
+        //     .editor
+        //     .enable_inlay_hints
+        //     .then_some(())
+        //     .and(inlay_hints.as_ref())
+        //     .map(|hints| hints.iter_chunks(start_offset..end_offset))
+        //     .into_iter()
+        //     .flatten()
+        //     .filter(|(interval, hint)| {
+        //         interval.start >= start_offset
+        //             && interval.start < end_offset
+        //             && !folded_ranges.contain_position(hint.position)
+        //     })
+        //     .map(|(interval, inlay_hint)| {
+        //         let (col, affinity) = {
+        //             let mut cursor =
+        //                 lapce_xi_rope::Cursor::new(buffer.text(), interval.start);
+        //
+        //             let next_char = cursor.peek_next_codepoint();
+        //             let prev_char = cursor.prev_codepoint();
+        //
+        //             let mut affinity = None;
+        //             if let Some(prev_char) = prev_char {
+        //                 let c = get_char_property(prev_char);
+        //                 if c == CharClassification::Other {
+        //                     affinity = Some(CursorAffinity::Backward)
+        //                 } else if matches!(
+        //                     c,
+        //                     CharClassification::Lf
+        //                         | CharClassification::Cr
+        //                         | CharClassification::Space
+        //                 ) {
+        //                     affinity = Some(CursorAffinity::Forward)
+        //                 }
+        //             };
+        //             if affinity.is_none() {
+        //                 if let Some(next_char) = next_char {
+        //                     let c = get_char_property(next_char);
+        //                     if c == CharClassification::Other {
+        //                         affinity = Some(CursorAffinity::Forward)
+        //                     } else if matches!(
+        //                         c,
+        //                         CharClassification::Lf
+        //                             | CharClassification::Cr
+        //                             | CharClassification::Space
+        //                     ) {
+        //                         affinity = Some(CursorAffinity::Backward)
+        //                     }
+        //                 }
+        //             }
+        //
+        //             let (_, col) = buffer.offset_to_line_col(interval.start);
+        //             (col, affinity)
+        //         };
+        //         let mut text = match &inlay_hint.label {
+        //             InlayHintLabel::String(label) => label.to_string(),
+        //             InlayHintLabel::LabelParts(parts) => {
+        //                 parts.iter().map(|p| &p.value).join("")
+        //             }
+        //         };
+        //         match (text.starts_with(':'), text.ends_with(':')) {
+        //             (true, true) => {
+        //                 text.push(' ');
+        //             }
+        //             (true, false) => {
+        //                 text.push(' ');
+        //             }
+        //             (false, true) => {
+        //                 text = format!(" {} ", text);
+        //             }
+        //             (false, false) => {
+        //                 text = format!(" {}", text);
+        //             }
+        //         }
+        //         PhantomText {
+        //             kind: PhantomTextKind::InlayHint,
+        //             col,
+        //             text,
+        //             affinity,
+        //             fg: Some(config.color(LapceColor::INLAY_HINT_FOREGROUND)),
+        //             // font_family: Some(config.editor.inlay_hint_font_family()),
+        //             font_size: Some(config.editor.inlay_hint_font_size()),
+        //             bg: Some(config.color(LapceColor::INLAY_HINT_BACKGROUND)),
+        //             under_line: None,
+        //             final_col: col,
+        //             line,
+        //             merge_col: col,
+        //         }
+        //     });
+        // // You're quite unlikely to have more than six hints on a single line
+        // // this later has the diagnostics added onto it, but that's still likely to be below six
+        // // overall.
+        // let mut text: SmallVec<[PhantomText; 6]> = hints.collect();
+        //
+        // // If error lens is enabled, and the diagnostics field is filled, then get the diagnostics
+        // // that end on this line which have a severity worse than HINT and convert them into
+        // // PhantomText instances
+        //
+        // let mut diag_text: SmallVec<[PhantomText; 6]> = config
+        //     .editor
+        //     .enable_error_lens
+        //     .then_some(())
+        //     .map(|_| self.diagnostics.diagnostics_span.get_untracked())
+        //     .map(|diags| {
+        //         diags
+        //             .iter_chunks(start_offset..end_offset)
+        //             .filter_map(|(iv, diag)| {
+        //                 let end = iv.end();
+        //                 let end_line = buffer.line_of_offset(end);
+        //                 if end_line == line
+        //                     && diag.severity < Some(DiagnosticSeverity::HINT)
+        //                     && !folded_ranges.contain_position(diag.range.start)
+        //                     && !folded_ranges.contain_position(diag.range.end)
+        //                 {
+        //                     let fg = {
+        //                         let severity = diag
+        //                             .severity
+        //                             .unwrap_or(DiagnosticSeverity::WARNING);
+        //                         let theme_prop = if severity
+        //                             == DiagnosticSeverity::ERROR
+        //                         {
+        //                             LapceColor::ERROR_LENS_ERROR_FOREGROUND
+        //                         } else if severity == DiagnosticSeverity::WARNING {
+        //                             LapceColor::ERROR_LENS_WARNING_FOREGROUND
+        //                         } else {
+        //                             // information + hint (if we keep that) + things without a severity
+        //                             LapceColor::ERROR_LENS_OTHER_FOREGROUND
+        //                         };
+        //
+        //                         config.color(theme_prop)
+        //                     };
+        //
+        //                     let text = if config.editor.only_render_error_styling {
+        //                         "".to_string()
+        //                     } else if config.editor.error_lens_multiline {
+        //                         format!("    {}", diag.message)
+        //                     } else {
+        //                         format!("    {}", diag.message.lines().join(" "))
+        //                     };
+        //                     Some(PhantomText {
+        //                         kind: PhantomTextKind::Diagnostic,
+        //                         col: end_offset - start_offset,
+        //                         affinity: Some(CursorAffinity::Backward),
+        //                         text,
+        //                         fg: Some(fg),
+        //                         font_size: Some(
+        //                             config.editor.error_lens_font_size(),
+        //                         ),
+        //                         bg: None,
+        //                         under_line: None,
+        //                         final_col: end_offset - start_offset,
+        //                         line,
+        //                         merge_col: end_offset - start_offset,
+        //                     })
+        //                 } else {
+        //                     None
+        //                 }
+        //             })
+        //             .collect::<SmallVec<[PhantomText; 6]>>()
+        //     })
+        //     .unwrap_or_default();
+        //
+        // text.append(&mut diag_text);
+        //
+        // let (completion_line, completion_col) = self.completion_pos.get_untracked();
+        // let completion_text = config
+        //     .editor
+        //     .enable_completion_lens
+        //     .then_some(())
+        //     .and(self.completion_lens.get_untracked())
+        //     // TODO: We're probably missing on various useful completion things to include here!
+        //     .filter(|_| {
+        //         line == completion_line
+        //             && !folded_ranges.contain_position(Position {
+        //                 line: completion_line as u32,
+        //                 character: completion_col as u32,
+        //             })
+        //     })
+        //     .map(|completion| PhantomText {
+        //         kind: PhantomTextKind::Completion,
+        //         col: completion_col,
+        //         text: completion.clone(),
+        //         fg: Some(config.color(LapceColor::COMPLETION_LENS_FOREGROUND)),
+        //         font_size: Some(config.editor.completion_lens_font_size()),
+        //         affinity: Some(CursorAffinity::Backward),
+        //         // font_family: Some(config.editor.completion_lens_font_family()),
+        //         bg: None,
+        //         under_line: None,
+        //         final_col: completion_col,
+        //         line,
+        //         merge_col: completion_col,
+        //         // TODO: italics?
+        //     });
+        // if let Some(completion_text) = completion_text {
+        //     text.push(completion_text);
         // }
-        // if line == 8 {
-        //     tracing::info!("start_offset={start_offset} end_offset={end_offset} line_ending={line_ending} origin_text_len={origin_text_len}");
+        //
+        // // TODO: don't display completion lens and inline completion at the same time
+        // // and/or merge them so that they can be shifted between like multiple inline completions
+        // // can
+        // let (inline_completion_line, inline_completion_col) =
+        //     self.inline_completion_pos.get_untracked();
+        // let inline_completion_text = config
+        //     .editor
+        //     .enable_inline_completion
+        //     .then_some(())
+        //     .and(self.inline_completion.get_untracked())
+        //     .filter(|_| {
+        //         line == inline_completion_line
+        //             && !folded_ranges.contain_position(Position {
+        //                 line: inline_completion_line as u32,
+        //                 character: inline_completion_col as u32,
+        //             })
+        //     })
+        //     .map(|completion| PhantomText {
+        //         kind: PhantomTextKind::Completion,
+        //         col: inline_completion_col,
+        //         text: completion.clone(),
+        //         affinity: Some(CursorAffinity::Backward),
+        //         fg: Some(config.color(LapceColor::COMPLETION_LENS_FOREGROUND)),
+        //         font_size: Some(config.editor.completion_lens_font_size()),
+        //         // font_family: Some(config.editor.completion_lens_font_family()),
+        //         bg: None,
+        //         under_line: None,
+        //         final_col: inline_completion_col,
+        //         line,
+        //         merge_col: inline_completion_col,
+        //         // TODO: italics?
+        //     });
+        // if let Some(inline_completion_text) = inline_completion_text {
+        //     text.push(inline_completion_text);
         // }
-
-        let folded_ranges = self
-            .folding_ranges
-            .get_untracked()
-            .get_folded_range_by_line(line as u32);
-
-        let inlay_hints = self.inlay_hints.get_untracked();
-        // If hints are enabled, and the hints field is filled, then get the hints for this line
-        // and convert them into PhantomText instances
-        let hints = config
-            .editor
-            .enable_inlay_hints
-            .then_some(())
-            .and(inlay_hints.as_ref())
-            .map(|hints| hints.iter_chunks(start_offset..end_offset))
-            .into_iter()
-            .flatten()
-            .filter(|(interval, hint)| {
-                interval.start >= start_offset
-                    && interval.start < end_offset
-                    && !folded_ranges.contain_position(hint.position)
-            })
-            .map(|(interval, inlay_hint)| {
-                let (col, affinity) = {
-                    let mut cursor =
-                        lapce_xi_rope::Cursor::new(buffer.text(), interval.start);
-
-                    let next_char = cursor.peek_next_codepoint();
-                    let prev_char = cursor.prev_codepoint();
-
-                    let mut affinity = None;
-                    if let Some(prev_char) = prev_char {
-                        let c = get_char_property(prev_char);
-                        if c == CharClassification::Other {
-                            affinity = Some(CursorAffinity::Backward)
-                        } else if matches!(
-                            c,
-                            CharClassification::Lf
-                                | CharClassification::Cr
-                                | CharClassification::Space
-                        ) {
-                            affinity = Some(CursorAffinity::Forward)
-                        }
-                    };
-                    if affinity.is_none() {
-                        if let Some(next_char) = next_char {
-                            let c = get_char_property(next_char);
-                            if c == CharClassification::Other {
-                                affinity = Some(CursorAffinity::Forward)
-                            } else if matches!(
-                                c,
-                                CharClassification::Lf
-                                    | CharClassification::Cr
-                                    | CharClassification::Space
-                            ) {
-                                affinity = Some(CursorAffinity::Backward)
-                            }
-                        }
-                    }
-
-                    let (_, col) = buffer.offset_to_line_col(interval.start);
-                    (col, affinity)
-                };
-                let mut text = match &inlay_hint.label {
-                    InlayHintLabel::String(label) => label.to_string(),
-                    InlayHintLabel::LabelParts(parts) => {
-                        parts.iter().map(|p| &p.value).join("")
-                    }
-                };
-                match (text.starts_with(':'), text.ends_with(':')) {
-                    (true, true) => {
-                        text.push(' ');
-                    }
-                    (true, false) => {
-                        text.push(' ');
-                    }
-                    (false, true) => {
-                        text = format!(" {} ", text);
-                    }
-                    (false, false) => {
-                        text = format!(" {}", text);
-                    }
-                }
-                PhantomText {
-                    kind: PhantomTextKind::InlayHint,
-                    col,
-                    text,
-                    affinity,
-                    fg: Some(config.color(LapceColor::INLAY_HINT_FOREGROUND)),
-                    // font_family: Some(config.editor.inlay_hint_font_family()),
-                    font_size: Some(config.editor.inlay_hint_font_size()),
-                    bg: Some(config.color(LapceColor::INLAY_HINT_BACKGROUND)),
-                    under_line: None,
-                    final_col: col,
-                    line,
-                    merge_col: col,
-                }
-            });
-        // You're quite unlikely to have more than six hints on a single line
-        // this later has the diagnostics added onto it, but that's still likely to be below six
-        // overall.
-        let mut text: SmallVec<[PhantomText; 6]> = hints.collect();
-
-        // If error lens is enabled, and the diagnostics field is filled, then get the diagnostics
-        // that end on this line which have a severity worse than HINT and convert them into
-        // PhantomText instances
-
-        let mut diag_text: SmallVec<[PhantomText; 6]> = config
-            .editor
-            .enable_error_lens
-            .then_some(())
-            .map(|_| self.diagnostics.diagnostics_span.get_untracked())
-            .map(|diags| {
-                diags
-                    .iter_chunks(start_offset..end_offset)
-                    .filter_map(|(iv, diag)| {
-                        let end = iv.end();
-                        let end_line = buffer.line_of_offset(end);
-                        if end_line == line
-                            && diag.severity < Some(DiagnosticSeverity::HINT)
-                            && !folded_ranges.contain_position(diag.range.start)
-                            && !folded_ranges.contain_position(diag.range.end)
-                        {
-                            let fg = {
-                                let severity = diag
-                                    .severity
-                                    .unwrap_or(DiagnosticSeverity::WARNING);
-                                let theme_prop = if severity
-                                    == DiagnosticSeverity::ERROR
-                                {
-                                    LapceColor::ERROR_LENS_ERROR_FOREGROUND
-                                } else if severity == DiagnosticSeverity::WARNING {
-                                    LapceColor::ERROR_LENS_WARNING_FOREGROUND
-                                } else {
-                                    // information + hint (if we keep that) + things without a severity
-                                    LapceColor::ERROR_LENS_OTHER_FOREGROUND
-                                };
-
-                                config.color(theme_prop)
-                            };
-
-                            let text = if config.editor.only_render_error_styling {
-                                "".to_string()
-                            } else if config.editor.error_lens_multiline {
-                                format!("    {}", diag.message)
-                            } else {
-                                format!("    {}", diag.message.lines().join(" "))
-                            };
-                            Some(PhantomText {
-                                kind: PhantomTextKind::Diagnostic,
-                                col: end_offset - start_offset,
-                                affinity: Some(CursorAffinity::Backward),
-                                text,
-                                fg: Some(fg),
-                                font_size: Some(
-                                    config.editor.error_lens_font_size(),
-                                ),
-                                bg: None,
-                                under_line: None,
-                                final_col: end_offset - start_offset,
-                                line,
-                                merge_col: end_offset - start_offset,
-                            })
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<SmallVec<[PhantomText; 6]>>()
-            })
-            .unwrap_or_default();
-
-        text.append(&mut diag_text);
-
-        let (completion_line, completion_col) = self.completion_pos.get_untracked();
-        let completion_text = config
-            .editor
-            .enable_completion_lens
-            .then_some(())
-            .and(self.completion_lens.get_untracked())
-            // TODO: We're probably missing on various useful completion things to include here!
-            .filter(|_| {
-                line == completion_line
-                    && !folded_ranges.contain_position(Position {
-                        line: completion_line as u32,
-                        character: completion_col as u32,
-                    })
-            })
-            .map(|completion| PhantomText {
-                kind: PhantomTextKind::Completion,
-                col: completion_col,
-                text: completion.clone(),
-                fg: Some(config.color(LapceColor::COMPLETION_LENS_FOREGROUND)),
-                font_size: Some(config.editor.completion_lens_font_size()),
-                affinity: Some(CursorAffinity::Backward),
-                // font_family: Some(config.editor.completion_lens_font_family()),
-                bg: None,
-                under_line: None,
-                final_col: completion_col,
-                line,
-                merge_col: completion_col,
-                // TODO: italics?
-            });
-        if let Some(completion_text) = completion_text {
-            text.push(completion_text);
-        }
-
-        // TODO: don't display completion lens and inline completion at the same time
-        // and/or merge them so that they can be shifted between like multiple inline completions
-        // can
-        let (inline_completion_line, inline_completion_col) =
-            self.inline_completion_pos.get_untracked();
-        let inline_completion_text = config
-            .editor
-            .enable_inline_completion
-            .then_some(())
-            .and(self.inline_completion.get_untracked())
-            .filter(|_| {
-                line == inline_completion_line
-                    && !folded_ranges.contain_position(Position {
-                        line: inline_completion_line as u32,
-                        character: inline_completion_col as u32,
-                    })
-            })
-            .map(|completion| PhantomText {
-                kind: PhantomTextKind::Completion,
-                col: inline_completion_col,
-                text: completion.clone(),
-                affinity: Some(CursorAffinity::Backward),
-                fg: Some(config.color(LapceColor::COMPLETION_LENS_FOREGROUND)),
-                font_size: Some(config.editor.completion_lens_font_size()),
-                // font_family: Some(config.editor.completion_lens_font_family()),
-                bg: None,
-                under_line: None,
-                final_col: inline_completion_col,
-                line,
-                merge_col: inline_completion_col,
-                // TODO: italics?
-            });
-        if let Some(inline_completion_text) = inline_completion_text {
-            text.push(inline_completion_text);
-        }
-
-        // todo filter by folded?
-        if let Some(preedit) = self
-            .preedit_phantom(Some(config.color(LapceColor::EDITOR_FOREGROUND)), line)
-        {
-            text.push(preedit)
-        }
-        text.extend(folded_ranges.into_phantom_text(&buffer, config, line));
-
-        PhantomTextLine::new(line, origin_text_len, text)
+        //
+        // // todo filter by folded?
+        // if let Some(preedit) = self
+        //     .preedit_phantom(Some(config.color(LapceColor::EDITOR_FOREGROUND)), line)
+        // {
+        //     text.push(preedit)
+        // }
+        // text.extend(folded_ranges.into_phantom_text(&buffer, config, line));
+        //
+        // PhantomTextLine::new(line, origin_text_len, text)
+        todo!()
     }
 
     // fn has_multiline_phantom(&self, _: EditorId, _: &EditorStyle) -> bool {

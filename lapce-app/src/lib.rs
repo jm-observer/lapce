@@ -1,3 +1,5 @@
+#![allow(unused_imports, dead_code)]
+
 pub mod about;
 pub mod alert;
 pub mod app;
