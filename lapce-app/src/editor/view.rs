@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::io::Read;
 use std::{
     cmp, collections::BTreeMap, ops::DerefMut, path::PathBuf, rc::Rc, sync::Arc,
 };
@@ -42,6 +43,7 @@ use floem::{
 };
 use lapce_xi_rope::find::CaseMatching;
 use lsp_types::CodeLens;
+use tracing::error;
 
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText, Buffer},
@@ -157,6 +159,7 @@ pub fn editor_view(
     let is_active = create_memo(move |_| is_active(true));
 
     let viewport = e_data.viewport();
+    let viewport_rw = e_data.viewport_rw();
 
     let doc = e_data.doc_signal();
     let view_kind = e_data.kind;
@@ -246,12 +249,18 @@ pub fn editor_view(
                     set_ime_allowed(true);
                 }
                 let (offset, affinity) = cursor.with(|c| (c.offset(), c.affinity));
-                let (_, point_below) = ed1.points_of_offset(offset, affinity);
-                let window_origin = editor_window_origin.get();
-                let viewport = editor_viewport.get();
-                let pos = window_origin
-                    + (point_below.x - viewport.x0, point_below.y - viewport.y0);
-                set_ime_cursor_area(pos, Size::new(800.0, 600.0));
+                let doc = ed1.doc.get_untracked();
+
+                if doc.loaded() {
+                    error!("{:?}", doc.content.get_untracked());
+                    // todo
+                    let (_, point_below) = ed1.points_of_offset(offset, affinity);
+                    let window_origin = editor_window_origin.get();
+                    let viewport = editor_viewport.get();
+                    let pos = window_origin
+                        + (point_below.x - viewport.x0, point_below.y - viewport.y0);
+                    set_ime_cursor_area(pos, Size::new(800.0, 600.0));
+                }
             }
         }
     });
@@ -262,7 +271,7 @@ pub fn editor_view(
         editor: e_data,
         is_active,
         inner_node: None,
-        viewport,
+        viewport: viewport_rw,
         debug_breakline,
         tracing,
     }
@@ -1169,7 +1178,7 @@ impl View for EditorView {
 
 fn get_sticky_header_info(
     editor_data: &EditorData,
-    viewport: RwSignal<Rect>,
+    viewport: ReadSignal<Rect>,
     sticky_header_height_signal: RwSignal<f64>,
     config: &LapceConfig,
 ) -> StickyHeaderInfo {
@@ -1309,7 +1318,7 @@ pub fn editor_container_view(
     let debug_breakline = window_tab_data.terminal.breakline;
 
     let viewport = ed.viewport;
-    let screen_lines = ed.screen_lines;
+    let screen_lines = ed.screen_lines.read_only();
 
     stack((
         editor_breadcrumbs(workspace, editor.get_untracked(), config),
@@ -1386,7 +1395,7 @@ fn editor_gutter_breakpoint_view(
     doc: DocSignal,
     daps: RwSignal<im::HashMap<DapId, DapData>>,
     breakpoints: RwSignal<BTreeMap<PathBuf, BTreeMap<usize, LapceBreakpoint>>>,
-    screen_lines: RwSignal<ScreenLines>,
+    screen_lines: ReadSignal<ScreenLines>,
     common: Rc<CommonData>,
     icon_padding: f32,
 ) -> impl View {
@@ -1505,7 +1514,7 @@ fn editor_gutter_breakpoints(
     let (ed, doc, config) = e_data
         .with_untracked(|e| (e.editor.clone(), e.doc_signal(), e.common.config));
     let viewport = ed.viewport;
-    let screen_lines = ed.screen_lines;
+    let screen_lines = ed.screen_lines.read_only();
 
     let num_display_lines = create_memo(move |_| {
         let screen_lines = screen_lines.get();
@@ -1608,7 +1617,7 @@ fn editor_gutter_code_lens_view(
     window_tab_data: Rc<WindowTabData>,
     line: usize,
     lens: (PluginId, usize, im::Vector<CodeLens>),
-    screen_lines: RwSignal<ScreenLines>,
+    screen_lines: ReadSignal<ScreenLines>,
     viewport: RwSignal<Rect>,
     icon_padding: f32,
 ) -> impl View {
@@ -1710,7 +1719,7 @@ fn editor_gutter_folding_view(
 fn editor_gutter_code_lens(
     window_tab_data: Rc<WindowTabData>,
     doc: DocSignal,
-    screen_lines: RwSignal<ScreenLines>,
+    screen_lines: ReadSignal<ScreenLines>,
     viewport: RwSignal<Rect>,
     icon_padding: f32,
 ) -> impl View {
@@ -1747,7 +1756,7 @@ fn editor_gutter_code_lens(
 fn editor_gutter_folding_range(
     window_tab_data: Rc<WindowTabData>,
     doc: DocSignal,
-    screen_lines: RwSignal<ScreenLines>,
+    screen_lines: ReadSignal<ScreenLines>,
     viewport: RwSignal<Rect>,
 ) -> impl View {
     let config = window_tab_data.common.config;
@@ -1874,7 +1883,7 @@ fn editor_gutter(
         .with_untracked(|e| (e.editor.clone(), e.doc_signal(), e.common.config));
     let viewport = ed.viewport;
     let scroll_delta = ed.scroll_delta;
-    let screen_lines = ed.screen_lines;
+    let screen_lines = ed.screen_lines.read_only();
 
     let gutter_rect = create_rw_signal(Rect::ZERO);
     let gutter_width = create_memo(move |_| gutter_rect.get().width());
@@ -2059,7 +2068,7 @@ fn editor_content(
                 editor.scroll_delta().read_only(),
                 editor.scroll_to(),
                 editor.window_origin(),
-                editor.viewport(),
+                editor.viewport_rw(),
                 editor.common.config,
                 editor.editor.clone(),
             )

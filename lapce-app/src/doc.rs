@@ -521,30 +521,28 @@ impl Doc {
             self.loaded.set(true);
             tracing::error!("init_content");
             self.on_update(None);
-            self.init_parser();
-            self.init_diagnostics();
             self.retrieve_head();
         });
     }
 
-    fn init_parser(&self) {
-        self.doc_lines.update(|x| x.init_parser());
-        // let code = self.buffer.get_untracked().to_string();
-        // let syntax = self.syntax();
-        // if syntax.styles.is_some() {
-        //     self.parser.borrow_mut().update_code(
-        //         code,
-        //         &self.buffer.get_untracked(),
-        //         Some(&syntax),
-        //     );
-        // } else {
-        //     self.parser.borrow_mut().update_code(
-        //         code,
-        //         &self.buffer.get_untracked(),
-        //         None,
-        //     );
-        // }
-    }
+    // fn init_parser(&self) {
+    //
+    //     // let code = self.buffer.get_untracked().to_string();
+    //     // let syntax = self.syntax();
+    //     // if syntax.styles.is_some() {
+    //     //     self.parser.borrow_mut().update_code(
+    //     //         code,
+    //     //         &self.buffer.get_untracked(),
+    //     //         Some(&syntax),
+    //     //     );
+    //     // } else {
+    //     //     self.parser.borrow_mut().update_code(
+    //     //         code,
+    //     //         &self.buffer.get_untracked(),
+    //     //         None,
+    //     //     );
+    //     // }
+    // }
 
     /// Reload the document's content, and is what you should typically use when you want to *set*
     /// an existing document's content.
@@ -725,18 +723,20 @@ impl Doc {
             self.get_inlay_hints();
             self.find_result.reset();
             self.get_semantic_styles();
-            self.do_bracket_colorization();
+            // self.do_bracket_colorization();
             self.clear_code_actions();
             self.clear_style_cache();
             self.get_code_lens();
             self.get_document_symbol();
             self.get_folding_range();
+
+            self.doc_lines.update(|x| x.on_update_buffer());
         });
     }
 
-    fn do_bracket_colorization(&self) {
-        self.doc_lines.update(|x| x.do_bracket_colorization());
-    }
+    // fn do_bracket_colorization(&self) {
+    //     self.doc_lines.update(|x| x.do_bracket_colorization());
+    // }
 
     pub fn do_text_edit(&self, edits: &[TextEdit]) {
         let edits = self.buffer.with_untracked(|buffer| {
@@ -778,7 +778,7 @@ impl Doc {
                 doc.doc_lines.update(|x| {
                     x.set_syntax(syntax);
                 });
-                doc.do_bracket_colorization();
+                // doc.do_bracket_colorization();
                 doc.clear_sticky_headers_cache();
                 doc.clear_text_cache();
             }
@@ -818,11 +818,11 @@ impl Doc {
         self.sticky_headers.borrow_mut().clear();
     }
 
-    /// Get the active style information, either the semantic styles or the
-    /// tree-sitter syntax styles.
-    fn styles(&self) -> Option<Spans<Style>> {
-        self.doc_lines.with_untracked(|lines| lines.styles())
-    }
+    // /// Get the active style information, either the semantic styles or the
+    // /// tree-sitter syntax styles.
+    // fn styles(&self) -> Option<Spans<Style>> {
+    //     self.doc_lines.with_untracked(|lines| lines.styles())
+    // }
 
     /// Get the style information for the particular line from semantic/syntax highlighting.
     /// This caches the result if possible.
@@ -1109,11 +1109,11 @@ impl Doc {
 
     /// init diagnostics offset ranges from lsp positions
     pub fn init_diagnostics(&self) {
+        self.clear_text_cache();
+        self.clear_code_actions();
         self.doc_lines.update(|x| {
             x.init_diagnostics();
         });
-        self.clear_text_cache();
-        self.clear_code_actions();
     }
 
     pub fn get_folding_range(&self) {

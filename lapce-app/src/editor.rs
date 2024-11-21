@@ -373,7 +373,11 @@ impl EditorData {
         self.editor.cursor
     }
 
-    pub fn viewport(&self) -> RwSignal<Rect> {
+    pub fn viewport(&self) -> ReadSignal<Rect> {
+        self.editor.viewport.read_only()
+    }
+
+    pub fn viewport_rw(&self) -> RwSignal<Rect> {
         self.editor.viewport
     }
 

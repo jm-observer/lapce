@@ -169,7 +169,7 @@ impl DocLines {
         config: ReadSignal<Arc<LapceConfig>>,
         buffer: RwSignal<Buffer>,
     ) -> Self {
-        Self {
+        let mut lines = Self {
             // font_size_cache_id: id,
             layout_event: Listener::new_empty(cx), // font_size_cache_id: id,
             viewport,
@@ -193,7 +193,9 @@ impl DocLines {
             parser,
             line_styles: Default::default(),
             buffer,
-        }
+        };
+        lines.update_lines();
+        lines
     }
 
     // pub fn update_cache_id(&mut self) {
@@ -216,17 +218,29 @@ impl DocLines {
         self.max_width = 0.0
     }
 
-    // return do_update
-    pub fn update(&mut self) -> bool {
-        self.clear();
-        let buffer = self.buffer.get_untracked();
-        let last_line = buffer.last_line();
+    fn update_parser(&mut self, buffer: &Buffer) {
+        if self.syntax.styles.is_some() {
+            self.parser.update_code(buffer, Some(&self.syntax));
+        } else {
+            self.parser.update_code(buffer, None);
+        }
+    }
 
+    fn update_lines(&mut self) {
+        let buffer = self.buffer.get_untracked();
+        self.update_lines_with_buffer(&buffer);
+    }
+    // return do_update
+    fn update_lines_with_buffer(&mut self, buffer: &Buffer) -> bool {
+        self.clear();
+        warn!("update_lines_with_buffer");
+        let last_line = buffer.last_line();
+        // self.update_parser(buffer);
         let mut current_line = 0;
         let mut origin_folded_line_index = 0;
         let mut visual_line_index = 0;
         while current_line <= last_line {
-            let text_layout = self.new_text_layout(current_line, &buffer);
+            let text_layout = self.new_text_layout(current_line, buffer);
             let origin_line_start = text_layout.phantom_text.line;
             let origin_line_end = text_layout.phantom_text.last_line;
 
@@ -895,15 +909,15 @@ impl DocLines {
         Arc::new(layout_line)
     }
 
-    pub(crate) fn update_inlay_hints(&mut self, delta: &RopeDelta) {
+    pub fn update_inlay_hints(&mut self, delta: &RopeDelta) {
         if let Some(hints) = self.inlay_hints.as_mut() {
             hints.apply_shape(delta);
         }
-        // todo update
+        self.update_lines();
     }
-    pub(crate) fn set_inlay_hints(&mut self, inlay_hint: Spans<InlayHint>) {
+    pub fn set_inlay_hints(&mut self, inlay_hint: Spans<InlayHint>) {
         self.inlay_hints = Some(inlay_hint);
-        // todo update
+        self.update_lines();
     }
 
     pub fn set_completion_lens(
@@ -914,6 +928,7 @@ impl DocLines {
     ) {
         self.completion_lens = Some(completion_lens);
         self.completion_pos = (line, col);
+        self.update_lines();
     }
 
     pub fn update_folding_item(&mut self, item: FoldingDisplayItem) {
@@ -939,14 +954,17 @@ impl DocLines {
                 });
             }
         }
+        self.update_lines();
     }
 
     pub fn update_folding_ranges(&mut self, new: Vec<FoldingRange>) {
         self.folding_ranges.update_ranges(new);
+        self.update_lines();
     }
 
     pub fn clear_completion_lens(&mut self) {
         self.completion_lens = None;
+        self.update_lines();
     }
 
     pub fn update_completion_lens(&mut self, delta: &RopeDelta) {
@@ -984,10 +1002,15 @@ impl DocLines {
         let new_pos = buffer.offset_to_line_col(new_offset);
 
         self.completion_pos = new_pos;
+        self.update_lines_with_buffer(&buffer);
     }
-
-    pub fn init_diagnostics(&self) {
+    pub fn init_diagnostics(&mut self) {
         let buffer = self.buffer.get_untracked();
+        self.init_diagnostics_with_buffer(&buffer);
+        self.update_lines_with_buffer(&buffer);
+    }
+    /// init by lsp
+    fn init_diagnostics_with_buffer(&self, buffer: &Buffer) {
         let len = buffer.len();
         let diagnostics = self.diagnostics.diagnostics.get_untracked();
         let mut span = SpansBuilder::new(len);
@@ -1000,7 +1023,7 @@ impl DocLines {
         self.diagnostics.diagnostics_span.set(span);
     }
 
-    pub fn update_diagnostics(&self, delta: &RopeDelta) {
+    pub fn update_diagnostics(&mut self, delta: &RopeDelta) {
         if self
             .diagnostics
             .diagnostics
@@ -1012,6 +1035,7 @@ impl DocLines {
         self.diagnostics.diagnostics_span.update(|diagnostics| {
             diagnostics.apply_shape(delta);
         });
+        self.update_lines();
     }
 
     pub fn set_inline_completion(
@@ -1021,10 +1045,12 @@ impl DocLines {
         col: usize,
     ) {
         self.inline_completion = Some((inline_completion, line, col));
+        self.update_lines();
     }
 
     pub fn clear_inline_completion(&mut self) {
         self.inline_completion = None;
+        self.update_lines();
     }
 
     pub fn update_inline_completion(&mut self, delta: &RopeDelta) {
@@ -1058,6 +1084,7 @@ impl DocLines {
         } else {
             self.inline_completion = Some((completion, new_pos.0, new_pos.1));
         }
+        self.update_lines_with_buffer(&buffer);
     }
 
     pub fn set_syntax(&mut self, syntax: Syntax) {
@@ -1065,6 +1092,9 @@ impl DocLines {
         if self.semantic_styles.is_none() {
             self.line_styles.clear();
         }
+        let buffer = self.buffer.get_untracked();
+        self.update_parser(&buffer);
+        self.update_lines_with_buffer(&buffer);
     }
 
     pub fn update_styles(&mut self, delta: &RopeDelta) {
@@ -1075,6 +1105,7 @@ impl DocLines {
         if let Some(styles) = &mut self.semantic_styles {
             styles.1.apply_shape(delta);
         }
+        self.update_lines()
     }
 
     pub fn trigger_syntax_change(
@@ -1083,9 +1114,10 @@ impl DocLines {
     ) {
         self.syntax.cancel_flag.store(1, atomic::Ordering::Relaxed);
         self.syntax.cancel_flag = Arc::new(AtomicUsize::new(0));
+        self.update_lines();
     }
 
-    pub fn styles(&self) -> Option<Spans<Style>> {
+    fn styles(&self) -> Option<Spans<Style>> {
         if let Some(semantic_styles) = &self.semantic_styles {
             Some(semantic_styles.1.clone())
         } else {
@@ -1093,25 +1125,27 @@ impl DocLines {
         }
     }
 
-    pub fn init_parser(&mut self) {
+    pub fn on_update_buffer(&mut self) {
         let buffer = self.buffer.get_untracked();
         if self.syntax.styles.is_some() {
             self.parser.update_code(&buffer, Some(&self.syntax));
         } else {
             self.parser.update_code(&buffer, None);
         }
+        self.init_diagnostics_with_buffer(&buffer);
+        self.update_lines_with_buffer(&buffer);
+        // self.do_bracket_colorization(&buffer);
     }
 
-    pub fn do_bracket_colorization(&mut self) {
-        let buffer = self.buffer.get_untracked();
-        if self.parser.active {
-            if self.syntax.styles.is_some() {
-                self.parser.update_code(&buffer, Some(&self.syntax));
-            } else {
-                self.parser.update_code(&buffer, None);
-            }
-        }
-    }
+    // fn do_bracket_colorization(&mut self, buffer: &Buffer) {
+    //     if self.parser.active {
+    //         if self.syntax.styles.is_some() {
+    //             self.parser.update_code(&buffer, Some(&self.syntax));
+    //         } else {
+    //             self.parser.update_code(&buffer, None);
+    //         }
+    //     }
+    // }
 
     fn line_styles(
         &mut self,
