@@ -11,9 +11,8 @@ use floem::{
     },
     style::{CursorStyle, Style},
     views::{
-        container, dyn_stack,
-        editor::view::{cursor_caret, LineRegion},
-        label, scroll, stack, svg, text, Decorators,
+        container, dyn_stack, editor::view::LineRegion, label, scroll, stack, svg,
+        text, Decorators,
     },
     View,
 };
@@ -21,6 +20,7 @@ use lapce_core::buffer::rope_text::RopeText;
 use lapce_rpc::source_control::FileDiff;
 
 use super::{data::PanelSection, kind::PanelKind, view::foldable_panel_section};
+use crate::editor::editor::cursor_caret;
 use crate::panel::position::PanelContainerPosition;
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand},

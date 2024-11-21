@@ -34,7 +34,7 @@ use floem::views::editor::text::{Document, PreeditData, Styling, WrapMethod};
 use floem::views::editor::visual_line::{
     LayoutEvent, RVLine, ResolvedWrap, VLine, VLineInfo,
 };
-use floem::views::editor::{Editor, EditorStyle};
+use floem::views::editor::EditorStyle;
 use floem_editor_core::buffer::Buffer;
 use floem_editor_core::word::{get_char_property, CharClassification};
 use itertools::Itertools;
@@ -721,7 +721,7 @@ impl DocLines {
 
     fn new_text_layout(
         &mut self,
-        mut line: usize,
+        line: usize,
         buffer: &Buffer,
     ) -> Arc<TextLayoutLine> {
         // TODO: we could share text layouts between different editor views given some knowledge of

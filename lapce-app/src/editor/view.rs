@@ -24,15 +24,15 @@ use floem::{
         editor::{
             text::WrapMethod,
             view::{
-                cursor_caret, DiffSectionKind, EditorView as FloemEditorView,
-                EditorViewClass, LineRegion, ScreenLines,
+                DiffSectionKind, EditorView as FloemEditorView, EditorViewClass,
+                LineRegion, ScreenLines,
             },
             visual_line::RVLine,
-            CurrentLineColor, CursorSurroundingLines, Editor, EditorStyle,
-            IndentGuideColor, IndentStyleProp, Modal, ModalRelativeLine,
-            PhantomColor, PlaceholderColor, PreeditUnderlineColor,
-            RenderWhitespaceProp, ScrollBeyondLastLine, SelectionColor,
-            ShowIndentGuide, SmartTab, VisibleWhitespaceColor, WrapProp,
+            CurrentLineColor, CursorSurroundingLines, EditorStyle, IndentGuideColor,
+            IndentStyleProp, Modal, ModalRelativeLine, PhantomColor,
+            PlaceholderColor, PreeditUnderlineColor, RenderWhitespaceProp,
+            ScrollBeyondLastLine, SelectionColor, ShowIndentGuide, SmartTab,
+            VisibleWhitespaceColor, WrapProp,
         },
         empty, label,
         scroll::{scroll, PropagatePointerWheel},
@@ -51,6 +51,7 @@ use lapce_core::{
 use lapce_rpc::{dap_types::DapId, plugin::PluginId};
 
 use crate::debug::update_breakpoints;
+use crate::editor::editor::{cursor_caret, paint_selection, paint_text, Editor};
 use crate::editor::gutter::FoldingDisplayType;
 use crate::{
     app::clickable_icon,
@@ -1150,7 +1151,7 @@ impl View for EditorView {
         // within the active screen lines without issue.
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_current_line(cx, is_local, &screen_lines);
-        FloemEditorView::paint_selection(cx, ed, &screen_lines);
+        paint_selection(cx, ed, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_diff_sections(cx, viewport, &screen_lines, &config);
         let screen_lines = ed.screen_lines.get_untracked();
@@ -1159,7 +1160,7 @@ impl View for EditorView {
         self.paint_bracket_highlights_scope_lines(cx, viewport, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
 
-        FloemEditorView::paint_text(cx, ed, viewport, is_active, &screen_lines);
+        paint_text(cx, ed, viewport, is_active, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_sticky_headers(cx, viewport, &screen_lines);
         self.paint_scroll_bar(cx, viewport, is_local, config);

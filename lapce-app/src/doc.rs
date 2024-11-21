@@ -23,16 +23,16 @@ use floem::{
     },
     text::FamilyOwned,
     views::editor::{
-        actions::CommonAction,
         command::{Command, CommandExecuted},
         id::EditorId,
         phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
         text::{Document, DocumentPhantom, PreeditData, Styling, SystemClipboard},
         view::{ScreenLines, ScreenLinesBase},
-        CursorInfo, Editor, EditorStyle,
+        EditorStyle,
     },
     ViewId,
 };
+use floem_editor_core::buffer::rope_text::RopeTextVal;
 use itertools::Itertools;
 use lapce_core::{
     buffer::{
@@ -71,6 +71,7 @@ use lsp_types::{
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
+use crate::editor::editor::{CommonAction, CursorInfo, Editor};
 use crate::editor::lines::DocLines;
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand},
@@ -1480,16 +1481,19 @@ impl Doc {
             })
     }
 }
-impl Document for Doc {
-    fn text(&self) -> Rope {
+impl Doc {
+    pub fn text(&self) -> Rope {
         self.buffer.with_untracked(|buffer| buffer.text().clone())
     }
 
-    fn lines(&self) -> RwSignal<Lines> {
+    pub fn lines(&self) -> RwSignal<Lines> {
         self.lines
     }
+    pub fn rope_text(&self) -> RopeTextVal {
+        RopeTextVal::new(self.text())
+    }
 
-    fn cache_rev(&self) -> RwSignal<u64> {
+    pub fn cache_rev(&self) -> RwSignal<u64> {
         self.cache_rev
     }
 
@@ -1498,7 +1502,7 @@ impl Document for Doc {
     //         .with_untracked(|x| x.get_folded_range().visual_line(line))
     // }
 
-    fn find_unmatched(&self, offset: usize, previous: bool, ch: char) -> usize {
+    pub fn find_unmatched(&self, offset: usize, previous: bool, ch: char) -> usize {
         let syntax = self.syntax();
         if syntax.layers.is_some() {
             syntax
@@ -1517,7 +1521,7 @@ impl Document for Doc {
         }
     }
 
-    fn find_matching_pair(&self, offset: usize) -> usize {
+    pub fn find_matching_pair(&self, offset: usize) -> usize {
         let syntax = self.syntax();
         if syntax.layers.is_some() {
             syntax.find_matching_pair(offset).unwrap_or(offset)
@@ -1529,11 +1533,11 @@ impl Document for Doc {
         }
     }
 
-    fn preedit(&self) -> PreeditData {
+    pub fn preedit(&self) -> PreeditData {
         self.doc_lines.with_untracked(|x| x.preedit.clone())
     }
 
-    fn compute_screen_lines(
+    pub fn compute_screen_lines(
         &self,
         editor: &Editor,
         base: RwSignal<ScreenLinesBase>,
@@ -1557,7 +1561,7 @@ impl Document for Doc {
         )
     }
 
-    fn run_command(
+    pub fn run_command(
         &self,
         ed: &Editor,
         cmd: &Command,
@@ -1576,7 +1580,7 @@ impl Document for Doc {
         editor_data.run_command(&cmd, count, modifiers)
     }
 
-    fn receive_char(&self, ed: &Editor, c: &str) {
+    pub fn receive_char(&self, ed: &Editor, c: &str) {
         let Some(editor_data) = self.editor_data(ed.id()) else {
             return;
         };
@@ -1584,7 +1588,7 @@ impl Document for Doc {
         editor_data.receive_char(c);
     }
 
-    fn edit(
+    pub fn edit(
         &self,
         iter: &mut dyn Iterator<Item = (Selection, &str)>,
         edit_type: EditType,
@@ -1596,15 +1600,15 @@ impl Document for Doc {
         self.apply_deltas(&[delta]);
     }
 
-    fn editor_id(&self) -> EditorId {
+    pub fn editor_id(&self) -> EditorId {
         self.editor_id
     }
 
-    fn viewport(&self) -> RwSignal<Rect> {
+    pub fn viewport(&self) -> RwSignal<Rect> {
         self.viewport
     }
 
-    fn editor_style(&self) -> RwSignal<EditorStyle> {
+    pub fn editor_style(&self) -> RwSignal<EditorStyle> {
         self.editor_style
     }
 }

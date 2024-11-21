@@ -21,11 +21,9 @@ use floem::{
     views::editor::{
         command::CommandExecuted,
         id::EditorId,
-        movement,
         text::Document,
         view::{LineInfo, ScreenLines, ScreenLinesBase},
         visual_line::{ConfigId, VLine},
-        Editor,
     },
     ViewId,
 };
@@ -61,6 +59,8 @@ use self::{
     diff::DiffInfo,
     location::{EditorLocation, EditorPosition},
 };
+use crate::editor::editor::{do_motion_mode, Editor};
+use crate::editor::movement::{do_multi_selection, move_cursor};
 use crate::editor::FindHintRs::{Match, MatchWithoutLocation, NoMatchBreak};
 use crate::panel::call_hierarchy_view::CallHierarchyData;
 use crate::{
@@ -89,11 +89,13 @@ use crate::{
 };
 
 pub mod diff;
-mod editor;
+pub mod editor;
 pub mod gutter;
 pub mod lines;
 pub mod location;
 pub mod view;
+
+pub mod movement;
 
 #[derive(Clone, Debug)]
 pub enum InlineFindDirection {
@@ -397,12 +399,7 @@ impl EditorData {
     }
 
     pub fn doc(&self) -> Rc<Doc> {
-        let doc = self.editor.doc();
-        let Ok(doc) = doc.downcast_rc() else {
-            panic!("doc is not Rc<Doc>");
-        };
-
-        doc
+        self.editor.doc()
     }
 
     /// The signal for the editor's document.  
@@ -493,7 +490,7 @@ impl EditorData {
         let mut cursor = self.editor.cursor.get_untracked();
         let mut register = self.common.register.get_untracked();
 
-        movement::do_motion_mode(
+        do_motion_mode(
             &self.editor,
             &*self.doc(),
             &mut cursor,
@@ -643,7 +640,7 @@ impl EditorData {
                     cursor.set_insert(selection);
                 }
             }
-            _ => movement::do_multi_selection(&self.editor, &mut cursor, cmd),
+            _ => do_multi_selection(&self.editor, &mut cursor, cmd),
         };
 
         self.editor.cursor.set(cursor);
@@ -684,7 +681,7 @@ impl EditorData {
 
         let mut cursor = self.cursor().get_untracked();
         self.common.register.update(|register| {
-            movement::move_cursor(
+            move_cursor(
                 &self.editor,
                 &*self.doc(),
                 &mut cursor,
@@ -3529,23 +3526,20 @@ impl KeyPressFocus for EditorData {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DocSignal {
     // TODO: replace with ReadSignal once that impls `track`
-    inner: RwSignal<Rc<dyn Document>>,
+    inner: RwSignal<Rc<Doc>>,
 }
 impl DocSignal {
     pub fn get(&self) -> Rc<Doc> {
-        let doc = self.inner.get();
-        doc.downcast_rc().ok().expect("doc is not Rc<Doc>")
+        self.inner.get()
     }
 
     pub fn get_untracked(&self) -> Rc<Doc> {
-        let doc = self.inner.get_untracked();
-        doc.downcast_rc().ok().expect("doc is not Rc<Doc>")
+        self.inner.get_untracked()
     }
 
     pub fn with<O>(&self, f: impl FnOnce(&Rc<Doc>) -> O) -> O {
         self.inner.with(|doc| {
             let doc = doc.clone();
-            let doc: Rc<Doc> = doc.downcast_rc().ok().expect("doc is not Rc<Doc>");
             f(&doc)
         })
     }
@@ -3553,7 +3547,6 @@ impl DocSignal {
     pub fn with_untracked<O>(&self, f: impl FnOnce(&Rc<Doc>) -> O) -> O {
         self.inner.with_untracked(|doc| {
             let doc = doc.clone();
-            let doc: Rc<Doc> = doc.downcast_rc().ok().expect("doc is not Rc<Doc>");
             f(&doc)
         })
     }
