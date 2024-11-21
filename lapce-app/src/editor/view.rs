@@ -55,6 +55,7 @@ use lapce_rpc::{dap_types::DapId, plugin::PluginId};
 use crate::debug::update_breakpoints;
 use crate::editor::editor::{cursor_caret, paint_selection, paint_text, Editor};
 use crate::editor::gutter::FoldingDisplayType;
+use crate::editor::lines::DocLines;
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
@@ -145,6 +146,7 @@ pub struct EditorView {
     is_active: Memo<bool>,
     inner_node: Option<NodeId>,
     viewport: RwSignal<Rect>,
+    doc_lines: RwSignal<DocLines>,
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     tracing: bool,
 }
@@ -162,7 +164,8 @@ pub fn editor_view(
     let viewport_rw = e_data.viewport_rw();
 
     let doc = e_data.doc_signal();
-    let view_kind = e_data.kind;
+    let doc_lines = doc.with_untracked(|x| x.doc_lines);
+    let view_kind = e_data.kind();
     let screen_lines = e_data.screen_lines();
     create_effect(move |_| {
         doc.track();
@@ -274,6 +277,7 @@ pub fn editor_view(
         viewport: viewport_rw,
         debug_breakline,
         tracing,
+        doc_lines,
     }
     .on_event(EventListener::ImePreedit, move |event| {
         if !is_active.get_untracked() {
@@ -636,7 +640,7 @@ impl EditorView {
         if !config.editor.sticky_header {
             return;
         }
-        if !self.editor.kind.get_untracked().is_normal() {
+        if !self.editor.kind().get_untracked().is_normal() {
             return;
         }
 
@@ -758,7 +762,7 @@ impl EditorView {
             0.0,
         );
 
-        if !self.editor.kind.get_untracked().is_normal() {
+        if !self.editor.kind().get_untracked().is_normal() {
             return;
         }
 
@@ -1132,7 +1136,10 @@ impl View for EditorView {
     ) -> Option<Rect> {
         let viewport = cx.current_viewport();
         if self.viewport.with_untracked(|v| v != &viewport) {
-            self.viewport.set(viewport);
+            batch(|| {
+                self.viewport.set(viewport);
+                self.doc_lines.update(|x| x.update_lines());
+            });
         }
         None
     }
@@ -1301,7 +1308,7 @@ pub fn editor_container_view(
                 editor.id(),
                 editor.find_focus,
                 editor.sticky_header_height,
-                editor.kind,
+                editor.kind(),
                 editor.common.config,
                 editor.doc_signal(),
                 editor.editor.clone(),
@@ -1317,7 +1324,7 @@ pub fn editor_container_view(
     let replace_focus = main_split.common.find.replace_focus;
     let debug_breakline = window_tab_data.terminal.breakline;
 
-    let viewport = ed.viewport;
+    let viewport = ed.viewport.read_only();
     let screen_lines = ed.screen_lines.read_only();
 
     stack((
@@ -1513,7 +1520,7 @@ fn editor_gutter_breakpoints(
 
     let (ed, doc, config) = e_data
         .with_untracked(|e| (e.editor.clone(), e.doc_signal(), e.common.config));
-    let viewport = ed.viewport;
+    let viewport = ed.viewport.read_only();
     let screen_lines = ed.screen_lines.read_only();
 
     let num_display_lines = create_memo(move |_| {
@@ -1618,7 +1625,7 @@ fn editor_gutter_code_lens_view(
     line: usize,
     lens: (PluginId, usize, im::Vector<CodeLens>),
     screen_lines: ReadSignal<ScreenLines>,
-    viewport: RwSignal<Rect>,
+    viewport: ReadSignal<Rect>,
     icon_padding: f32,
 ) -> impl View {
     let config = window_tab_data.common.config;
@@ -1668,7 +1675,7 @@ fn editor_gutter_code_lens_view(
 
 fn editor_gutter_folding_view(
     window_tab_data: Rc<WindowTabData>,
-    viewport: RwSignal<Rect>,
+    viewport: ReadSignal<Rect>,
     folding_display_item: FoldingDisplayItem,
 ) -> impl View {
     let config = window_tab_data.common.config;
@@ -1720,7 +1727,7 @@ fn editor_gutter_code_lens(
     window_tab_data: Rc<WindowTabData>,
     doc: DocSignal,
     screen_lines: ReadSignal<ScreenLines>,
-    viewport: RwSignal<Rect>,
+    viewport: ReadSignal<Rect>,
     icon_padding: f32,
 ) -> impl View {
     let config = window_tab_data.common.config;
@@ -1757,7 +1764,7 @@ fn editor_gutter_folding_range(
     window_tab_data: Rc<WindowTabData>,
     doc: DocSignal,
     screen_lines: ReadSignal<ScreenLines>,
-    viewport: RwSignal<Rect>,
+    viewport: ReadSignal<Rect>,
 ) -> impl View {
     let config = window_tab_data.common.config;
     let doc_clone = doc;
@@ -1800,7 +1807,7 @@ fn editor_gutter_code_actions(
 ) -> impl View {
     let (ed, doc, config) = e_data
         .with_untracked(|e| (e.editor.clone(), e.doc_signal(), e.common.config));
-    let viewport = ed.viewport;
+    let viewport = ed.viewport.read_only();
     let cursor = ed.cursor;
 
     let code_action_vline = create_memo(move |_| {
@@ -1881,7 +1888,7 @@ fn editor_gutter(
 
     let (ed, doc, config) = e_data
         .with_untracked(|e| (e.editor.clone(), e.doc_signal(), e.common.config));
-    let viewport = ed.viewport;
+    let viewport = ed.viewport.read_only();
     let scroll_delta = ed.scroll_delta;
     let screen_lines = ed.screen_lines.read_only();
 
@@ -2061,14 +2068,13 @@ fn editor_content(
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> impl View {
-    let (cursor, scroll_delta, scroll_to, window_origin, viewport, config, editor) =
-        e_data.with_untracked(|editor| {
+    let (cursor, scroll_delta, scroll_to, window_origin, config, editor) = e_data
+        .with_untracked(|editor| {
             (
                 editor.cursor().read_only(),
                 editor.scroll_delta().read_only(),
                 editor.scroll_to(),
                 editor.window_origin(),
-                editor.viewport_rw(),
                 editor.common.config,
                 editor.editor.clone(),
             )
@@ -2143,12 +2149,6 @@ fn editor_content(
     })
     .scroll_to(move || scroll_to.get().map(|s| s.to_point()))
     .scroll_delta(move || scroll_delta.get())
-    .on_resize(move |x| {
-        batch(|| {
-            viewport.set(x);
-            resize.set(x);
-        });
-    })
     .ensure_visible(move || {
         let e_data = e_data.get_untracked();
         let cursor = cursor.get();
@@ -2156,7 +2156,7 @@ fn editor_content(
         tracing::info!("ensure_visible offset={offset}");
         let offset_line_from_top = e_data.offset_line_from_top.get();
         e_data.doc_signal().track();
-        e_data.kind.track();
+        e_data.kind().track();
 
         let LineRegion { x, width, rvline } = cursor_caret(
             &e_data.editor,

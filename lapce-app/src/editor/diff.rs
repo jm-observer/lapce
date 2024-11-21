@@ -249,14 +249,14 @@ impl DiffEditorData {
 
         cx.create_effect(move |_| {
             let (_, left_rev) = left_doc_rev.get();
-            let (left_editor_view, left_doc) = (left.kind, left.doc());
+            let (left_editor_view, left_doc) = (left.kind_rw(), left.doc());
             let (left_atomic_rev, left_rope) =
                 left_doc.buffer.with_untracked(|buffer| {
                     (buffer.atomic_rev(), buffer.text().clone())
                 });
 
             let (_, right_rev) = right_doc_rev.get();
-            let (right_editor_view, right_doc) = (right.kind, right.doc());
+            let (right_editor_view, right_doc) = (right.kind_rw(), right.doc());
             let (right_atomic_rev, right_rope) =
                 right_doc.buffer.with_untracked(|buffer| {
                     (buffer.atomic_rev(), buffer.text().clone())
@@ -316,8 +316,8 @@ pub fn diff_show_more_section_view(
     left_editor: &EditorData,
     right_editor: &EditorData,
 ) -> impl View {
-    let left_editor_view = left_editor.kind;
-    let right_editor_view = right_editor.kind;
+    let left_editor_view = left_editor.kind_rw();
+    let right_editor_view = right_editor.kind_rw();
     let viewport = right_editor.viewport();
     let config = right_editor.common.config;
 

@@ -136,7 +136,7 @@ impl View for EditorGutterView {
         let config = self.editor.common.config;
 
         let kind_is_normal =
-            self.editor.kind.with_untracked(|kind| kind.is_normal());
+            self.editor.kind().with_untracked(|kind| kind.is_normal());
         let (offset, mode) = cursor.with_untracked(|c| (c.offset(), c.get_mode()));
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;

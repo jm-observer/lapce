@@ -60,6 +60,7 @@ use self::{
     location::{EditorLocation, EditorPosition},
 };
 use crate::editor::editor::{do_motion_mode, Editor};
+use crate::editor::lines::DocLines;
 use crate::editor::movement::{do_multi_selection, move_cursor};
 use crate::editor::FindHintRs::{Match, MatchWithoutLocation, NoMatchBreak};
 use crate::panel::call_hierarchy_view::CallHierarchyData;
@@ -223,7 +224,7 @@ pub struct EditorData {
     pub last_inline_find: RwSignal<Option<(InlineFindDirection, String)>>,
     pub find_focus: RwSignal<bool>,
     pub editor: Rc<Editor>,
-    pub kind: RwSignal<EditorViewKind>,
+    // pub kind: RwSignal<EditorViewKind>,
     pub sticky_header_height: RwSignal<f64>,
     pub common: Rc<CommonData>,
     pub sticky_header_info: RwSignal<StickyHeaderInfo>,
@@ -263,12 +264,20 @@ impl EditorData {
             last_inline_find: cx.create_rw_signal(None),
             find_focus: cx.create_rw_signal(false),
             editor: Rc::new(editor),
-            kind: cx.create_rw_signal(EditorViewKind::Normal),
+            // kind: cx.create_rw_signal(EditorViewKind::Normal),
             sticky_header_height: cx.create_rw_signal(0.0),
             common,
             sticky_header_info: cx.create_rw_signal(StickyHeaderInfo::default()),
             offset_line_from_top: cx.create_rw_signal(None),
         }
+    }
+
+    pub fn kind(&self) -> ReadSignal<EditorViewKind> {
+        self.doc().kind.read_only()
+    }
+
+    pub fn kind_rw(&self) -> RwSignal<EditorViewKind> {
+        self.doc().kind
     }
 
     /// Create a new local editor.  
@@ -3142,7 +3151,7 @@ impl EditorData {
     }
 
     pub fn visual_line(&self, line: usize) -> usize {
-        self.kind.with_untracked(|kind| match kind {
+        self.kind().with_untracked(|kind| match kind {
             EditorViewKind::Normal => line,
             EditorViewKind::Diff(diff) => {
                 let is_right = diff.is_right;
@@ -3226,7 +3235,7 @@ impl EditorData {
     }
 
     pub fn actual_line(&self, visual_line: usize, bottom_affinity: bool) -> usize {
-        self.kind.with_untracked(|kind| match kind {
+        self.kind().with_untracked(|kind| match kind {
             EditorViewKind::Normal => visual_line,
             EditorViewKind::Diff(diff) => {
                 let is_right = diff.is_right;
@@ -3612,279 +3621,279 @@ fn show_inline_completion(cmd: &EditCommand) -> bool {
 }
 
 // TODO(minor): Should we just put this on view, since it only requires those values?
-pub(crate) fn compute_screen_lines(
-    config: ReadSignal<Arc<LapceConfig>>,
-    base: RwSignal<ScreenLinesBase>,
-    view_kind: ReadSignal<EditorViewKind>,
-    doc: &Doc,
-    text_prov: &Editor,
-    _config_id: ConfigId,
-) -> ScreenLines {
-    // TODO: this should probably be a get since we need to depend on line-height
-    let config = config.get();
-    let line_height = config.editor.line_height();
-
-    let (y0, y1) = base
-        .with_untracked(|base| (base.active_viewport.y0, base.active_viewport.y1));
-    // Get the start and end (visual) lines that are visible in the viewport
-    let min_val = (y0 / line_height as f64).floor() as usize;
-    let min_vline = VLine(min_val);
-    let max_val = (y1 / line_height as f64).floor() as usize;
-
-    // let cache_rev = doc.cache_rev.get();
-    // lines.check_cache_rev(cache_rev);
-    // TODO(minor): we don't really need to depend on various subdetails that aren't affecting how
-    // the screen lines are set up, like the title of a scratch document.
-    doc.content.track();
-    doc.loaded.track();
-
-    match view_kind.get() {
-        EditorViewKind::Normal => {
-            let mut rvlines = Vec::new();
-            let mut info = HashMap::new();
-
-            let vline_infos = text_prov.vline_infos(min_val, max_val);
-
-            for vline_info in vline_infos {
-                rvlines.push(vline_info.rvline);
-                let y_idx = min_vline.get() + rvlines.len();
-                let vline_y = y_idx * line_height;
-                let line_y = vline_y - vline_info.rvline.line_index * line_height;
-
-                // Add the information to make it cheap to get in the future.
-                // This y positions are shifted by the baseline y0
-                info.insert(
-                    vline_info.rvline,
-                    LineInfo {
-                        y: line_y as f64 - y0,
-                        vline_y: vline_y as f64 - y0,
-                        vline_info,
-                    },
-                );
-            }
-
-            ScreenLines {
-                lines: rvlines,
-                info: Rc::new(info),
-                diff_sections: None,
-                base,
-            }
-        }
-        EditorViewKind::Diff(_diff_info) => {
-            // TODO: let lines in diff view be wrapped, possibly screen_lines should be impl'd
-            // on DiffEditorData
-            todo!()
-            // let mut y_idx = 0;
-            // let mut rvlines = Vec::new();
-            // let mut info = HashMap::new();
-            // let mut diff_sections = Vec::new();
-            // let mut last_change: Option<&DiffLines> = None;
-            // let mut changes = diff_info.changes.iter().peekable();
-            // let is_right = diff_info.is_right;
-            //
-            // let line_y = |info: VLineInfo<()>, vline_y: usize| -> usize {
-            //     vline_y.saturating_sub(info.rvline.line_index * line_height)
-            // };
-            //
-            // while let Some(change) = changes.next() {
-            //     match (is_right, change) {
-            //         (true, DiffLines::Left(range)) => {
-            //             if let Some(DiffLines::Right(_)) = changes.peek() {
-            //             } else {
-            //                 let len = range.len();
-            //                 diff_sections.push(DiffSection {
-            //                     y_idx,
-            //                     height: len,
-            //                     kind: DiffSectionKind::NoCode,
-            //                 });
-            //                 y_idx += len;
-            //             }
-            //         }
-            //         (false, DiffLines::Right(range)) => {
-            //             let len = if let Some(DiffLines::Left(r)) = last_change {
-            //                 range.len() - r.len().min(range.len())
-            //             } else {
-            //                 range.len()
-            //             };
-            //             if len > 0 {
-            //                 diff_sections.push(DiffSection {
-            //                     y_idx,
-            //                     height: len,
-            //                     kind: DiffSectionKind::NoCode,
-            //                 });
-            //                 y_idx += len;
-            //             }
-            //         }
-            //         (true, DiffLines::Right(range))
-            //         | (false, DiffLines::Left(range)) => {
-            //             // TODO: count vline count in the range instead
-            //             let height = range.len();
-            //
-            //             diff_sections.push(DiffSection {
-            //                 y_idx,
-            //                 height,
-            //                 kind: if is_right {
-            //                     DiffSectionKind::Added
-            //                 } else {
-            //                     DiffSectionKind::Removed
-            //                 },
-            //             });
-            //
-            //             let initial_y_idx = y_idx;
-            //             // Mopve forward by the count given.
-            //             y_idx += height;
-            //
-            //             if y_idx < min_vline.get() {
-            //                 if is_right {
-            //                     if let Some(DiffLines::Left(r)) = last_change {
-            //                         // TODO: count vline count in the other editor since this is skipping an amount dependent on those vlines
-            //                         let len = r.len() - r.len().min(range.len());
-            //                         if len > 0 {
-            //                             diff_sections.push(DiffSection {
-            //                                 y_idx,
-            //                                 height: len,
-            //                                 kind: DiffSectionKind::NoCode,
-            //                             });
-            //                             y_idx += len;
-            //                         }
-            //                     };
-            //                 }
-            //                 last_change = Some(change);
-            //                 continue;
-            //             }
-            //
-            //             let start_rvline =
-            //                 lines.rvline_of_line(text_prov, range.start);
-            //
-            //             // TODO: this wouldn't need to produce vlines if screen lines didn't
-            //             // require them.
-            //             let iter = lines
-            //                 .iter_rvlines_init(
-            //                     text_prov,
-            //                     cache_rev,
-            //                     config_id,
-            //                     start_rvline,
-            //                     false,
-            //                 )
-            //                 .take_while(|vline_info| {
-            //                     vline_info.rvline.line < range.end
-            //                 })
-            //                 .enumerate();
-            //             for (i, rvline_info) in iter {
-            //                 let rvline = rvline_info.rvline;
-            //                 if initial_y_idx + i < min_vline.0 {
-            //                     continue;
-            //                 }
-            //
-            //                 rvlines.push(rvline);
-            //                 let vline_y = (initial_y_idx + i) * line_height;
-            //                 info.insert(
-            //                     rvline,
-            //                     LineInfo {
-            //                         y: line_y(rvline_info, vline_y) as f64 - y0,
-            //                         vline_y: vline_y as f64 - y0,
-            //                         vline_info: rvline_info,
-            //                     },
-            //                 );
-            //
-            //                 if initial_y_idx + i > max_vline.0 {
-            //                     break;
-            //                 }
-            //             }
-            //
-            //             if is_right {
-            //                 if let Some(DiffLines::Left(r)) = last_change {
-            //                     // TODO: count vline count in the other editor since this is skipping an amount dependent on those vlines
-            //                     let len = r.len() - r.len().min(range.len());
-            //                     if len > 0 {
-            //                         diff_sections.push(DiffSection {
-            //                             y_idx,
-            //                             height: len,
-            //                             kind: DiffSectionKind::NoCode,
-            //                         });
-            //                         y_idx += len;
-            //                     }
-            //                 };
-            //             }
-            //         }
-            //         (_, DiffLines::Both(bothinfo)) => {
-            //             let start = if is_right {
-            //                 bothinfo.right.start
-            //             } else {
-            //                 bothinfo.left.start
-            //             };
-            //             let len = bothinfo.right.len();
-            //             let diff_height = len
-            //                 - bothinfo
-            //                     .skip
-            //                     .as_ref()
-            //                     .map(|skip| skip.len().saturating_sub(1))
-            //                     .unwrap_or(0);
-            //             if y_idx + diff_height < min_vline.get() {
-            //                 y_idx += diff_height;
-            //                 last_change = Some(change);
-            //                 continue;
-            //             }
-            //
-            //             let start_rvline = lines.rvline_of_line(text_prov, start);
-            //
-            //             let mut iter = lines
-            //                 .iter_rvlines_init(
-            //                     text_prov,
-            //                     cache_rev,
-            //                     config_id,
-            //                     start_rvline,
-            //                     false,
-            //                 )
-            //                 .take_while(|info| info.rvline.line < start + len);
-            //             while let Some(rvline_info) = iter.next() {
-            //                 let line = rvline_info.rvline.line;
-            //
-            //                 // Skip over the lines
-            //                 if let Some(skip) = bothinfo.skip.as_ref() {
-            //                     if Some(skip.start) == line.checked_sub(start) {
-            //                         y_idx += 1;
-            //                         // Skip by `skip` count
-            //                         for _ in 0..skip.len().saturating_sub(1) {
-            //                             iter.next();
-            //                         }
-            //                         continue;
-            //                     }
-            //                 }
-            //
-            //                 // Add the vline if it is within view
-            //                 if y_idx >= min_vline.get() {
-            //                     rvlines.push(rvline_info.rvline);
-            //                     let vline_y = y_idx * line_height;
-            //                     info.insert(
-            //                         rvline_info.rvline,
-            //                         LineInfo {
-            //                             y: line_y(rvline_info, vline_y) as f64 - y0,
-            //                             vline_y: vline_y as f64 - y0,
-            //                             vline_info: rvline_info,
-            //                         },
-            //                     );
-            //                 }
-            //
-            //                 y_idx += 1;
-            //
-            //                 if y_idx - 1 > max_vline.get() {
-            //                     break;
-            //                 }
-            //             }
-            //         }
-            //     }
-            //     last_change = Some(change);
-            // }
-            // ScreenLines {
-            //     lines: Rc::new(rvlines),
-            //     info: Rc::new(info),
-            //     diff_sections: Some(Rc::new(diff_sections)),
-            //     base,
-            // }
-        }
-    }
-}
+// pub(crate) fn compute_screen_lines(
+//     // base: RwSignal<ScreenLinesBase>,
+//     // view_kind: ReadSignal<EditorViewKind>,
+//     doc_lines: DocLines,
+//     // _config_id: ConfigId,
+// ) -> ScreenLines {
+//     // TODO: this should probably be a get since we need to depend on line-height
+//     // let doc_lines = doc.doc_lines.get_untracked();
+//     let config = doc_lines.config.get_untracked();
+//     let line_height = config.editor.line_height();
+//     let view_kind = doc_lines.kind.get_untracked();
+//     let base = doc_lines.viewport.get_untracked();
+//
+//     let (y0, y1) = (base.y0, base.y1);
+//     // Get the start and end (visual) lines that are visible in the viewport
+//     let min_val = (y0 / line_height as f64).floor() as usize;
+//     let min_vline = VLine(min_val);
+//     let max_val = (y1 / line_height as f64).floor() as usize;
+//
+//     // let cache_rev = doc.cache_rev.get();
+//     // lines.check_cache_rev(cache_rev);
+//     // TODO(minor): we don't really need to depend on various subdetails that aren't affecting how
+//     // the screen lines are set up, like the title of a scratch document.
+//     // doc.content.track();
+//     // doc.loaded.track();
+//
+//     match view_kind {
+//         EditorViewKind::Normal => {
+//             let mut rvlines = Vec::new();
+//             let mut info = HashMap::new();
+//
+//             let vline_infos = doc_lines.vline_infos(min_val, max_val);
+//
+//             for vline_info in vline_infos {
+//                 rvlines.push(vline_info.rvline);
+//                 let y_idx = min_vline.get() + rvlines.len();
+//                 let vline_y = y_idx * line_height;
+//                 let line_y = vline_y - vline_info.rvline.line_index * line_height;
+//
+//                 // Add the information to make it cheap to get in the future.
+//                 // This y positions are shifted by the baseline y0
+//                 info.insert(
+//                     vline_info.rvline,
+//                     LineInfo {
+//                         y: line_y as f64 - y0,
+//                         vline_y: vline_y as f64 - y0,
+//                         vline_info,
+//                     },
+//                 );
+//             }
+//
+//             ScreenLines {
+//                 lines: rvlines,
+//                 info: Rc::new(info),
+//                 diff_sections: None,
+//                 // base,
+//             }
+//         }
+//         EditorViewKind::Diff(_diff_info) => {
+//             // TODO: let lines in diff view be wrapped, possibly screen_lines should be impl'd
+//             // on DiffEditorData
+//             todo!()
+//             // let mut y_idx = 0;
+//             // let mut rvlines = Vec::new();
+//             // let mut info = HashMap::new();
+//             // let mut diff_sections = Vec::new();
+//             // let mut last_change: Option<&DiffLines> = None;
+//             // let mut changes = diff_info.changes.iter().peekable();
+//             // let is_right = diff_info.is_right;
+//             //
+//             // let line_y = |info: VLineInfo<()>, vline_y: usize| -> usize {
+//             //     vline_y.saturating_sub(info.rvline.line_index * line_height)
+//             // };
+//             //
+//             // while let Some(change) = changes.next() {
+//             //     match (is_right, change) {
+//             //         (true, DiffLines::Left(range)) => {
+//             //             if let Some(DiffLines::Right(_)) = changes.peek() {
+//             //             } else {
+//             //                 let len = range.len();
+//             //                 diff_sections.push(DiffSection {
+//             //                     y_idx,
+//             //                     height: len,
+//             //                     kind: DiffSectionKind::NoCode,
+//             //                 });
+//             //                 y_idx += len;
+//             //             }
+//             //         }
+//             //         (false, DiffLines::Right(range)) => {
+//             //             let len = if let Some(DiffLines::Left(r)) = last_change {
+//             //                 range.len() - r.len().min(range.len())
+//             //             } else {
+//             //                 range.len()
+//             //             };
+//             //             if len > 0 {
+//             //                 diff_sections.push(DiffSection {
+//             //                     y_idx,
+//             //                     height: len,
+//             //                     kind: DiffSectionKind::NoCode,
+//             //                 });
+//             //                 y_idx += len;
+//             //             }
+//             //         }
+//             //         (true, DiffLines::Right(range))
+//             //         | (false, DiffLines::Left(range)) => {
+//             //             // TODO: count vline count in the range instead
+//             //             let height = range.len();
+//             //
+//             //             diff_sections.push(DiffSection {
+//             //                 y_idx,
+//             //                 height,
+//             //                 kind: if is_right {
+//             //                     DiffSectionKind::Added
+//             //                 } else {
+//             //                     DiffSectionKind::Removed
+//             //                 },
+//             //             });
+//             //
+//             //             let initial_y_idx = y_idx;
+//             //             // Mopve forward by the count given.
+//             //             y_idx += height;
+//             //
+//             //             if y_idx < min_vline.get() {
+//             //                 if is_right {
+//             //                     if let Some(DiffLines::Left(r)) = last_change {
+//             //                         // TODO: count vline count in the other editor since this is skipping an amount dependent on those vlines
+//             //                         let len = r.len() - r.len().min(range.len());
+//             //                         if len > 0 {
+//             //                             diff_sections.push(DiffSection {
+//             //                                 y_idx,
+//             //                                 height: len,
+//             //                                 kind: DiffSectionKind::NoCode,
+//             //                             });
+//             //                             y_idx += len;
+//             //                         }
+//             //                     };
+//             //                 }
+//             //                 last_change = Some(change);
+//             //                 continue;
+//             //             }
+//             //
+//             //             let start_rvline =
+//             //                 lines.rvline_of_line(text_prov, range.start);
+//             //
+//             //             // TODO: this wouldn't need to produce vlines if screen lines didn't
+//             //             // require them.
+//             //             let iter = lines
+//             //                 .iter_rvlines_init(
+//             //                     text_prov,
+//             //                     cache_rev,
+//             //                     config_id,
+//             //                     start_rvline,
+//             //                     false,
+//             //                 )
+//             //                 .take_while(|vline_info| {
+//             //                     vline_info.rvline.line < range.end
+//             //                 })
+//             //                 .enumerate();
+//             //             for (i, rvline_info) in iter {
+//             //                 let rvline = rvline_info.rvline;
+//             //                 if initial_y_idx + i < min_vline.0 {
+//             //                     continue;
+//             //                 }
+//             //
+//             //                 rvlines.push(rvline);
+//             //                 let vline_y = (initial_y_idx + i) * line_height;
+//             //                 info.insert(
+//             //                     rvline,
+//             //                     LineInfo {
+//             //                         y: line_y(rvline_info, vline_y) as f64 - y0,
+//             //                         vline_y: vline_y as f64 - y0,
+//             //                         vline_info: rvline_info,
+//             //                     },
+//             //                 );
+//             //
+//             //                 if initial_y_idx + i > max_vline.0 {
+//             //                     break;
+//             //                 }
+//             //             }
+//             //
+//             //             if is_right {
+//             //                 if let Some(DiffLines::Left(r)) = last_change {
+//             //                     // TODO: count vline count in the other editor since this is skipping an amount dependent on those vlines
+//             //                     let len = r.len() - r.len().min(range.len());
+//             //                     if len > 0 {
+//             //                         diff_sections.push(DiffSection {
+//             //                             y_idx,
+//             //                             height: len,
+//             //                             kind: DiffSectionKind::NoCode,
+//             //                         });
+//             //                         y_idx += len;
+//             //                     }
+//             //                 };
+//             //             }
+//             //         }
+//             //         (_, DiffLines::Both(bothinfo)) => {
+//             //             let start = if is_right {
+//             //                 bothinfo.right.start
+//             //             } else {
+//             //                 bothinfo.left.start
+//             //             };
+//             //             let len = bothinfo.right.len();
+//             //             let diff_height = len
+//             //                 - bothinfo
+//             //                     .skip
+//             //                     .as_ref()
+//             //                     .map(|skip| skip.len().saturating_sub(1))
+//             //                     .unwrap_or(0);
+//             //             if y_idx + diff_height < min_vline.get() {
+//             //                 y_idx += diff_height;
+//             //                 last_change = Some(change);
+//             //                 continue;
+//             //             }
+//             //
+//             //             let start_rvline = lines.rvline_of_line(text_prov, start);
+//             //
+//             //             let mut iter = lines
+//             //                 .iter_rvlines_init(
+//             //                     text_prov,
+//             //                     cache_rev,
+//             //                     config_id,
+//             //                     start_rvline,
+//             //                     false,
+//             //                 )
+//             //                 .take_while(|info| info.rvline.line < start + len);
+//             //             while let Some(rvline_info) = iter.next() {
+//             //                 let line = rvline_info.rvline.line;
+//             //
+//             //                 // Skip over the lines
+//             //                 if let Some(skip) = bothinfo.skip.as_ref() {
+//             //                     if Some(skip.start) == line.checked_sub(start) {
+//             //                         y_idx += 1;
+//             //                         // Skip by `skip` count
+//             //                         for _ in 0..skip.len().saturating_sub(1) {
+//             //                             iter.next();
+//             //                         }
+//             //                         continue;
+//             //                     }
+//             //                 }
+//             //
+//             //                 // Add the vline if it is within view
+//             //                 if y_idx >= min_vline.get() {
+//             //                     rvlines.push(rvline_info.rvline);
+//             //                     let vline_y = y_idx * line_height;
+//             //                     info.insert(
+//             //                         rvline_info.rvline,
+//             //                         LineInfo {
+//             //                             y: line_y(rvline_info, vline_y) as f64 - y0,
+//             //                             vline_y: vline_y as f64 - y0,
+//             //                             vline_info: rvline_info,
+//             //                         },
+//             //                     );
+//             //                 }
+//             //
+//             //                 y_idx += 1;
+//             //
+//             //                 if y_idx - 1 > max_vline.get() {
+//             //                     break;
+//             //                 }
+//             //             }
+//             //         }
+//             //     }
+//             //     last_change = Some(change);
+//             // }
+//             // ScreenLines {
+//             //     lines: Rc::new(rvlines),
+//             //     info: Rc::new(info),
+//             //     diff_sections: Some(Rc::new(diff_sections)),
+//             //     base,
+//             // }
+//         }
+//     }
+// }
 
 fn parse_hover_resp(
     hover: lsp_types::Hover,

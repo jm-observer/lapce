@@ -122,7 +122,7 @@ pub fn source_control_panel(
                     let offset = cursor.offset();
                     let e_data = editor.get_untracked();
                     e_data.doc_signal().track();
-                    e_data.kind.track();
+                    e_data.kind().track();
                     let LineRegion { x, width, rvline } = cursor_caret(
                         &e_data.editor,
                         offset,

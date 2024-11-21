@@ -164,6 +164,7 @@ impl Editor {
         };
         let cursor = Cursor::new(cursor_mode, None, None);
         let cursor = cx.create_rw_signal(cursor);
+        let screen_lines = doc.screen_lines;
         let doc = cx.create_rw_signal(doc);
         // let font_sizes = Rc::new(EditorFontSizes {
         //     id,
@@ -172,8 +173,8 @@ impl Editor {
         // });
         // let lines = Rc::new(Lines::new(cx, font_sizes));
 
-        let screen_lines =
-            cx.create_rw_signal(ScreenLines::new(cx, viewport.get_untracked()));
+        // let screen_lines =
+        //     cx.create_rw_signal(ScreenLines::new(cx, viewport.get_untracked()));
 
         let ed = Editor {
             cx: Cell::new(cx),
@@ -1232,8 +1233,8 @@ const MIN_WRAPPED_WIDTH: f32 = 100.0;
 fn create_view_effects(cx: Scope, ed: &Editor) {
     // Cloning is fun.
     // let ed2 = ed.clone();
-    let ed3 = ed.clone();
-    let ed4 = ed.clone();
+    // let ed3 = ed.clone();
+    // let ed4 = ed.clone();
 
     // Reset cursor blinking whenever the cursor changes
     {
@@ -1245,17 +1246,17 @@ fn create_view_effects(cx: Scope, ed: &Editor) {
         });
     }
 
-    let update_screen_lines = |ed: &Editor| {
-        // This function should not depend on the viewport signal directly.
-
-        // This is wrapped in an update to make any updates-while-updating very obvious
-        // which they wouldn't be if we computed and then `set`.
-        ed.screen_lines.update(|screen_lines| {
-            let new_screen_lines = ed.compute_screen_lines(screen_lines.base);
-
-            *screen_lines = new_screen_lines;
-        });
-    };
+    // let update_screen_lines = |ed: &Editor| {
+    //     // This function should not depend on the viewport signal directly.
+    //
+    //     // This is wrapped in an update to make any updates-while-updating very obvious
+    //     // which they wouldn't be if we computed and then `set`.
+    //     ed.screen_lines.update(|screen_lines| {
+    //         let new_screen_lines = ed.compute_screen_lines(screen_lines.base);
+    //
+    //         *screen_lines = new_screen_lines;
+    //     });
+    // };
 
     // Listen for layout events, currently only when a layout is created, and update screen
     // lines based on that
@@ -1289,49 +1290,49 @@ fn create_view_effects(cx: Scope, ed: &Editor) {
     // TODO: should we have some debouncing for editor width? Ideally we'll be fast enough to not
     // even need it, though we might not want to use a bunch of cpu whilst resizing anyway.
 
-    let viewport_changed_trigger = cx.create_trigger();
+    // let viewport_changed_trigger = cx.create_trigger();
 
     // Watch for changes to the viewport so that we can alter the wrapping
     // As well as updating the screen lines base
-    cx.create_effect(move |_| {
-        let ed = &ed3;
-
-        let viewport = ed.viewport.get();
-
-        // let wrap = match ed.es.with(|s| s.wrap_method()) {
-        //     WrapMethod::None => ResolvedWrap::None,
-        //     WrapMethod::EditorWidth => {
-        //         ResolvedWrap::Width((viewport.width() as f32).max(MIN_WRAPPED_WIDTH))
-        //     }
-        //     WrapMethod::WrapColumn { .. } => todo!(),
-        //     WrapMethod::WrapWidth { width } => ResolvedWrap::Width(width),
-        // };
-
-        // ed.lines.update(|x| x.set_wrap(wrap, ed));
-        // ed.lines.set_wrap(wrap, ed);
-
-        // Update the base
-        let base = ed.screen_lines.with_untracked(|sl| sl.base);
-
-        // TODO: should this be a with or with_untracked?
-        if viewport != base.with_untracked(|base| base.active_viewport) {
-            batch(|| {
-                base.update(|base| {
-                    base.active_viewport = viewport;
-                });
-                // TODO: Can I get rid of this and just call update screen lines with an
-                // untrack around it?
-                viewport_changed_trigger.notify();
-            });
-        }
-    });
+    // cx.create_effect(move |_| {
+    //     let ed = &ed3;
+    //
+    //     let viewport = ed.viewport.get();
+    //
+    //     // let wrap = match ed.es.with(|s| s.wrap_method()) {
+    //     //     WrapMethod::None => ResolvedWrap::None,
+    //     //     WrapMethod::EditorWidth => {
+    //     //         ResolvedWrap::Width((viewport.width() as f32).max(MIN_WRAPPED_WIDTH))
+    //     //     }
+    //     //     WrapMethod::WrapColumn { .. } => todo!(),
+    //     //     WrapMethod::WrapWidth { width } => ResolvedWrap::Width(width),
+    //     // };
+    //
+    //     // ed.lines.update(|x| x.set_wrap(wrap, ed));
+    //     // ed.lines.set_wrap(wrap, ed);
+    //
+    //     // Update the base
+    //     let base = ed.screen_lines.with_untracked(|sl| sl.base);
+    //
+    //     // TODO: should this be a with or with_untracked?
+    //     if viewport != base.with_untracked(|base| base.active_viewport) {
+    //         batch(|| {
+    //             base.update(|base| {
+    //                 base.active_viewport = viewport;
+    //             });
+    //             // TODO: Can I get rid of this and just call update screen lines with an
+    //             // untrack around it?
+    //             viewport_changed_trigger.notify();
+    //         });
+    //     }
+    // });
     // Watch for when the viewport as changed in a relevant manner
     // and for anything that `update_screen_lines` tracks.
-    cx.create_effect(move |_| {
-        viewport_changed_trigger.track();
-
-        update_screen_lines(&ed4);
-    });
+    // cx.create_effect(move |_| {
+    //     viewport_changed_trigger.track();
+    //
+    //     update_screen_lines(&ed4);
+    // });
 }
 
 // pub fn normal_compute_screen_lines(

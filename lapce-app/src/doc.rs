@@ -73,11 +73,11 @@ use smallvec::SmallVec;
 
 use crate::editor::editor::{CommonAction, CursorInfo, Editor};
 use crate::editor::lines::DocLines;
+use crate::editor::EditorViewKind;
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand},
     config::LapceConfig,
     editor::{
-        compute_screen_lines,
         gutter::FoldingRanges,
         location::{EditorLocation, EditorPosition},
         EditorData,
@@ -176,6 +176,7 @@ pub struct Doc {
     /// Whether the buffer's content has been loaded/initialized into the buffer.
     pub loaded: RwSignal<bool>,
     pub buffer: RwSignal<Buffer>,
+    pub kind: RwSignal<EditorViewKind>,
     // pub syntax: RwSignal<Syntax>,
     // semantic_styles: RwSignal<Option<Spans<Style>>>,
     // semantic_previous_rs_id: RwSignal<Option<String>>,
@@ -222,6 +223,7 @@ pub struct Doc {
     pub editor_style: RwSignal<EditorStyle>,
     pub viewport: RwSignal<Rect>,
     pub doc_lines: RwSignal<DocLines>,
+    pub screen_lines: RwSignal<ScreenLines>,
 }
 impl Doc {
     pub fn new(
@@ -239,8 +241,12 @@ impl Doc {
         let viewport = cx.create_rw_signal(Rect::ZERO);
         let editor_style = cx.create_rw_signal(EditorStyle::default());
         let buffer = cx.create_rw_signal(Buffer::new(""));
+        let screen_lines = cx.create_rw_signal(ScreenLines::new(cx, viewport));
+        let kind = cx.create_rw_signal(EditorViewKind::Normal);
         Doc {
             editor_id,
+            kind,
+            screen_lines,
             viewport,
             editor_style,
             scope: cx,
@@ -278,6 +284,8 @@ impl Doc {
                 editor_style,
                 rw_config,
                 buffer,
+                screen_lines,
+                kind,
             )),
         }
     }
@@ -298,6 +306,7 @@ impl Doc {
         let rw_config = common.config;
         let lines = cx.create_rw_signal(Lines::new(cx));
         let viewport = cx.create_rw_signal(Rect::ZERO);
+        let screen_lines = cx.create_rw_signal(ScreenLines::new(cx, viewport));
         let editor_style = cx.create_rw_signal(EditorStyle::default());
         let diagnostics = DiagnosticData {
             expanded: cx.create_rw_signal(true),
@@ -306,28 +315,14 @@ impl Doc {
         };
         let syntax = Syntax::plaintext();
         let buffer = cx.create_rw_signal(Buffer::new(""));
+        let kind = cx.create_rw_signal(EditorViewKind::Normal);
         Self {
             editor_id,
+            kind,
+            screen_lines,
             scope: cx,
             buffer_id: BufferId::next(),
             buffer,
-            // line_styles: Rc::new(RefCell::new(HashMap::new())),
-            // parser: Rc::new(RefCell::new(BracketParser::new(
-            //     String::new(),
-            //     config.editor.bracket_pair_colorization,
-            //     config.editor.bracket_colorization_limit,
-            // ))),
-            // semantic_styles: cx.create_rw_signal(None),
-            // inlay_hints: cx.create_rw_signal(None),
-            // diagnostics: DiagnosticData {
-            //     expanded: cx.create_rw_signal(true),
-            //     diagnostics: cx.create_rw_signal(im::Vector::new()),
-            //     diagnostics_span: cx.create_rw_signal(SpansBuilder::new(0).build()),
-            // },
-            // completion_lens: cx.create_rw_signal(None),
-            // completion_pos: cx.create_rw_signal((0, 0)),
-            // inline_completion: cx.create_rw_signal(None),
-            // inline_completion_pos: cx.create_rw_signal((0, 0)),
             cache_rev: cx.create_rw_signal(0),
             content: cx.create_rw_signal(content),
             histories: cx.create_rw_signal(im::HashMap::new()),
@@ -359,6 +354,8 @@ impl Doc {
                 editor_style,
                 rw_config,
                 buffer,
+                screen_lines,
+                kind,
             )),
         }
     }
@@ -379,6 +376,7 @@ impl Doc {
         };
         let lines = cx.create_rw_signal(Lines::new(cx));
         let viewport = cx.create_rw_signal(Rect::ZERO);
+        let screen_lines = cx.create_rw_signal(ScreenLines::new(cx, viewport));
         let editor_style = cx.create_rw_signal(EditorStyle::default());
         let diagnostics = DiagnosticData {
             expanded: cx.create_rw_signal(true),
@@ -386,8 +384,11 @@ impl Doc {
             diagnostics_span: cx.create_rw_signal(SpansBuilder::new(0).build()),
         };
         let buffer = cx.create_rw_signal(Buffer::new(""));
+        let kind = cx.create_rw_signal(EditorViewKind::Normal);
         Self {
             editor_id,
+            kind,
+            screen_lines,
             scope: cx,
             buffer_id: BufferId::next(),
             buffer,
@@ -430,6 +431,8 @@ impl Doc {
                 editor_style,
                 rw_config,
                 buffer,
+                screen_lines,
+                kind,
             )),
         }
     }
@@ -1539,26 +1542,31 @@ impl Doc {
 
     pub fn compute_screen_lines(
         &self,
-        editor: &Editor,
-        base: RwSignal<ScreenLinesBase>,
+        _editor: &Editor,
+        _base: RwSignal<ScreenLinesBase>,
     ) -> ScreenLines {
-        let Some(editor_data) = self.editor_data(editor.id()) else {
-            return ScreenLines {
-                lines: Default::default(),
-                info: Default::default(),
-                diff_sections: Default::default(),
-                base,
-            };
-        };
-
-        compute_screen_lines(
-            self.common.config,
-            base,
-            editor_data.kind.read_only(),
-            &editor_data.doc_signal().get(),
-            editor.text_prov(),
-            editor.config_id(),
-        )
+        todo!()
+        // let Some(editor_data) = self.editor_data(editor.id()) else {
+        //     return ScreenLines {
+        //         lines: Default::default(),
+        //         info: Default::default(),
+        //         diff_sections: Default::default(),
+        //         base,
+        //     };
+        // };
+        //
+        // // compute_screen_lines(
+        // //     self.common.config,
+        // //     base,
+        // //     editor_data.kind(),
+        // //     &editor_data.doc_signal().get(),
+        // //     editor.text_prov(),
+        // //     editor.config_id(),
+        // // )
+        // let doc_lines = editor_data
+        //     .doc_signal()
+        //     .with_untracked(|x| x.doc_lines.get_untracked());
+        // compute_screen_lines(doc_lines)
     }
 
     pub fn run_command(
