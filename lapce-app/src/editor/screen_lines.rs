@@ -1,3 +1,4 @@
+use crate::editor::lines::VisualLine;
 use floem::kurbo::Rect;
 use floem::reactive::{RwSignal, Scope, SignalGet, SignalUpdate};
 use floem::views::editor::view::{DiffSection, LineInfo};
@@ -9,9 +10,10 @@ use std::rc::Rc;
 // TODO(minor): We have diff sections in screen lines because Lapce uses them, but
 // we don't really have support for diffs in floem-editor! Is there a better design for this?
 // Possibly we should just move that out to a separate field on Lapce's editor.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct ScreenLines {
     pub lines: Vec<RVLine>,
+    pub visual_lines: Vec<VisualLineInfo>,
     /// Guaranteed to have an entry for each `VLine` in `lines`
     /// You should likely use accessor functions rather than this directly.
     pub info: Rc<HashMap<RVLine, LineInfo>>,
@@ -22,15 +24,26 @@ pub struct ScreenLines {
     // we simply have to update the `base_y`.
     pub base: RwSignal<Rect>,
 }
+
+#[derive(Debug, Clone)]
+pub struct VisualLineInfo {
+    /// 子行的y位置？
+    pub y: f64,
+    /// The y position of the visual line
+    ///
+    /// 该行底部？在可视窗口的y位置，而不是整个文本的y位置
+    pub vline_y: f64,
+    pub visual_line: VisualLine,
+}
+
 impl ScreenLines {
     pub fn new(_cx: Scope, viewport: RwSignal<Rect>) -> ScreenLines {
         ScreenLines {
             lines: Default::default(),
+            visual_lines: Default::default(),
             info: Default::default(),
             diff_sections: Default::default(),
-            base: viewport, // base: cx.create_rw_signal(ScreenLinesBase {
-                            //     active_viewport: viewport,
-                            // }),
+            base: viewport,
         }
     }
 
@@ -131,6 +144,25 @@ impl ScreenLines {
     //     let end_line = self.info(end_vline).unwrap().vline_info.rvline.line;
     //
     //     start_line..=end_line
+    // }
+
+    /// 视觉行
+    // pub fn iter_visual_lines_y(
+    //     &self,
+    //     show_relative: bool,
+    //     current_line: usize,
+    // ) -> impl Iterator<Item = (String, f64)> + '_ {
+    //     self.visual_lines.iter().map(move |vline| {
+    //         let text = vline.visual_line.line_number(show_relative, current_line);
+    //         // let info = self.info(*vline).unwrap();
+    //         // let line = info.vline_info.origin_line;
+    //         // if last_line == Some(line) {
+    //         //     // We've already considered this line.
+    //         //     return None;
+    //         // }
+    //         // last_line = Some(line);
+    //         (text, vline.y)
+    //     })
     // }
 
     /// Iterate over the real lines underlying the visual lines on the screen with the y position

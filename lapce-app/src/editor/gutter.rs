@@ -141,11 +141,17 @@ impl View for EditorGutterView {
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
         let last_line = self.editor.editor.last_line();
-        let current_line = self
+        // let current_line = self
+        //     .editor
+        //     .doc()
+        //     .buffer
+        //     .with_untracked(|buffer| buffer.line_of_offset(offset));
+
+        let (current_visual_line, line_offset, _) = self
             .editor
-            .doc()
-            .buffer
-            .with_untracked(|buffer| buffer.line_of_offset(offset));
+            .editor
+            .lines()
+            .with_untracked(|x| x.visual_line_of_offset(offset));
 
         let family: Vec<FamilyOwned> =
             FamilyOwned::parse_list(&config.editor.font_family).collect();
@@ -161,29 +167,24 @@ impl View for EditorGutterView {
             && mode != Mode::Insert
             && kind_is_normal;
 
+        let current_number = current_visual_line.line_number(false, None);
         screen_lines.with_untracked(|screen_lines| {
-            for (line, y) in screen_lines.iter_lines_y() {
-                // If it ends up outside the bounds of the file, stop trying to display line numbers
-                if line > last_line {
-                    break;
-                }
-
-                let text = if show_relative {
-                    if line == current_line {
-                        line + 1
-                    } else {
-                        line.abs_diff(current_line)
-                    }
+            for visual_line_info in screen_lines.visual_lines.iter() {
+                let line_number = visual_line_info
+                    .visual_line
+                    .line_number(show_relative, current_number);
+                let text_layout = if current_number == line_number {
+                    TextLayout::new(
+                        &line_number.map(|x| x.to_string()).unwrap_or_default(),
+                        current_line_attrs_list.clone(),
+                    )
                 } else {
-                    line + 1
-                }
-                .to_string();
-
-                let text_layout = if line == current_line {
-                    TextLayout::new(&text, current_line_attrs_list.clone())
-                } else {
-                    TextLayout::new(&text, attrs_list.clone())
+                    TextLayout::new(
+                        &line_number.map(|x| x.to_string()).unwrap_or_default(),
+                        attrs_list.clone(),
+                    )
                 };
+                let y = visual_line_info.y;
                 let size = text_layout.size();
                 let height = size.height;
 

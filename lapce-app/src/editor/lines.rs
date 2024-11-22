@@ -25,6 +25,7 @@ use crate::doc::{DiagnosticData, Doc};
 use crate::editor::gutter::{
     FoldingDisplayItem, FoldingDisplayType, FoldingRange, FoldingRanges,
 };
+use crate::editor::screen_lines::{ScreenLines, VisualLineInfo};
 use crate::editor::EditorViewKind;
 use floem::views::editor::layout::TextLayoutLine;
 use floem::views::editor::listener::Listener;
@@ -48,7 +49,6 @@ use lapce_rpc::style::{LineStyle, Style};
 use lapce_xi_rope::spans::{Spans, SpansBuilder};
 use lsp_types::{DiagnosticSeverity, InlayHint, InlayHintLabel, Position};
 use smallvec::SmallVec;
-use crate::editor::screen_lines::ScreenLines;
 
 /// Minimum width that we'll allow the view to be wrapped at.
 const MIN_WRAPPED_WIDTH: f32 = 100.0;
@@ -79,10 +79,11 @@ impl Debug for OriginFoldedLine {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy, Eq, PartialEq)]
 pub struct VisualLine {
     line_index: usize,
     origin_interval: Interval,
+    origin_line: usize,
     origin_folded_line: usize,
     origin_folded_line_sub_index: usize,
 }
@@ -110,6 +111,32 @@ impl VisualLine {
             rvline,
             origin_line,
             vline,
+        }
+    }
+
+    // 行号
+    pub fn line_number(
+        &self,
+        show_relative: bool,
+        current_number: Option<usize>,
+    ) -> Option<usize> {
+        if self.origin_folded_line_sub_index == 0 {
+            let line_number = self.origin_line + 1;
+            Some(if show_relative {
+                if let Some(current_number) = current_number {
+                    if line_number == current_number {
+                        line_number
+                    } else {
+                        line_number.abs_diff(current_number)
+                    }
+                } else {
+                    line_number
+                }
+            } else {
+                line_number
+            })
+        } else {
+            None
         }
     }
 }
@@ -341,6 +368,7 @@ impl DocLines {
                 self.visual_lines.push(VisualLine {
                     line_index: visual_line_index,
                     origin_interval,
+                    origin_line: origin_line_start,
                     origin_folded_line: origin_folded_line_index,
                     origin_folded_line_sub_index,
                 });
@@ -457,7 +485,7 @@ impl DocLines {
     }
 
     /// 原始字符所在的视觉行，以及行的偏移位置和是否是最后一个字符
-    pub fn visual_line_of_offset(
+    pub fn visual_line_of_origin_line_offset(
         &self,
         origin_line: usize,
         offset: usize,
@@ -494,6 +522,51 @@ impl DocLines {
         );
 
         (visual_line.vline_info(), final_offset, last_char)
+    }
+
+    /// 原始字符所在的视觉行，以及行的偏移位置和是否是最后一个字符
+    pub fn visual_line_of_offset(&self, offset: usize) -> (VisualLine, usize, bool) {
+        // 位于的原始行，以及在原始行的起始offset
+        let (origin_line, offset_of_line) = self.buffer.with_untracked(|text| {
+            let origin_line = text.line_of_offset(offset);
+            let origin_line_start_offset = text.offset_of_line(origin_line);
+            (origin_line, origin_line_start_offset)
+        });
+        // let mut offset = offset - offset_of_line;
+        let folded_line = self.folded_line_of_origin_line(origin_line);
+        let mut final_offset = folded_line
+            .text_layout
+            .phantom_text
+            .final_col_of_col(origin_line, offset, false);
+        let folded_line_layout = folded_line.text_layout.text.line_layout();
+        let mut sub_line_index = folded_line_layout.len() - 1;
+        let mut last_char = false;
+        for (index, sub_line) in folded_line_layout.iter().enumerate() {
+            if final_offset < sub_line.glyphs.len() {
+                sub_line_index = index;
+                last_char = final_offset == sub_line.glyphs.len() - 1;
+                break;
+            } else {
+                final_offset -= sub_line.glyphs.len();
+            }
+        }
+        let visual_line = self.visual_line_of_folded_line_and_sub_index(
+            folded_line.line_index,
+            sub_line_index,
+        );
+
+        (*visual_line, final_offset, last_char)
+    }
+
+    pub fn visual_lines(&self, start: usize, end: usize) -> Vec<VisualLine> {
+        let start = start.min(self.visual_lines.len() - 1);
+        let end = end.min(self.visual_lines.len() - 1);
+
+        let mut vline_infos = Vec::with_capacity(end - start + 1);
+        for index in start..=end {
+            vline_infos.push(self.visual_lines[index]);
+        }
+        vline_infos
     }
 
     pub fn vline_infos(&self, start: usize, end: usize) -> Vec<VLineInfo<VLine>> {
@@ -1293,25 +1366,33 @@ impl DocLines {
         match view_kind {
             EditorViewKind::Normal => {
                 let mut rvlines = Vec::new();
+                let mut visual_lines = Vec::new();
                 let mut info = HashMap::new();
 
-                let vline_infos = self.vline_infos(min_val, max_val);
+                let vline_infos = self.visual_lines(min_val, max_val);
 
-                for vline_info in vline_infos {
-                    rvlines.push(vline_info.rvline);
+                for visual_line in vline_infos {
+                    let rvline = visual_line.rvline();
+                    rvlines.push(rvline);
                     let y_idx = min_vline.get() + rvlines.len();
                     let vline_y = y_idx * line_height;
-                    let line_y =
-                        vline_y - vline_info.rvline.line_index * line_height;
+                    let line_y = vline_y - rvline.line_index * line_height;
+
+                    let visual_line_info = VisualLineInfo {
+                        y: line_y as f64 - y0,
+                        vline_y: vline_y as f64 - y0,
+                        visual_line,
+                    };
+                    visual_lines.push(visual_line_info);
 
                     // Add the information to make it cheap to get in the future.
                     // This y positions are shifted by the baseline y0
                     info.insert(
-                        vline_info.rvline,
+                        rvline,
                         LineInfo {
                             y: line_y as f64 - y0,
                             vline_y: vline_y as f64 - y0,
-                            vline_info,
+                            vline_info: visual_line.vline_info(),
                         },
                     );
                 }
@@ -1319,6 +1400,7 @@ impl DocLines {
                     x.lines = rvlines;
                     x.info = Rc::new(info);
                     x.diff_sections = None;
+                    x.visual_lines = visual_lines;
                 });
             }
             EditorViewKind::Diff(_diff_info) => {

@@ -23,6 +23,7 @@ use floem_editor_core::{
 
 use crate::doc::Doc;
 use crate::editor::lines::{DocLines, DocLinesManager, OriginFoldedLine};
+use crate::editor::screen_lines::ScreenLines;
 use floem::context::PaintCx;
 use floem::kurbo::Line;
 use floem::reactive::{SignalGet, SignalTrack, SignalUpdate, SignalWith, Trigger};
@@ -61,7 +62,6 @@ use floem_editor_core::command::MultiSelectionCommand::{
 use floem_editor_core::command::{EditCommand, MultiSelectionCommand};
 use floem_editor_core::mode::{MotionMode, VisualMode};
 use floem_editor_core::selection::SelRegion;
-use crate::editor::screen_lines::ScreenLines;
 
 pub(crate) const CHAR_WIDTH: f64 = 7.5;
 
@@ -736,7 +736,7 @@ impl Editor {
         });
         let offset = offset - offset_of_line;
         self.lines().with_untracked(|x| {
-            x.visual_line_of_offset(origin_line, offset, affinity)
+            x.visual_line_of_origin_line_offset(origin_line, offset, affinity)
                 .0
                 .vline
         })
@@ -786,7 +786,7 @@ impl Editor {
         });
         let offset = offset - offset_of_line;
         self.lines().with_untracked(|x| {
-            x.visual_line_of_offset(origin_line, offset, affinity)
+            x.visual_line_of_origin_line_offset(origin_line, offset, affinity)
         })
     }
 
