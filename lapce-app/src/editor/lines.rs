@@ -32,7 +32,7 @@ use floem::views::editor::phantom_text::{
     PhantomText, PhantomTextKind, PhantomTextLine, PhantomTextMultiLine,
 };
 use floem::views::editor::text::{Document, PreeditData, Styling, WrapMethod};
-use floem::views::editor::view::{LineInfo, ScreenLines};
+use floem::views::editor::view::LineInfo;
 use floem::views::editor::visual_line::{
     LayoutEvent, RVLine, ResolvedWrap, VLine, VLineInfo,
 };
@@ -48,6 +48,7 @@ use lapce_rpc::style::{LineStyle, Style};
 use lapce_xi_rope::spans::{Spans, SpansBuilder};
 use lsp_types::{DiagnosticSeverity, InlayHint, InlayHintLabel, Position};
 use smallvec::SmallVec;
+use crate::editor::screen_lines::ScreenLines;
 
 /// Minimum width that we'll allow the view to be wrapped at.
 const MIN_WRAPPED_WIDTH: f32 = 100.0;

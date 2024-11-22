@@ -26,7 +26,7 @@ use floem::{
             text::WrapMethod,
             view::{
                 DiffSectionKind, EditorView as FloemEditorView, EditorViewClass,
-                LineRegion, ScreenLines,
+                LineRegion,
             },
             visual_line::RVLine,
             CurrentLineColor, CursorSurroundingLines, EditorStyle, IndentGuideColor,
@@ -67,6 +67,7 @@ use crate::{
     window_tab::{CommonData, Focus, WindowTabData},
     workspace::LapceWorkspace,
 };
+use crate::editor::screen_lines::ScreenLines;
 
 use super::{gutter::editor_gutter_view, DocSignal, EditorData};
 

@@ -27,7 +27,7 @@ use floem::{
         id::EditorId,
         phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
         text::{Document, DocumentPhantom, PreeditData, Styling, SystemClipboard},
-        view::{ScreenLines, ScreenLinesBase},
+        view::ScreenLinesBase,
         EditorStyle,
     },
     ViewId,
@@ -73,6 +73,7 @@ use smallvec::SmallVec;
 
 use crate::editor::editor::{CommonAction, CursorInfo, Editor};
 use crate::editor::lines::{DocLines, DocLinesManager};
+use crate::editor::screen_lines::ScreenLines;
 use crate::editor::EditorViewKind;
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand},

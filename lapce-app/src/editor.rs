@@ -22,7 +22,7 @@ use floem::{
         command::CommandExecuted,
         id::EditorId,
         text::Document,
-        view::{LineInfo, ScreenLines, ScreenLinesBase},
+        view::{LineInfo, ScreenLinesBase},
         visual_line::{ConfigId, VLine},
     },
     ViewId,
@@ -88,6 +88,7 @@ use crate::{
     tracing::*,
     window_tab::{CommonData, Focus, WindowTabData},
 };
+use crate::editor::screen_lines::ScreenLines;
 
 pub mod diff;
 pub mod editor;
@@ -97,6 +98,7 @@ pub mod location;
 pub mod view;
 
 pub mod movement;
+pub mod screen_lines;
 
 #[derive(Clone, Debug)]
 pub enum InlineFindDirection {

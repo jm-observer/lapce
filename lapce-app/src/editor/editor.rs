@@ -36,7 +36,7 @@ use floem::views::editor::text::{
     Document, Preedit, PreeditData, Styling, WrapMethod,
 };
 use floem::views::editor::view::{
-    EditorView, LineInfo, LineRegion, ScreenLines, ScreenLinesBase,
+    EditorView, LineInfo, LineRegion, ScreenLinesBase,
 };
 use floem::views::editor::visual_line::{
     hit_position_aff, ConfigId, FontSizeCacheId, RVLine, ResolvedWrap,
@@ -61,6 +61,7 @@ use floem_editor_core::command::MultiSelectionCommand::{
 use floem_editor_core::command::{EditCommand, MultiSelectionCommand};
 use floem_editor_core::mode::{MotionMode, VisualMode};
 use floem_editor_core::selection::SelRegion;
+use crate::editor::screen_lines::ScreenLines;
 
 pub(crate) const CHAR_WIDTH: f64 = 7.5;
 

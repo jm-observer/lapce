@@ -1,5 +1,4 @@
 use floem::views::editor::phantom_text::{PhantomText, PhantomTextKind};
-use floem::views::editor::view::ScreenLines;
 use floem::{
     context::PaintCx,
     peniko::kurbo::{Point, Rect, Size},
@@ -15,6 +14,7 @@ use lapce_core::buffer::Buffer;
 use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
 
 use crate::config::{color::LapceColor, LapceConfig};
+use crate::editor::screen_lines::ScreenLines;
 
 use super::{view::changes_colors_screen, EditorData};
 
