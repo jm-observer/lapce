@@ -85,7 +85,7 @@ pub struct Editor {
     pub cursor: RwSignal<Cursor>,
 
     pub window_origin: RwSignal<Point>,
-    pub viewport: RwSignal<Rect>,
+    // pub viewport: RwSignal<Rect>,
     pub parent_size: RwSignal<Rect>,
 
     pub editor_view_focused: Trigger,
@@ -153,7 +153,7 @@ impl Editor {
     /// ```
     pub fn new_direct(cx: Scope, doc: Rc<Doc>, modal: bool) -> Editor {
         let id = doc.editor_id();
-        let viewport = doc.viewport();
+        // let viewport = doc.viewport();
         let cx = cx.create_child();
 
         let cursor_mode = if modal {
@@ -184,7 +184,7 @@ impl Editor {
             doc,
             cursor,
             window_origin: cx.create_rw_signal(Point::ZERO),
-            viewport,
+            // viewport,
             parent_size: cx.create_rw_signal(Rect::ZERO),
             scroll_delta: cx.create_rw_signal(Vec2::ZERO),
             scroll_to: cx.create_rw_signal(None),
@@ -242,9 +242,9 @@ impl Editor {
             // Get rid of all the effects
             self.effects_cx.get().dispose();
             self.doc.set(doc);
-            self.screen_lines.update(|screen_lines| {
-                screen_lines.clear(self.viewport.get_untracked());
-            });
+            // self.screen_lines.update(|screen_lines| {
+            //     screen_lines.clear(self.viewport.get_untracked());
+            // });
 
             // Recreate the effects
             self.effects_cx.set(self.cx.get().create_child());
@@ -495,7 +495,7 @@ impl Editor {
 
     // TODO: should this have modifiers state in its api
     pub fn page_move(&self, down: bool, mods: Modifiers) {
-        let viewport = self.viewport.get_untracked();
+        let viewport = self.viewport();
         // TODO: don't assume line height is constant
         let line_height = f64::from(self.line_height(0));
         let lines = (viewport.height() / line_height / 2.0).round() as usize;
@@ -512,7 +512,7 @@ impl Editor {
     }
 
     pub fn center_window(&self) {
-        let viewport = self.viewport.get_untracked();
+        let viewport = self.viewport();
         // TODO: don't assume line height is constant
         let line_height = f64::from(self.line_height(0));
         let offset = self.cursor.with_untracked(|cursor| cursor.offset());
@@ -531,7 +531,7 @@ impl Editor {
     }
 
     pub fn top_of_window(&self, scroll_off: usize) {
-        let viewport = self.viewport.get_untracked();
+        let viewport = self.viewport();
         // TODO: don't assume line height is constant
         let line_height = f64::from(self.line_height(0));
         let offset = self.cursor.with_untracked(|cursor| cursor.offset());
@@ -545,7 +545,7 @@ impl Editor {
     }
 
     pub fn bottom_of_window(&self, scroll_off: usize) {
-        let viewport = self.viewport.get_untracked();
+        let viewport = self.viewport();
         // TODO: don't assume line height is constant
         let line_height = f64::from(self.line_height(0));
         let offset = self.cursor.with_untracked(|cursor| cursor.offset());
@@ -560,7 +560,7 @@ impl Editor {
     }
 
     pub fn scroll(&self, top_shift: f64, down: bool, count: usize, mods: Modifiers) {
-        let viewport = self.viewport.get_untracked();
+        let viewport = self.viewport();
         // TODO: don't assume line height is constant
         let line_height = f64::from(self.line_height(0));
         let diff = line_height * count as f64;
@@ -1132,6 +1132,10 @@ impl Editor {
 
     pub fn lines(&self) -> DocLinesManager {
         self.doc.with_untracked(|x| x.doc_lines)
+    }
+
+    pub fn viewport(&self) -> Rect {
+        self.lines().with_untracked(|x| x.viewport())
     }
 
     // pub fn text_layout_trigger(&self, line: usize, trigger: bool) -> Arc<TextLayoutLine> {
@@ -1746,7 +1750,7 @@ pub fn paint_blockwise_selection(
 fn paint_cursor(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines) {
     let cursor = ed.cursor;
 
-    let viewport = ed.viewport.get_untracked();
+    let viewport = ed.viewport();
 
     let current_line_color = ed.lines().with_untracked(|es| es.current_line_color());
 
@@ -1995,7 +1999,7 @@ pub fn paint_linewise_selection(
     end_offset: usize,
     affinity: CursorAffinity,
 ) {
-    let viewport = ed.viewport.get_untracked();
+    let viewport = ed.viewport();
 
     let (start_rvline, _, _) = ed.visual_line_of_offset(start_offset, affinity);
     let (end_rvline, _, _) = ed.visual_line_of_offset(end_offset, affinity);

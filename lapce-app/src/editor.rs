@@ -343,13 +343,15 @@ impl EditorData {
             self.common.clone(),
         );
         editor.editor.cursor.set(self.editor.cursor.get_untracked());
+        // editor
+        //     .editor
+        //     .viewport
+        //     .set(self.editor.viewport.get_untracked());
+        let viewport = self.editor.lines().with_untracked(|x| x.viewport());
         editor
             .editor
-            .viewport
-            .set(self.editor.viewport.get_untracked());
-        editor.editor.scroll_to.set(Some(
-            self.editor.viewport.get_untracked().origin().to_vec2(),
-        ));
+            .scroll_to
+            .set(Some(viewport.origin().to_vec2()));
         editor
             .editor
             .last_movement
@@ -364,7 +366,7 @@ impl EditorData {
 
     pub fn editor_info(&self, _data: &WindowTabData) -> EditorInfo {
         let offset = self.cursor().get_untracked().offset();
-        let scroll_offset = self.viewport().get_untracked().origin();
+        let scroll_offset = self.viewport().origin();
         let doc = self.doc();
         let is_pristine = doc.is_pristine();
         let unsaved = if is_pristine {
@@ -384,12 +386,12 @@ impl EditorData {
         self.editor.cursor
     }
 
-    pub fn viewport(&self) -> ReadSignal<Rect> {
-        self.editor.viewport.read_only()
+    pub fn viewport(&self) -> Rect {
+        self.editor.lines().with_untracked(|x| x.viewport())
     }
 
-    pub fn viewport_rw(&self) -> RwSignal<Rect> {
-        self.editor.viewport
+    pub fn signal_viewport(&self) -> ReadSignal<Rect> {
+        self.editor.lines().with_untracked(|x| x.signal_viewport())
     }
 
     pub fn window_origin(&self) -> RwSignal<Point> {
@@ -681,8 +683,7 @@ impl EditorData {
                 .with_untracked(|content| content.path().cloned());
             if let Some(path) = path {
                 let offset = self.cursor().with_untracked(|c| c.offset());
-                let scroll_offset =
-                    self.viewport().get_untracked().origin().to_vec2();
+                let scroll_offset = self.viewport().origin().to_vec2();
                 self.common.internal_command.send(
                     InternalCommand::SaveJumpLocation {
                         path,
@@ -2603,7 +2604,7 @@ impl EditorData {
         };
 
         let cursor_offset = self.cursor().with_untracked(|c| c.offset());
-        let scroll_offset = self.viewport().with_untracked(|v| v.origin().to_vec2());
+        let scroll_offset = self.viewport().origin().to_vec2();
 
         let db: Arc<LapceDb> = use_context().unwrap();
         db.save_doc_position(
@@ -2772,8 +2773,7 @@ impl EditorData {
                 self.active().set(true);
                 self.left_click(pointer_event);
 
-                let y =
-                    pointer_event.pos.y - self.editor.viewport.get_untracked().y0;
+                let y = pointer_event.pos.y - self.editor.viewport().y0;
                 if self.sticky_header_height.get_untracked() > y {
                     let index = y as usize
                         / self.common.config.get_untracked().editor.line_height();

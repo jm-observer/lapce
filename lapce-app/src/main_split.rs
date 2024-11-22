@@ -549,7 +549,7 @@ impl MainSplitData {
 
     pub fn save_current_jump_location(&self) -> bool {
         if let Some(editor) = self.active_editor.get_untracked() {
-            let (cursor, viewport) = (editor.cursor(), editor.viewport());
+            let (cursor, viewport) = (editor.cursor(), editor.signal_viewport());
             let path = editor
                 .doc()
                 .content

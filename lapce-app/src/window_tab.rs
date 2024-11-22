@@ -2525,7 +2525,7 @@ impl WindowTabData {
 
         let (window_origin, viewport, editor) = (
             editor_data.window_origin(),
-            editor_data.viewport(),
+            editor_data.signal_viewport(),
             &editor_data.editor,
         );
 
@@ -2578,7 +2578,7 @@ impl WindowTabData {
 
         let (window_origin, viewport, editor) = (
             editor_data.window_origin(),
-            editor_data.viewport(),
+            editor_data.signal_viewport(),
             &editor_data.editor,
         );
 
@@ -2634,7 +2634,7 @@ impl WindowTabData {
 
         let (window_origin, viewport, editor) = (
             editor_data.window_origin(),
-            editor_data.viewport(),
+            editor_data.signal_viewport(),
             &editor_data.editor,
         );
 
@@ -2689,7 +2689,7 @@ impl WindowTabData {
 
         let (window_origin, viewport, editor) = (
             editor_data.window_origin(),
-            editor_data.viewport(),
+            editor_data.signal_viewport(),
             &editor_data.editor,
         );
 

@@ -198,7 +198,8 @@ fn text_input_full<T: KeyPressFocus + 'static>(
                 let cursor_line = cursor_line.get();
 
                 let window_origin = window_origin.get();
-                let viewport = editor.viewport.get();
+                let viewport =
+                    editor.lines().with_untracked(|x| x.signal_viewport()).get();
                 let origin = window_origin
                     + Vec2::new(
                         cursor_line.p1.x - viewport.x0,

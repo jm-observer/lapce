@@ -13,7 +13,7 @@ pub fn print_screen_lines(window: &WindowTabData) {
         let doc = editor.doc();
         if doc.content.get_untracked().is_file() {
             let screen_lines = editor.editor.screen_lines.get_untracked();
-            error!("{id:?} {:?}", screen_lines.base.get_untracked(),);
+            error!("{id:?} {:?}", screen_lines.base);
             for (index, visual_line) in screen_lines.visual_lines.iter().enumerate()
             {
                 error!("{index} {:?}", visual_line.visual_line);

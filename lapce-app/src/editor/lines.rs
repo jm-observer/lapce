@@ -164,7 +164,7 @@ impl DocLinesManager {
         diagnostics: DiagnosticData,
         syntax: Syntax,
         parser: BracketParser,
-        viewport: RwSignal<Rect>,
+        viewport: Rect,
         editor_style: EditorStyle,
         config: ReadSignal<Arc<LapceConfig>>,
         buffer: RwSignal<Buffer>,
@@ -239,12 +239,12 @@ pub struct DocLines {
     pub parser: BracketParser,
     pub line_styles: LineStyles,
     pub editor_style: EditorStyle,
-    pub viewport: RwSignal<Rect>,
+    viewport: Rect,
     pub config: ReadSignal<Arc<LapceConfig>>,
     pub buffer: RwSignal<Buffer>,
     pub screen_lines: RwSignal<ScreenLines>,
     pub kind: RwSignal<EditorViewKind>,
-    pub signals: Signals,
+    signals: Signals,
 }
 
 impl DocLines {
@@ -254,14 +254,15 @@ impl DocLines {
         diagnostics: DiagnosticData,
         syntax: Syntax,
         parser: BracketParser,
-        viewport: RwSignal<Rect>,
+        viewport: Rect,
         editor_style: EditorStyle,
         config: ReadSignal<Arc<LapceConfig>>,
         buffer: RwSignal<Buffer>,
         screen_lines: RwSignal<ScreenLines>,
         kind: RwSignal<EditorViewKind>,
     ) -> Self {
-        let signals = crate::editor::lines::Signals::new(cx, &editor_style);
+        let signals =
+            crate::editor::lines::Signals::new(cx, &editor_style, viewport);
         let mut lines = Self {
             signals,
             // font_size_cache_id: id,
@@ -876,7 +877,7 @@ impl DocLines {
     ) -> Arc<TextLayoutLine> {
         // TODO: we could share text layouts between different editor views given some knowledge of
         // their wrapping
-        let viewport = self.viewport.get_untracked();
+        let viewport = self.viewport;
         let config: Arc<LapceConfig> = self.config.get_untracked();
 
         let mut line_content = String::new();
@@ -1350,13 +1351,13 @@ impl DocLines {
         line
     }
 
-    pub(crate) fn compute_screen_lines(&self) {
+    pub fn compute_screen_lines(&self) {
         // TODO: this should probably be a get since we need to depend on line-height
         // let doc_lines = doc.doc_lines.get_untracked();
         let config = self.config.get_untracked();
         let line_height = config.editor.line_height();
         let view_kind = self.kind.get_untracked();
-        let base = self.viewport.get_untracked();
+        let base = self.viewport;
 
         let (y0, y1) = (base.y0, base.y1);
         // Get the start and end (visual) lines that are visible in the viewport
@@ -1626,6 +1627,10 @@ impl DocLines {
             }
         }
     }
+
+    pub fn viewport(&self) -> Rect {
+        self.viewport
+    }
 }
 
 fn preedit_phantom(
@@ -1828,7 +1833,8 @@ fn extra_styles_for_range(
         })
 }
 
-impl DocLines {
+type LinesEditorStyle = DocLines;
+impl LinesEditorStyle {
     pub fn modal(&self) -> bool {
         self.editor_style.modal()
     }
@@ -1866,7 +1872,7 @@ impl DocLines {
 
         let new_show_indent_guide = self.show_indent_guide();
         if old_show_indent_guide != new_show_indent_guide {
-            self.update_show_indent_guide(new_show_indent_guide)
+            self.trigger_show_indent_guide(new_show_indent_guide)
         }
         if updated {
             self.update_lines();
@@ -1885,20 +1891,36 @@ impl DocLines {
 #[derive(Clone)]
 struct Signals {
     show_indent_guide: RwSignal<(bool, Color)>,
+    viewport: RwSignal<Rect>,
 }
 
 impl Signals {
-    pub fn new(cx: Scope, style: &EditorStyle) -> Self {
+    pub fn new(cx: Scope, style: &EditorStyle, viewport: Rect) -> Self {
         let show_indent_guide =
             cx.create_rw_signal((style.show_indent_guide(), style.indent_guide()));
-        Self { show_indent_guide }
+        let viewport = cx.create_rw_signal(viewport);
+        Self {
+            show_indent_guide,
+            viewport,
+        }
     }
 }
 impl DocLines {
-    pub fn update_show_indent_guide(&self, show_indent_guide: (bool, Color)) {
+    pub fn trigger_viewport(&mut self, viewport: Rect) {
+        if self.viewport != viewport {
+            self.viewport = viewport;
+            self.signals.viewport.set(viewport);
+            self.update_lines();
+            // todo udpate screen_lines
+        }
+    }
+    pub fn signal_viewport(&self) -> ReadSignal<Rect> {
+        self.signals.viewport.read_only()
+    }
+    fn trigger_show_indent_guide(&self, show_indent_guide: (bool, Color)) {
         self.signals.show_indent_guide.set(show_indent_guide);
     }
-    pub fn get_show_indent_guide(&self) -> ReadSignal<(bool, Color)> {
+    pub fn signal_show_indent_guide(&self) -> ReadSignal<(bool, Color)> {
         self.signals.show_indent_guide.read_only()
     }
 }

@@ -222,7 +222,7 @@ pub struct Doc {
 
     pub lines: RwSignal<Lines>,
     // pub editor_style: RwSignal<EditorStyle>,
-    pub viewport: RwSignal<Rect>,
+    // pub viewport: RwSignal<Rect>,
     pub doc_lines: DocLinesManager,
     pub screen_lines: RwSignal<ScreenLines>,
 }
@@ -239,7 +239,7 @@ impl Doc {
         let config = common.config.get_untracked();
         let rw_config = common.config;
         let lines = cx.create_rw_signal(Lines::new(cx));
-        let viewport = cx.create_rw_signal(Rect::ZERO);
+        let viewport = Rect::ZERO;
         let editor_style = EditorStyle::default();
         let buffer = cx.create_rw_signal(Buffer::new(""));
         let screen_lines = cx.create_rw_signal(ScreenLines::new(cx, viewport));
@@ -248,7 +248,7 @@ impl Doc {
             editor_id,
             kind,
             screen_lines,
-            viewport,
+            // viewport
             // editor_style,
             scope: cx,
             buffer_id: BufferId::next(),
@@ -306,7 +306,7 @@ impl Doc {
         let config = common.config.get_untracked();
         let rw_config = common.config;
         let lines = cx.create_rw_signal(Lines::new(cx));
-        let viewport = cx.create_rw_signal(Rect::ZERO);
+        let viewport = Rect::ZERO;
         let screen_lines = cx.create_rw_signal(ScreenLines::new(cx, viewport));
         let editor_style = EditorStyle::default();
         let diagnostics = DiagnosticData {
@@ -340,7 +340,7 @@ impl Doc {
             // folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
             // semantic_previous_rs_id: cx.create_rw_signal(None),
             lines,
-            viewport,
+            // viewport,
             // editor_style,
             doc_lines: DocLinesManager::new(
                 cx,
@@ -376,7 +376,7 @@ impl Doc {
             Syntax::plaintext()
         };
         let lines = cx.create_rw_signal(Lines::new(cx));
-        let viewport = cx.create_rw_signal(Rect::ZERO);
+        let viewport = Rect::ZERO;
         let screen_lines = cx.create_rw_signal(ScreenLines::new(cx, viewport));
         let editor_style = EditorStyle::default();
         let diagnostics = DiagnosticData {
@@ -417,7 +417,7 @@ impl Doc {
             // folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
             // semantic_previous_rs_id: cx.create_rw_signal(None),
             lines,
-            viewport,
+            // viewport,
             // editor_style,
             doc_lines: DocLinesManager::new(
                 cx,
@@ -1612,9 +1612,9 @@ impl Doc {
         self.editor_id
     }
 
-    pub fn viewport(&self) -> RwSignal<Rect> {
-        self.viewport
-    }
+    // pub fn viewport(&self) -> RwSignal<Rect> {
+    //     self.viewport
+    // }
 
     // pub fn editor_style(&self) -> RwSignal<EditorStyle> {
     //     self.editor_style

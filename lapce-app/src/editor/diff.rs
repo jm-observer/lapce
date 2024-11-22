@@ -318,7 +318,7 @@ pub fn diff_show_more_section_view(
 ) -> impl View {
     let left_editor_view = left_editor.kind_rw();
     let right_editor_view = right_editor.kind_rw();
-    let viewport = right_editor.viewport();
+    let viewport = right_editor.signal_viewport();
     let config = right_editor.common.config;
 
     let each_fn = move || {

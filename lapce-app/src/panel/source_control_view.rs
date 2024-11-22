@@ -41,7 +41,7 @@ pub fn source_control_panel(
     let editor = source_control.editor.clone();
     let doc = editor.doc_signal();
     let cursor = editor.cursor();
-    let viewport = editor.viewport_rw();
+    let viewport = editor.editor.lines();
     let window_origin = editor.window_origin();
     let editor = create_rw_signal(editor);
     let is_active = move |tracked| {
@@ -115,7 +115,7 @@ pub fn source_control_panel(
                     window_origin.set(pos + (10.0, 6.0));
                 })
                 .on_scroll(move |rect| {
-                    viewport.set(rect);
+                    viewport.update(|x| x.trigger_viewport(rect));
                 })
                 .ensure_visible(move || {
                     let cursor = cursor.get();

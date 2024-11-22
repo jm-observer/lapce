@@ -22,7 +22,7 @@ pub struct ScreenLines {
     // This exists so that if a text layout is created outside of the view, we don't have to
     // completely recompute the screen lines (or do somewhat intricate things to update them)
     // we simply have to update the `base_y`.
-    pub base: RwSignal<Rect>,
+    pub base: Rect,
 }
 
 #[derive(Debug, Clone)]
@@ -37,7 +37,7 @@ pub struct VisualLineInfo {
 }
 
 impl ScreenLines {
-    pub fn new(_cx: Scope, viewport: RwSignal<Rect>) -> ScreenLines {
+    pub fn new(_cx: Scope, viewport: Rect) -> ScreenLines {
         ScreenLines {
             lines: Default::default(),
             visual_lines: Default::default(),
@@ -55,15 +55,15 @@ impl ScreenLines {
         self.lines = Default::default();
         self.info = Default::default();
         self.diff_sections = Default::default();
-        self.base.set(viewport);
+        self.base = viewport;
     }
 
     /// Get the line info for the given rvline.
     pub fn info(&self, rvline: RVLine) -> Option<LineInfo> {
         let info = self.info.get(&rvline)?;
-        let base = self.base.get();
+        // let base = self.base.get();
 
-        Some(info.clone().with_base(base))
+        Some(info.clone().with_base(self.base))
     }
 
     pub fn vline_info(&self, rvline: RVLine) -> Option<VLineInfo<VLine>> {
