@@ -1,5 +1,6 @@
+use floem::context::StyleCx;
 use floem::kurbo::Rect;
-use floem::peniko::Color;
+use floem::peniko::{Brush, Color};
 use floem::reactive::{
     batch, ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith,
 };
@@ -37,8 +38,9 @@ use floem::views::editor::view::LineInfo;
 use floem::views::editor::visual_line::{
     LayoutEvent, RVLine, ResolvedWrap, VLine, VLineInfo,
 };
-use floem::views::editor::EditorStyle;
+use floem::views::editor::{EditorStyle, Modal};
 use floem_editor_core::buffer::Buffer;
+use floem_editor_core::indent::IndentStyle;
 use floem_editor_core::word::{get_char_property, CharClassification};
 use itertools::Itertools;
 use lapce_core::rope_text_pos::RopeTextPosition;
@@ -163,7 +165,7 @@ impl DocLinesManager {
         syntax: Syntax,
         parser: BracketParser,
         viewport: RwSignal<Rect>,
-        editor_style: RwSignal<EditorStyle>,
+        editor_style: EditorStyle,
         config: ReadSignal<Arc<LapceConfig>>,
         buffer: RwSignal<Buffer>,
         screen_lines: RwSignal<ScreenLines>,
@@ -198,6 +200,13 @@ impl DocLinesManager {
             self.lines.update(f);
         });
     }
+
+    pub(crate) fn try_update<O>(
+        &self,
+        f: impl FnOnce(&mut DocLines) -> O,
+    ) -> Option<O> {
+        batch(|| self.lines.try_update(f))
+    }
 }
 #[derive(Clone)]
 pub struct DocLines {
@@ -229,12 +238,13 @@ pub struct DocLines {
     pub semantic_styles: Option<(Option<String>, Spans<Style>)>,
     pub parser: BracketParser,
     pub line_styles: LineStyles,
-    pub editor_style: RwSignal<EditorStyle>,
+    pub editor_style: EditorStyle,
     pub viewport: RwSignal<Rect>,
     pub config: ReadSignal<Arc<LapceConfig>>,
     pub buffer: RwSignal<Buffer>,
     pub screen_lines: RwSignal<ScreenLines>,
     pub kind: RwSignal<EditorViewKind>,
+    pub signals: Signals,
 }
 
 impl DocLines {
@@ -245,13 +255,15 @@ impl DocLines {
         syntax: Syntax,
         parser: BracketParser,
         viewport: RwSignal<Rect>,
-        editor_style: RwSignal<EditorStyle>,
+        editor_style: EditorStyle,
         config: ReadSignal<Arc<LapceConfig>>,
         buffer: RwSignal<Buffer>,
         screen_lines: RwSignal<ScreenLines>,
         kind: RwSignal<EditorViewKind>,
     ) -> Self {
+        let signals = crate::editor::lines::Signals::new(cx, &editor_style);
         let mut lines = Self {
+            signals,
             // font_size_cache_id: id,
             layout_event: Listener::new_empty(cx), // font_size_cache_id: id,
             viewport,
@@ -864,7 +876,6 @@ impl DocLines {
     ) -> Arc<TextLayoutLine> {
         // TODO: we could share text layouts between different editor views given some knowledge of
         // their wrapping
-        let es = self.editor_style.get_untracked();
         let viewport = self.viewport.get_untracked();
         let config: Arc<LapceConfig> = self.config.get_untracked();
 
@@ -884,7 +895,7 @@ impl DocLines {
         let line_height = config.editor.line_height();
 
         let attrs = Attrs::new()
-            .color(es.ed_text_color())
+            .color(self.editor_style.ed_text_color())
             .family(&family)
             .font_size(font_size as f32)
             .line_height(LineHeightValue::Px(line_height as f32));
@@ -916,7 +927,7 @@ impl DocLines {
 
             let offset_col = phantom_text.final_text_len();
             let attrs = Attrs::new()
-                .color(es.ed_text_color())
+                .color(self.editor_style.ed_text_color())
                 .family(&family)
                 .font_size(font_size as f32)
                 .line_height(LineHeightValue::Px(line_height as f32));
@@ -944,7 +955,7 @@ impl DocLines {
             }
             phantom_text.merge(next_phantom_text);
         }
-        let phantom_color = es.phantom_color();
+        let phantom_color = self.editor_style.phantom_color();
         phantom_text.add_phantom_style(
             &mut attrs_list,
             attrs,
@@ -973,7 +984,7 @@ impl DocLines {
         // text_layout.set_tab_width(style.tab_width(edid, line));
 
         // dbg!(self.editor_style.with(|s| s.wrap_method()));
-        match es.wrap_method() {
+        match self.editor_style.wrap_method() {
             WrapMethod::None => {}
             WrapMethod::EditorWidth => {
                 let width = viewport.width();
@@ -1815,4 +1826,79 @@ fn extra_styles_for_range(
                 wave_line,
             })
         })
+}
+
+impl DocLines {
+    pub fn modal(&self) -> bool {
+        self.editor_style.modal()
+    }
+    pub fn current_line_color(&self) -> Option<Color> {
+        EditorStyle::current_line(&self.editor_style)
+    }
+    pub fn scroll_beyond_last_line(&self) -> bool {
+        EditorStyle::scroll_beyond_last_line(&self.editor_style)
+    }
+
+    pub fn ed_caret(&self) -> Brush {
+        self.editor_style.ed_caret()
+    }
+
+    pub fn selection_color(&self) -> Color {
+        self.editor_style.selection()
+    }
+
+    pub fn indent_style(&self) -> IndentStyle {
+        self.editor_style.indent_style()
+    }
+
+    pub fn indent_guide(&self) -> Color {
+        self.editor_style.indent_guide()
+    }
+
+    pub fn visible_whitespace(&self) -> Color {
+        self.editor_style.visible_whitespace()
+    }
+
+    pub fn update_editor_style(&mut self, cx: &mut StyleCx<'_>) -> bool {
+        let old_show_indent_guide = self.show_indent_guide();
+        // todo
+        let updated = self.editor_style.read(cx);
+
+        let new_show_indent_guide = self.show_indent_guide();
+        if old_show_indent_guide != new_show_indent_guide {
+            self.update_show_indent_guide(new_show_indent_guide)
+        }
+        if updated {
+            self.update_lines();
+        }
+        updated
+    }
+
+    pub fn show_indent_guide(&self) -> (bool, Color) {
+        (
+            self.editor_style.show_indent_guide(),
+            self.editor_style.indent_guide(),
+        )
+    }
+}
+
+#[derive(Clone)]
+struct Signals {
+    show_indent_guide: RwSignal<(bool, Color)>,
+}
+
+impl Signals {
+    pub fn new(cx: Scope, style: &EditorStyle) -> Self {
+        let show_indent_guide =
+            cx.create_rw_signal((style.show_indent_guide(), style.indent_guide()));
+        Self { show_indent_guide }
+    }
+}
+impl DocLines {
+    pub fn update_show_indent_guide(&self, show_indent_guide: (bool, Color)) {
+        self.signals.show_indent_guide.set(show_indent_guide);
+    }
+    pub fn get_show_indent_guide(&self) -> ReadSignal<(bool, Color)> {
+        self.signals.show_indent_guide.read_only()
+    }
 }

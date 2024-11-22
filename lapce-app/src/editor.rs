@@ -62,6 +62,7 @@ use self::{
 use crate::editor::editor::{do_motion_mode, Editor};
 use crate::editor::lines::DocLines;
 use crate::editor::movement::{do_multi_selection, move_cursor};
+use crate::editor::screen_lines::ScreenLines;
 use crate::editor::FindHintRs::{Match, MatchWithoutLocation, NoMatchBreak};
 use crate::panel::call_hierarchy_view::CallHierarchyData;
 use crate::{
@@ -88,7 +89,6 @@ use crate::{
     tracing::*,
     window_tab::{CommonData, Focus, WindowTabData},
 };
-use crate::editor::screen_lines::ScreenLines;
 
 pub mod diff;
 pub mod editor;
@@ -437,7 +437,7 @@ impl EditorData {
         let doc = self.doc();
         let text = self.editor.rope_text();
         let is_local = doc.content.with_untracked(|content| content.is_local());
-        let modal = self.editor.es.with_untracked(|s| s.modal()) && !is_local;
+        let modal = self.editor.lines().with_untracked(|x| x.modal()) && !is_local;
         let smart_tab = self
             .common
             .config

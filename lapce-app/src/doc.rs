@@ -221,7 +221,7 @@ pub struct Doc {
     pub document_symbol_data: DocumentSymbolViewData,
 
     pub lines: RwSignal<Lines>,
-    pub editor_style: RwSignal<EditorStyle>,
+    // pub editor_style: RwSignal<EditorStyle>,
     pub viewport: RwSignal<Rect>,
     pub doc_lines: DocLinesManager,
     pub screen_lines: RwSignal<ScreenLines>,
@@ -240,7 +240,7 @@ impl Doc {
         let rw_config = common.config;
         let lines = cx.create_rw_signal(Lines::new(cx));
         let viewport = cx.create_rw_signal(Rect::ZERO);
-        let editor_style = cx.create_rw_signal(EditorStyle::default());
+        let editor_style = EditorStyle::default();
         let buffer = cx.create_rw_signal(Buffer::new(""));
         let screen_lines = cx.create_rw_signal(ScreenLines::new(cx, viewport));
         let kind = cx.create_rw_signal(EditorViewKind::Normal);
@@ -249,7 +249,7 @@ impl Doc {
             kind,
             screen_lines,
             viewport,
-            editor_style,
+            // editor_style,
             scope: cx,
             buffer_id: BufferId::next(),
             buffer,
@@ -308,7 +308,7 @@ impl Doc {
         let lines = cx.create_rw_signal(Lines::new(cx));
         let viewport = cx.create_rw_signal(Rect::ZERO);
         let screen_lines = cx.create_rw_signal(ScreenLines::new(cx, viewport));
-        let editor_style = cx.create_rw_signal(EditorStyle::default());
+        let editor_style = EditorStyle::default();
         let diagnostics = DiagnosticData {
             expanded: cx.create_rw_signal(true),
             diagnostics: cx.create_rw_signal(im::Vector::new()),
@@ -341,7 +341,7 @@ impl Doc {
             // semantic_previous_rs_id: cx.create_rw_signal(None),
             lines,
             viewport,
-            editor_style,
+            // editor_style,
             doc_lines: DocLinesManager::new(
                 cx,
                 diagnostics,
@@ -378,7 +378,7 @@ impl Doc {
         let lines = cx.create_rw_signal(Lines::new(cx));
         let viewport = cx.create_rw_signal(Rect::ZERO);
         let screen_lines = cx.create_rw_signal(ScreenLines::new(cx, viewport));
-        let editor_style = cx.create_rw_signal(EditorStyle::default());
+        let editor_style = EditorStyle::default();
         let diagnostics = DiagnosticData {
             expanded: cx.create_rw_signal(true),
             diagnostics: cx.create_rw_signal(im::Vector::new()),
@@ -418,7 +418,7 @@ impl Doc {
             // semantic_previous_rs_id: cx.create_rw_signal(None),
             lines,
             viewport,
-            editor_style,
+            // editor_style,
             doc_lines: DocLinesManager::new(
                 cx,
                 diagnostics,
@@ -1616,9 +1616,9 @@ impl Doc {
         self.viewport
     }
 
-    pub fn editor_style(&self) -> RwSignal<EditorStyle> {
-        self.editor_style
-    }
+    // pub fn editor_style(&self) -> RwSignal<EditorStyle> {
+    //     self.editor_style
+    // }
 }
 
 // impl DocumentPhantom for Doc {

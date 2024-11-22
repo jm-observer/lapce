@@ -56,6 +56,7 @@ use crate::debug::update_breakpoints;
 use crate::editor::editor::{cursor_caret, paint_selection, paint_text, Editor};
 use crate::editor::gutter::FoldingDisplayType;
 use crate::editor::lines::{DocLines, DocLinesManager};
+use crate::editor::screen_lines::ScreenLines;
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
@@ -67,7 +68,6 @@ use crate::{
     window_tab::{CommonData, Focus, WindowTabData},
     workspace::LapceWorkspace,
 };
-use crate::editor::screen_lines::ScreenLines;
 
 use super::{gutter::editor_gutter_view, DocSignal, EditorData};
 
@@ -434,7 +434,8 @@ impl EditorView {
         let line_height = config.editor.line_height() as f64;
         let viewport = self.viewport.get_untracked();
 
-        let current_line_color = ed.es.with_untracked(EditorStyle::current_line);
+        let current_line_color =
+            ed.lines().with_untracked(|x| x.current_line_color());
 
         let breakline = self.debug_breakline.get_untracked().and_then(
             |(breakline, breakline_path)| {
@@ -1044,7 +1045,11 @@ impl View for EditorView {
 
     fn style_pass(&mut self, cx: &mut StyleCx<'_>) {
         let editor = &self.editor.editor;
-        if editor.es.try_update(|s| s.read(cx)).unwrap() {
+        if editor
+            .lines()
+            .try_update(|s| s.update_editor_style(cx))
+            .unwrap()
+        {
             editor.floem_style_id.update(|val| *val += 1);
             cx.app_state_mut().request_paint(self.id());
         }
@@ -1112,8 +1117,8 @@ impl View for EditorView {
 
             let margin_bottom = if !is_local
                 && editor
-                    .es
-                    .with_untracked(EditorStyle::scroll_beyond_last_line)
+                    .lines()
+                    .with_untracked(|x| x.scroll_beyond_last_line())
             {
                 viewport_size.height.min(last_line_height) - line_height
             } else {
@@ -1147,6 +1152,10 @@ impl View for EditorView {
 
     fn paint(&mut self, cx: &mut PaintCx) {
         let viewport = self.viewport.get_untracked();
+        let show_indent_guide = self
+            .doc_lines
+            .with_untracked(|x| x.get_show_indent_guide())
+            .get();
         let e_data = &self.editor;
         let ed = &e_data.editor;
         let config = e_data.common.config.get_untracked();
@@ -1177,7 +1186,14 @@ impl View for EditorView {
         self.paint_bracket_highlights_scope_lines(cx, viewport, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
 
-        paint_text(cx, ed, viewport, is_active, &screen_lines);
+        paint_text(
+            cx,
+            ed,
+            viewport,
+            is_active,
+            &screen_lines,
+            show_indent_guide,
+        );
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_sticky_headers(cx, viewport, &screen_lines);
         self.paint_scroll_bar(cx, viewport, is_local, config);

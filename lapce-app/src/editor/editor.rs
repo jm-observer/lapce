@@ -111,9 +111,8 @@ pub struct Editor {
     /// Should not be set manually outside of the specific handling for ime.
     pub ime_allowed: RwSignal<bool>,
 
-    /// The Editor Style
-    pub es: RwSignal<EditorStyle>,
-
+    // /// The Editor Style
+    // pub es: RwSignal<EditorStyle>,
     pub floem_style_id: RwSignal<u64>,
 }
 impl Editor {
@@ -154,7 +153,6 @@ impl Editor {
     /// ```
     pub fn new_direct(cx: Scope, doc: Rc<Doc>, modal: bool) -> Editor {
         let id = doc.editor_id();
-        let es = doc.editor_style();
         let viewport = doc.viewport();
         let cx = cx.create_child();
 
@@ -198,7 +196,6 @@ impl Editor {
             cursor_info: CursorInfo::new(cx),
             last_movement: cx.create_rw_signal(Movement::Left),
             ime_allowed: cx.create_rw_signal(false),
-            es,
             floem_style_id: cx.create_rw_signal(0),
         };
 
@@ -1614,7 +1611,7 @@ pub trait CommonAction {
 pub fn paint_selection(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines) {
     let cursor = ed.cursor;
 
-    let selection_color = ed.es.with_untracked(|es| es.selection());
+    let selection_color = ed.lines().with_untracked(|es| es.selection_color());
 
     cursor.with_untracked(|cursor| match cursor.mode {
         CursorMode::Normal(_) => {}
@@ -1751,7 +1748,7 @@ fn paint_cursor(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines) {
 
     let viewport = ed.viewport.get_untracked();
 
-    let current_line_color = ed.es.with_untracked(|es| es.current_line());
+    let current_line_color = ed.lines().with_untracked(|es| es.current_line_color());
 
     cursor.with_untracked(|cursor| {
         let highlight_current_line = match cursor.mode {
@@ -1877,11 +1874,12 @@ pub fn paint_text(
     viewport: Rect,
     is_active: bool,
     screen_lines: &ScreenLines,
+    show_indent_guide: (bool, Color),
 ) {
     let style = ed.doc();
 
     // TODO: cache indent text layout width
-    let indent_unit = ed.es.with_untracked(|es| es.indent_style()).as_str();
+    let indent_unit = ed.lines().with_untracked(|es| es.indent_style()).as_str();
     // TODO: don't assume font family is the same for all lines?
     let family = style.font_family(0);
     let attrs = Attrs::new()
@@ -1892,7 +1890,7 @@ pub fn paint_text(
     let indent_text = TextLayout::new(&format!("{indent_unit}a"), attrs_list);
     let indent_text_width = indent_text.hit_position(indent_unit.len()).point.x;
 
-    if ed.es.with(|s| s.show_indent_guide()) {
+    if show_indent_guide.0 {
         for line_info in screen_lines.iter_line_info_y() {
             let line = line_info.vline_info.vline.0;
             let y = line_info.y;
@@ -1902,7 +1900,7 @@ pub fn paint_text(
             while x + 1.0 < text_layout.indent {
                 cx.stroke(
                     &Line::new(Point::new(x, y), Point::new(x, y + line_height)),
-                    ed.es.with(|es| es.indent_guide()),
+                    show_indent_guide.1,
                     1.0,
                 );
                 x += indent_text_width;
@@ -1923,7 +1921,7 @@ pub fn paint_text(
             let family = style.font_family(line);
             let font_size = style.font_size(line) as f32;
             let attrs = Attrs::new()
-                .color(ed.es.with_untracked(|es| es.visible_whitespace()))
+                .color(ed.lines().with_untracked(|es| es.visible_whitespace()))
                 .family(&family)
                 .font_size(font_size);
             let attrs_list = AttrsList::new(attrs);
@@ -1955,7 +1953,7 @@ fn paint_cursor_caret(
 ) {
     let cursor = ed.cursor;
     let hide_cursor = ed.cursor_info.hidden;
-    let caret_color = ed.es.with_untracked(|es| es.ed_caret());
+    let caret_color = ed.lines().with_untracked(|es| es.ed_caret());
 
     if !is_active || hide_cursor.get_untracked() {
         return;
