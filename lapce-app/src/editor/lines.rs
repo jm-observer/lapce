@@ -27,7 +27,7 @@ use crate::editor::gutter::{
 };
 use crate::editor::screen_lines::{ScreenLines, VisualLineInfo};
 use crate::editor::EditorViewKind;
-use floem::views::editor::layout::TextLayoutLine;
+use floem::views::editor::layout::{LineExtraStyle, TextLayoutLine};
 use floem::views::editor::listener::Listener;
 use floem::views::editor::phantom_text::{
     PhantomText, PhantomTextKind, PhantomTextLine, PhantomTextMultiLine,
@@ -81,11 +81,11 @@ impl Debug for OriginFoldedLine {
 
 #[derive(Clone, Debug, Copy, Eq, PartialEq)]
 pub struct VisualLine {
-    line_index: usize,
-    origin_interval: Interval,
-    origin_line: usize,
-    origin_folded_line: usize,
-    origin_folded_line_sub_index: usize,
+    pub line_index: usize,
+    pub origin_interval: Interval,
+    pub origin_line: usize,
+    pub origin_folded_line: usize,
+    pub origin_folded_line_sub_index: usize,
 }
 
 impl VisualLine {
@@ -527,7 +527,7 @@ impl DocLines {
     /// 原始字符所在的视觉行，以及行的偏移位置和是否是最后一个字符
     pub fn visual_line_of_offset(&self, offset: usize) -> (VisualLine, usize, bool) {
         // 位于的原始行，以及在原始行的起始offset
-        let (origin_line, offset_of_line) = self.buffer.with_untracked(|text| {
+        let (origin_line, _offset_of_line) = self.buffer.with_untracked(|text| {
             let origin_line = text.line_of_offset(offset);
             let origin_line_start_offset = text.offset_of_line(origin_line);
             (origin_line, origin_line_start_offset)
@@ -586,7 +586,6 @@ impl DocLines {
 
     fn phantom_text(
         &self,
-        _: &EditorStyle,
         line: usize,
         config: &LapceConfig,
         buffer: &Buffer,
@@ -890,7 +889,7 @@ impl DocLines {
             .font_size(font_size as f32)
             .line_height(LineHeightValue::Px(line_height as f32));
 
-        let phantom_text = self.phantom_text(&es, line, &config, buffer);
+        let phantom_text = self.phantom_text(line, &config, buffer);
         let mut collapsed_line_col = phantom_text.folded_line();
         let multi_styles: Vec<(usize, usize, Color, Attrs)> = self
             .line_styles(line, buffer, config.as_ref())
@@ -925,7 +924,7 @@ impl DocLines {
             //     = calcuate_line_text_and_style(collapsed_line, &next_line_content, style.clone(), edid, &es, doc.clone(), offset_col, attrs);
 
             let next_phantom_text =
-                self.phantom_text(&es, collapsed_line, &config, buffer);
+                self.phantom_text(collapsed_line, &config, buffer);
             collapsed_line_col = next_phantom_text.folded_line();
             let styles: Vec<(usize, usize, Color, Attrs)> = self
                 .line_styles(collapsed_line, buffer, config.as_ref())
@@ -953,13 +952,13 @@ impl DocLines {
             phantom_color,
         );
 
-        // if line == 1 {
-        //     tracing::info!("start");
-        //     for (range, attr) in attrs_list.spans() {
-        //         tracing::info!("{range:?} {attr:?}");
-        //     }
-        //     tracing::info!("");
-        // }
+        if line == 1 {
+            tracing::info!("\nstart");
+            for (range, attr) in attrs_list.spans() {
+                tracing::info!("{range:?} {attr:?}");
+            }
+            tracing::info!("");
+        }
 
         // tracing::info!("{line} {line_content}");
         // TODO: we could move tab width setting to be done by the document
@@ -1018,18 +1017,15 @@ impl DocLines {
         let (_, col) = buffer.offset_to_line_col(offset);
         let indent = text_layout.hit_position(col).point.x;
 
-        let layout_line = TextLayoutLine {
+        let mut layout_line = TextLayoutLine {
             text: text_layout,
             extra_style: Vec::new(),
             whitespaces: None,
             indent,
             phantom_text,
         };
-        // todo 下划线等？
-        // let extra_style = style.apply_layout_styles(&layout_line.text, &layout_line.phantom_text, 0);
-        //
-        // layout_line.extra_style.clear();
-        // layout_line.extra_style.extend(extra_style);
+        // 下划线？背景色？
+        apply_layout_styles(&mut layout_line);
 
         Arc::new(layout_line)
     }
@@ -1311,6 +1307,7 @@ impl DocLines {
         styles
     }
 
+    // 文本样式，前景色
     fn line_style(&mut self, line: usize, buffer: &Buffer) -> Vec<LineStyle> {
         let styles = self.styles();
         self.line_styles
@@ -1660,4 +1657,162 @@ fn push_strip_suffix(line_content_original: &str, rs: &mut String) {
     } else {
         rs.push_str(line_content_original);
     }
+}
+
+fn apply_layout_styles(layout_line: &mut TextLayoutLine) {
+    layout_line.extra_style.clear();
+    let layout = &layout_line.text;
+    for phantom in &layout_line.phantom_text.text {
+        if (phantom.bg.is_none() && phantom.under_line.is_none())
+            || phantom.text.is_empty()
+        {
+            continue;
+        }
+        let iter = extra_styles_for_range(
+            layout,
+            phantom.final_col,
+            phantom.final_col + phantom.text.len(),
+            phantom.bg,
+            phantom.under_line,
+            None,
+        );
+        for style in iter {
+            layout_line.extra_style.push(style)
+        }
+    }
+    // 暂不考虑
+    // let mut max_severity: Option<DiagnosticSeverity> = None;
+    // self.diagnostics.diagnostics_span.with_untracked(|diags| {
+    //     diags
+    //         .iter_chunks(start_offset..end_offset)
+    //         .for_each(|(iv, diag)| {
+    //             let start = iv.start();
+    //             let end = iv.end();
+    //
+    //             if start <= end_offset
+    //                 && end >= start_offset
+    //                 && diag.severity < Some(DiagnosticSeverity::HINT)
+    //             {
+    //                 let start = if start > start_offset {
+    //                     start - start_offset
+    //                 } else {
+    //                     0
+    //                 };
+    //                 let end = end - start_offset;
+    //                 let start = phantom_text.col_after(start, true);
+    //                 let end = phantom_text.col_after(end, false);
+    //
+    //                 match (diag.severity, max_severity) {
+    //                     (Some(severity), Some(max)) => {
+    //                         if severity < max {
+    //                             max_severity = Some(severity);
+    //                         }
+    //                     }
+    //                     (Some(severity), None) => {
+    //                         max_severity = Some(severity);
+    //                     }
+    //                     _ => {}
+    //                 }
+    //
+    //                 let color_name = match diag.severity {
+    //                     Some(DiagnosticSeverity::ERROR) => {
+    //                         LapceColor::LAPCE_ERROR
+    //                     }
+    //                     _ => LapceColor::LAPCE_WARN,
+    //                 };
+    //                 let color = config.color(color_name);
+    //                 let styles = extra_styles_for_range(
+    //                     layout,
+    //                     start,
+    //                     end,
+    //                     None,
+    //                     None,
+    //                     Some(color),
+    //                 );
+    //                 layout_line.extra_style.extend(styles);
+    //             }
+    //         });
+    // });
+
+    // Add the styling for the diagnostic severity, if applicable
+    // if let Some(max_severity) = max_severity {
+    //     let theme_prop = if max_severity == DiagnosticSeverity::ERROR {
+    //         LapceColor::ERROR_LENS_ERROR_BACKGROUND
+    //     } else if max_severity == DiagnosticSeverity::WARNING {
+    //         LapceColor::ERROR_LENS_WARNING_BACKGROUND
+    //     } else {
+    //         LapceColor::ERROR_LENS_OTHER_BACKGROUND
+    //     };
+    //
+    //     let size = layout.size();
+    //     let x1 = if !config.editor.error_lens_end_of_line {
+    //         let error_end_x = size.width;
+    //         Some(error_end_x.max(size.width))
+    //     } else {
+    //         None
+    //     };
+    //
+    //     // TODO(minor): Should we show the background only on wrapped lines that have the
+    //     // diagnostic actually on that line?
+    //     // That would make it more obvious where it is from and matches other editors.
+    //     layout_line.extra_style.push(LineExtraStyle {
+    //         x: 0.0,
+    //         y: 0.0,
+    //         width: x1,
+    //         height: size.height,
+    //         bg_color: Some(config.color(theme_prop)),
+    //         under_line: None,
+    //         wave_line: None,
+    //     });
+    // }
+}
+
+fn extra_styles_for_range(
+    text_layout: &TextLayout,
+    start: usize,
+    end: usize,
+    bg_color: Option<Color>,
+    under_line: Option<Color>,
+    wave_line: Option<Color>,
+) -> impl Iterator<Item = LineExtraStyle> + '_ {
+    let start_hit = text_layout.hit_position(start);
+    let end_hit = text_layout.hit_position(end);
+
+    text_layout
+        .layout_runs()
+        .enumerate()
+        .filter_map(move |(current_line, run)| {
+            if current_line < start_hit.line || current_line > end_hit.line {
+                return None;
+            }
+
+            let x = if current_line == start_hit.line {
+                start_hit.point.x
+            } else {
+                run.glyphs.first().map(|g| g.x).unwrap_or(0.0) as f64
+            };
+            let end_x = if current_line == end_hit.line {
+                end_hit.point.x
+            } else {
+                run.glyphs.last().map(|g| g.x + g.w).unwrap_or(0.0) as f64
+            };
+            let width = end_x - x;
+
+            if width == 0.0 {
+                return None;
+            }
+
+            let height = (run.max_ascent + run.max_descent) as f64;
+            let y = run.line_y as f64 - run.max_ascent as f64;
+
+            Some(LineExtraStyle {
+                x,
+                y,
+                width: Some(width),
+                height,
+                bg_color,
+                under_line,
+                wave_line,
+            })
+        })
 }

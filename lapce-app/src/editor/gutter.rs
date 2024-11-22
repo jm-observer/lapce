@@ -147,7 +147,7 @@ impl View for EditorGutterView {
         //     .buffer
         //     .with_untracked(|buffer| buffer.line_of_offset(offset));
 
-        let (current_visual_line, line_offset, _) = self
+        let (current_visual_line, _line_offset, _) = self
             .editor
             .editor
             .lines()
