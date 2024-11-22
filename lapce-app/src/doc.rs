@@ -72,7 +72,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::editor::editor::{CommonAction, CursorInfo, Editor};
-use crate::editor::lines::DocLines;
+use crate::editor::lines::{DocLines, DocLinesManager};
 use crate::editor::EditorViewKind;
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand},
@@ -222,7 +222,7 @@ pub struct Doc {
     pub lines: RwSignal<Lines>,
     pub editor_style: RwSignal<EditorStyle>,
     pub viewport: RwSignal<Rect>,
-    pub doc_lines: RwSignal<DocLines>,
+    pub doc_lines: DocLinesManager,
     pub screen_lines: RwSignal<ScreenLines>,
 }
 impl Doc {
@@ -271,7 +271,7 @@ impl Doc {
             // folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
             // semantic_previous_rs_id: cx.create_rw_signal(None),
             lines,
-            doc_lines: cx.create_rw_signal(DocLines::new(
+            doc_lines: DocLinesManager::new(
                 cx,
                 diagnostics,
                 syntax,
@@ -286,7 +286,7 @@ impl Doc {
                 buffer,
                 screen_lines,
                 kind,
-            )),
+            ),
         }
     }
 
@@ -341,7 +341,7 @@ impl Doc {
             lines,
             viewport,
             editor_style,
-            doc_lines: cx.create_rw_signal(DocLines::new(
+            doc_lines: DocLinesManager::new(
                 cx,
                 diagnostics,
                 syntax,
@@ -356,7 +356,7 @@ impl Doc {
                 buffer,
                 screen_lines,
                 kind,
-            )),
+            ),
         }
     }
 
@@ -418,7 +418,7 @@ impl Doc {
             lines,
             viewport,
             editor_style,
-            doc_lines: cx.create_rw_signal(DocLines::new(
+            doc_lines: DocLinesManager::new(
                 cx,
                 diagnostics,
                 syntax,
@@ -433,7 +433,7 @@ impl Doc {
                 buffer,
                 screen_lines,
                 kind,
-            )),
+            ),
         }
     }
 
@@ -482,16 +482,13 @@ impl Doc {
 
     pub fn set_syntax(&self, syntax: Syntax) {
         batch(|| {
-            if self
-                .doc_lines
-                .try_update(|x| {
-                    x.set_syntax(syntax);
-                    x.semantic_styles.is_none()
-                })
-                .is_none()
-            {
-                self.clear_text_cache();
-            }
+            self.doc_lines.update(|x| {
+                x.set_syntax(syntax);
+            });
+            // {
+            //
+            // }
+            self.clear_text_cache();
             self.clear_sticky_headers_cache();
         });
     }
@@ -1112,10 +1109,12 @@ impl Doc {
 
     /// init diagnostics offset ranges from lsp positions
     pub fn init_diagnostics(&self) {
-        self.clear_text_cache();
-        self.clear_code_actions();
-        self.doc_lines.update(|x| {
-            x.init_diagnostics();
+        batch(|| {
+            self.clear_text_cache();
+            self.clear_code_actions();
+            self.doc_lines.update(|x| {
+                x.init_diagnostics();
+            });
         });
     }
 

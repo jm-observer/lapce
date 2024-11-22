@@ -55,7 +55,7 @@ use lapce_rpc::{dap_types::DapId, plugin::PluginId};
 use crate::debug::update_breakpoints;
 use crate::editor::editor::{cursor_caret, paint_selection, paint_text, Editor};
 use crate::editor::gutter::FoldingDisplayType;
-use crate::editor::lines::DocLines;
+use crate::editor::lines::{DocLines, DocLinesManager};
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
@@ -146,7 +146,7 @@ pub struct EditorView {
     is_active: Memo<bool>,
     inner_node: Option<NodeId>,
     viewport: RwSignal<Rect>,
-    doc_lines: RwSignal<DocLines>,
+    doc_lines: DocLinesManager,
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     tracing: bool,
 }
@@ -1767,11 +1767,10 @@ fn editor_gutter_folding_range(
     viewport: ReadSignal<Rect>,
 ) -> impl View {
     let config = window_tab_data.common.config;
-    let doc_clone = doc;
+    let doc_lines = doc.get_untracked().doc_lines;
     dyn_stack(
         move || {
-            doc.get()
-                .doc_lines
+            doc_lines
                 .get()
                 .folding_ranges
                 .to_display_items(screen_lines.get())
@@ -1780,13 +1779,13 @@ fn editor_gutter_folding_range(
         move |item| {
             editor_gutter_folding_view(window_tab_data.clone(), viewport, item)
                 .on_click_stop({
-                    let value = doc_clone;
+                    let doc_lines = doc_lines;
                     move |_| {
                         batch(|| {
-                            value.get_untracked().doc_lines.update(|x| {
+                            doc_lines.update(|x| {
                                 x.update_folding_item(item);
                             });
-                            doc.get_untracked().clear_text_cache();
+                            // doc.get_untracked().clear_text_cache();
                         });
                     }
                 })

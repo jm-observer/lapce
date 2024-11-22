@@ -123,6 +123,54 @@ impl From<&VisualLine> for VLine {
         value.vline()
     }
 }
+#[derive(Clone, Copy)]
+pub struct DocLinesManager {
+    lines: RwSignal<DocLines>,
+}
+impl DocLinesManager {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        cx: Scope,
+        diagnostics: DiagnosticData,
+        syntax: Syntax,
+        parser: BracketParser,
+        viewport: RwSignal<Rect>,
+        editor_style: RwSignal<EditorStyle>,
+        config: ReadSignal<Arc<LapceConfig>>,
+        buffer: RwSignal<Buffer>,
+        screen_lines: RwSignal<ScreenLines>,
+        kind: RwSignal<EditorViewKind>,
+    ) -> Self {
+        Self {
+            lines: cx.create_rw_signal(crate::editor::lines::DocLines::new(
+                cx,
+                diagnostics,
+                syntax,
+                parser,
+                viewport,
+                editor_style,
+                config,
+                buffer,
+                screen_lines,
+                kind,
+            )),
+        }
+    }
+
+    pub fn with_untracked<O>(&self, f: impl FnOnce(&DocLines) -> O) -> O {
+        self.lines.with_untracked(f)
+    }
+
+    pub fn get(&self) -> DocLines {
+        self.lines.get()
+    }
+
+    pub fn update(&self, f: impl FnOnce(&mut DocLines)) {
+        batch(|| {
+            self.lines.update(f);
+        });
+    }
+}
 #[derive(Clone)]
 pub struct DocLines {
     origin_lines: Vec<OriginLine>,
@@ -315,6 +363,8 @@ impl DocLines {
             current_line = origin_line_end + 1;
             origin_folded_line_index += 1;
         }
+
+        self.compute_screen_lines();
     }
 
     // pub fn wrap(&self, viewport: Rect, es: &EditorStyle) -> ResolvedWrap {

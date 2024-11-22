@@ -22,7 +22,7 @@ use floem_editor_core::{
 };
 
 use crate::doc::Doc;
-use crate::editor::lines::{DocLines, OriginFoldedLine};
+use crate::editor::lines::{DocLines, DocLinesManager, OriginFoldedLine};
 use floem::context::PaintCx;
 use floem::kurbo::Line;
 use floem::reactive::{SignalGet, SignalTrack, SignalUpdate, SignalWith, Trigger};
@@ -995,7 +995,14 @@ impl Editor {
                 }) {
                     info.vline_info
                 } else {
-                    sl.info(*sl.lines.last().unwrap()).unwrap().vline_info
+                    if sl.lines.last().is_none() {
+                        panic!("point: {point:?} {:?} {:?}", sl.lines, sl.info);
+                    }
+                    let info = sl.info(*sl.lines.last().unwrap());
+                    if info.is_none() {
+                        panic!("point: {point:?} {:?} {:?}", sl.lines, sl.info);
+                    }
+                    info.unwrap().vline_info
                 }
             })
         };
@@ -1125,7 +1132,7 @@ impl Editor {
             .with_untracked(|x| x.text_layout_of_visual_line(line))
     }
 
-    pub fn lines(&self) -> RwSignal<DocLines> {
+    pub fn lines(&self) -> DocLinesManager {
         self.doc.with_untracked(|x| x.doc_lines)
     }
 
