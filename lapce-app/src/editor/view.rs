@@ -1142,7 +1142,10 @@ impl View for EditorView {
         cx: &mut floem::context::ComputeLayoutCx,
     ) -> Option<Rect> {
         let viewport = cx.current_viewport();
-        self.doc_lines.update(|x| x.trigger_viewport(viewport));
+        if self.doc_lines.with_untracked(|v| v.viewport() != viewport) {
+            self.doc_lines.update(|x| x.trigger_viewport(viewport));
+        }
+
         None
     }
 
@@ -1174,13 +1177,13 @@ impl View for EditorView {
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_current_line(cx, is_local, &screen_lines);
         paint_selection(cx, ed, &screen_lines);
-        let screen_lines = ed.screen_lines.get_untracked();
+        // let screen_lines = ed.screen_lines.get_untracked();
         self.paint_diff_sections(cx, viewport, &screen_lines, &config);
-        let screen_lines = ed.screen_lines.get_untracked();
+        // let screen_lines = ed.screen_lines.get_untracked();
         self.paint_find(cx, &screen_lines);
-        let screen_lines = ed.screen_lines.get_untracked();
+        // let screen_lines = ed.screen_lines.get_untracked();
         self.paint_bracket_highlights_scope_lines(cx, viewport, &screen_lines);
-        let screen_lines = ed.screen_lines.get_untracked();
+        // let screen_lines = ed.screen_lines.get_untracked();
 
         paint_text(
             cx,
@@ -1190,7 +1193,7 @@ impl View for EditorView {
             &screen_lines,
             show_indent_guide,
         );
-        let screen_lines = ed.screen_lines.get_untracked();
+        // let screen_lines = ed.screen_lines.get_untracked();
         self.paint_sticky_headers(cx, viewport, &screen_lines);
         self.paint_scroll_bar(cx, viewport, is_local, config);
     }
@@ -2102,7 +2105,6 @@ fn editor_content(
     }
 
     let current_scroll = create_rw_signal(Rect::ZERO);
-    let resize = create_rw_signal(Rect::ZERO);
     scroll({
         let editor_content_view =
             editor_view(e_data.get_untracked(), debug_breakline, is_active, false)
@@ -2181,7 +2183,6 @@ fn editor_content(
         // TODO: is there a good way to avoid the calculation of the vline here?
         let vline = e_data.editor.vline_of_rvline(rvline);
         let vline = e_data.visual_line(vline.get());
-        let height = resize.get().height();
         let mut rect = Rect::from_origin_size(
             (x, (vline * line_height) as f64),
             (width, line_height as f64),
@@ -2190,11 +2191,11 @@ fn editor_content(
         if let Some(offset_line_from_top) = offset_line_from_top {
             let offset_height = (offset_line_from_top * line_height) as f64;
             rect.y0 -= offset_height;
-            rect.y1 = rect.y1 + height - offset_height;
+            rect.y1 = rect.y1 - offset_height;
         }
         tracing::info!(
-            "{:?} height()={} {rect:?} offset_line_from_top={offset_line_from_top:?} vline={vline} offset={offset}",
-            e_data.doc().content.get_untracked().path(), height
+            "{:?} {rect:?} offset_line_from_top={offset_line_from_top:?} vline={vline} offset={offset}",
+            e_data.doc().content.get_untracked().path()
         );
         rect
     })
