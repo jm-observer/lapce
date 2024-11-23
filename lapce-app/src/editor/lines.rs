@@ -51,12 +51,13 @@ use lapce_core::syntax::{BracketParser, Syntax};
 use lapce_rpc::style::{LineStyle, Style};
 use lapce_xi_rope::spans::{Spans, SpansBuilder};
 use lsp_types::{DiagnosticSeverity, InlayHint, InlayHintLabel, Position};
+use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 /// Minimum width that we'll allow the view to be wrapped at.
 const MIN_WRAPPED_WIDTH: f32 = 100.0;
 
-type LineStyles = HashMap<usize, Vec<LineStyle>>;
+type LineStyles = HashMap<usize, Vec<NewLineStyle>>;
 
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug)]
@@ -265,6 +266,7 @@ pub struct DocLines {
     pub screen_lines: RwSignal<ScreenLines>,
     pub kind: RwSignal<EditorViewKind>,
     signals: Signals,
+    style_from_lsp: bool,
 }
 
 impl DocLines {
@@ -310,6 +312,7 @@ impl DocLines {
             buffer,
             screen_lines,
             kind,
+            style_from_lsp: false,
         };
         lines.update_lines();
         lines
@@ -983,21 +986,23 @@ impl DocLines {
 
         let phantom_text = self.phantom_text(line, &config, buffer);
         let mut collapsed_line_col = phantom_text.folded_line();
-        let multi_styles: Vec<(usize, usize, Color, Attrs)> = self
-            .line_styles(line, buffer, config.as_ref())
-            .into_iter()
-            .map(|(start, end, color)| (start, end, color, attrs))
-            .collect();
+        // let multi_styles: Vec<(usize, usize, Color, Attrs)> = self
+        //     .line_styles(line, buffer, config.as_ref())
+        //     .into_iter()
+        //     .map(|(start, end, color)| (start, end, color, attrs))
+        //     .collect();
 
         let mut phantom_text = PhantomTextMultiLine::new(phantom_text);
         let mut attrs_list = AttrsList::new(attrs);
-        for (start, end, color, attrs) in multi_styles.into_iter() {
-            let (Some(start), Some(end)) =
-                (phantom_text.col_at(start), phantom_text.col_at(end))
-            else {
-                continue;
-            };
-            attrs_list.add_span(start..end, attrs.color(color));
+        if let Some(styles) = self.line_styles(line, config.as_ref()) {
+            for (start, end, color) in styles.into_iter() {
+                let (Some(start), Some(end)) =
+                    (phantom_text.col_at(start), phantom_text.col_at(end))
+                else {
+                    continue;
+                };
+                attrs_list.add_span(start..end, attrs.color(color));
+            }
         }
 
         while let Some(collapsed_line) = collapsed_line_col.take() {
@@ -1006,7 +1011,7 @@ impl DocLines {
                 &mut line_content,
             );
 
-            let offset_col = phantom_text.final_text_len();
+            let offset_col = phantom_text.origin_text_len;
             let attrs = Attrs::new()
                 .color(self.editor_style.ed_text_color())
                 .family(&family)
@@ -1018,23 +1023,26 @@ impl DocLines {
             let next_phantom_text =
                 self.phantom_text(collapsed_line, &config, buffer);
             collapsed_line_col = next_phantom_text.folded_line();
-            let styles: Vec<(usize, usize, Color, Attrs)> = self
-                .line_styles(collapsed_line, buffer, config.as_ref())
-                .into_iter()
-                .map(|(start, end, color)| {
-                    (start + offset_col, end + offset_col, color, attrs)
-                })
-                .collect();
-
-            for (start, end, color, attrs) in styles.into_iter() {
-                let (Some(start), Some(end)) =
-                    (phantom_text.col_at(start), phantom_text.col_at(end))
-                else {
-                    continue;
-                };
-                attrs_list.add_span(start..end, attrs.color(color));
-            }
+            // let styles: Vec<(usize, usize, Color, Attrs)> = self
+            //     .line_styles(collapsed_line, buffer, config.as_ref())
+            //     .into_iter()
+            //     .map(|(start, end, color)| {
+            //         (start + offset_col, end + offset_col, color, attrs)
+            //     })
+            //     .collect();
             phantom_text.merge(next_phantom_text);
+            if let Some(styles) = self.line_styles(collapsed_line, config.as_ref()) {
+                for (start, end, color) in styles.into_iter() {
+                    let start = start + offset_col;
+                    let end = end + offset_col;
+                    let (Some(start), Some(end)) =
+                        (phantom_text.col_at(start), phantom_text.col_at(end))
+                    else {
+                        continue;
+                    };
+                    attrs_list.add_span(start..end, attrs.color(color));
+                }
+            }
         }
         let phantom_color = self.editor_style.phantom_color();
         phantom_text.add_phantom_style(
@@ -1142,6 +1150,30 @@ impl DocLines {
         self.completion_lens = Some(completion_lens);
         self.completion_pos = (line, col);
         self.update_lines();
+    }
+
+    pub fn update_semantic_styles_from_lsp(
+        &mut self,
+        styles: (Option<String>, Spans<Style>),
+    ) {
+        // self.semantic_styles = Some(styles);
+        self.style_from_lsp = true;
+        let buffer = self.buffer.get_untracked();
+        styles
+            .1
+            .iter()
+            .for_each(|(Interval { start, end }, style)| {
+                let origin_line = buffer.line_of_offset(start);
+                let origin_line_offset = buffer.offset_of_line(origin_line);
+                let entry = self.line_styles.entry(origin_line).or_default();
+                entry.push(NewLineStyle {
+                    origin_line,
+                    origin_line_offset_start: start - origin_line_offset,
+                    origin_line_offset_end: end - origin_line_offset,
+                    style: style.clone(),
+                });
+            });
+        self.update_lines_with_buffer(&buffer);
     }
 
     pub fn update_folding_item(&mut self, item: FoldingDisplayItem) {
@@ -1302,22 +1334,42 @@ impl DocLines {
 
     pub fn set_syntax(&mut self, syntax: Syntax) {
         self.syntax = syntax;
-        if self.semantic_styles.is_none() {
-            self.line_styles.clear();
+        if self.style_from_lsp {
+            return;
         }
+        // if self.semantic_styles.is_none() {
+        //     self.line_styles.clear();
+        // }
         let buffer = self.buffer.get_untracked();
+        self.line_styles.clear();
+        self.syntax.styles.as_ref().map(|x| {
+            x.iter().for_each(|(Interval { start, end }, style)| {
+                let origin_line = buffer.line_of_offset(start);
+                let origin_line_offset = buffer.offset_of_line(origin_line);
+                let entry = self.line_styles.entry(origin_line).or_default();
+                entry.push(NewLineStyle {
+                    origin_line,
+                    origin_line_offset_start: start - origin_line_offset,
+                    origin_line_offset_end: end - origin_line_offset,
+                    style: style.clone(),
+                });
+            })
+        });
         self.update_parser(&buffer);
         self.update_lines_with_buffer(&buffer);
     }
 
     pub fn update_styles(&mut self, delta: &RopeDelta) {
-        if let Some(styles) = self.syntax.styles.as_mut() {
-            styles.apply_shape(delta);
+        if self.style_from_lsp {
+            if let Some(styles) = &mut self.semantic_styles {
+                styles.1.apply_shape(delta);
+            }
+        } else {
+            if let Some(styles) = self.syntax.styles.as_mut() {
+                styles.apply_shape(delta);
+            }
         }
         self.syntax.lens.apply_delta(delta);
-        if let Some(styles) = &mut self.semantic_styles {
-            styles.1.apply_shape(delta);
-        }
         self.update_lines()
     }
 
@@ -1330,13 +1382,13 @@ impl DocLines {
         self.update_lines();
     }
 
-    fn styles(&self) -> Option<Spans<Style>> {
-        if let Some(semantic_styles) = &self.semantic_styles {
-            Some(semantic_styles.1.clone())
-        } else {
-            self.syntax.styles.clone()
-        }
-    }
+    // fn styles(&self) -> Option<Spans<Style>> {
+    //     if let Some(semantic_styles) = &self.semantic_styles {
+    //         Some(semantic_styles.1.clone())
+    //     } else {
+    //         self.syntax.styles.clone()
+    //     }
+    // }
 
     pub fn on_update_buffer(&mut self) {
         let buffer = self.buffer.get_untracked();
@@ -1363,21 +1415,10 @@ impl DocLines {
     fn line_styles(
         &mut self,
         line: usize,
-        buffer: &Buffer,
         config: &LapceConfig,
-    ) -> Vec<(usize, usize, Color)> {
-        let mut styles: Vec<(usize, usize, Color)> = self
-            .line_style(line, buffer)
-            .iter()
-            .filter_map(|line_style| {
-                if let Some(fg_color) = line_style.style.fg_color.as_ref() {
-                    if let Some(fg_color) = config.style_color(fg_color) {
-                        return Some((line_style.start, line_style.end, fg_color));
-                    }
-                }
-                None
-            })
-            .collect();
+    ) -> Option<Vec<(usize, usize, Color)>> {
+        let mut styles: Vec<(usize, usize, Color)> =
+            self.line_style(line, config)?;
         if let Some(bracket_styles) = self.parser.bracket_pos.get(&line) {
             let mut bracket_styles = bracket_styles
                 .iter()
@@ -1396,24 +1437,45 @@ impl DocLines {
                 .collect();
             styles.append(&mut bracket_styles);
         }
-        styles
+        Some(styles)
     }
 
     // 文本样式，前景色
-    fn line_style(&mut self, line: usize, buffer: &Buffer) -> Vec<LineStyle> {
-        let styles = self.styles();
-        self.line_styles
-            .entry(line)
-            .or_insert_with(|| {
-                let line_styles = styles
-                    .map(|styles| {
-                        let text = buffer.text();
-                        line_styles(text, line, &styles)
-                    })
-                    .unwrap_or_default();
-                line_styles
-            })
-            .clone()
+    fn line_style(
+        &mut self,
+        line: usize,
+        config: &LapceConfig,
+    ) -> Option<Vec<(usize, usize, Color)>> {
+        // let styles = self.styles();
+        let styles = self.line_styles.get(&line)?;
+        Some(
+            styles
+                .iter()
+                .filter_map(|x| {
+                    if let Some(fg) = &x.style.fg_color {
+                        if let Some(color) = config.style_color(fg) {
+                            return Some((
+                                x.origin_line_offset_start,
+                                x.origin_line_offset_end,
+                                color,
+                            ));
+                        }
+                    }
+                    None
+                })
+                .collect(),
+        )
+        // .entry(line)
+        // .or_insert_with(|| {
+        //     let line_styles = styles
+        //         .map(|styles| {
+        //             let text = buffer.text();
+        //             line_styles(text, line, &styles)
+        //         })
+        //         .unwrap_or_default();
+        //     line_styles
+        // })
+        // .clone()
     }
 
     fn indent_line(
@@ -2003,4 +2065,12 @@ impl DocLines {
     pub fn signal_show_indent_guide(&self) -> ReadSignal<(bool, Color)> {
         self.signals.show_indent_guide.read_only()
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct NewLineStyle {
+    pub origin_line: usize,
+    pub origin_line_offset_start: usize,
+    pub origin_line_offset_end: usize,
+    pub style: Style,
 }

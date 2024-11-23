@@ -70,6 +70,7 @@ use lsp_types::{
 };
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+use tracing::error;
 
 use crate::editor::editor::{CommonAction, CursorInfo, Editor};
 use crate::editor::lines::{DocLines, DocLinesManager};
@@ -854,6 +855,7 @@ impl Doc {
         let doc = self.clone();
         let send = create_ext_action(self.scope, move |(styles, result_id)| {
             if let Some(styles) = styles {
+                error!("{:?}", styles);
                 if doc.buffer.with_untracked(|b| b.rev()) == rev {
                     doc.doc_lines
                         .update(|x| x.semantic_styles = Some((result_id, styles)));

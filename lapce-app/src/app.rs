@@ -3932,8 +3932,9 @@ pub fn launch() {
                     for (_, tab) in window.window_tabs.get_untracked() {
                         for (_, doc) in tab.main_split.docs.get_untracked() {
                             doc.doc_lines.update(|lines| {
-                                lines.syntax =
-                                    Syntax::from_language(lines.syntax.language);
+                                lines.set_syntax(Syntax::from_language(
+                                    lines.syntax.language,
+                                ));
                             });
                             doc.trigger_syntax_change(None);
                         }
