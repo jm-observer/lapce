@@ -1,3 +1,5 @@
+mod action;
+
 use alacritty_terminal::selection::SelectionType::Lines;
 use floem::context::StyleCx;
 use floem::kurbo::Rect;
@@ -27,6 +29,7 @@ use crate::doc::{DiagnosticData, Doc};
 use crate::editor::gutter::{
     FoldingDisplayItem, FoldingDisplayType, FoldingRange, FoldingRanges,
 };
+use crate::editor::lines::action::UpdateFolding;
 use crate::editor::screen_lines::{ScreenLines, VisualLineInfo};
 use crate::editor::EditorViewKind;
 use floem::views::editor::layout::{LineExtraStyle, TextLayoutLine};
@@ -267,6 +270,7 @@ pub struct DocLines {
     pub kind: RwSignal<EditorViewKind>,
     signals: Signals,
     style_from_lsp: bool,
+    folding_items: Vec<FoldingDisplayItem>,
 }
 
 impl DocLines {
@@ -313,6 +317,7 @@ impl DocLines {
             screen_lines,
             kind,
             style_from_lsp: false,
+            folding_items: Default::default(),
         };
         lines.update_lines();
         lines
@@ -1052,13 +1057,13 @@ impl DocLines {
             phantom_color,
         );
 
-        if line == 1 {
-            tracing::info!("\nstart");
-            for (range, attr) in attrs_list.spans() {
-                tracing::info!("{range:?} {attr:?}");
-            }
-            tracing::info!("");
-        }
+        // if line == 1 {
+        //     tracing::info!("\nstart");
+        //     for (range, attr) in attrs_list.spans() {
+        //         tracing::info!("{range:?} {attr:?}");
+        //     }
+        //     tracing::info!("");
+        // }
 
         // tracing::info!("{line} {line_content}");
         // TODO: we could move tab width setting to be done by the document
@@ -1176,36 +1181,52 @@ impl DocLines {
         self.update_lines_with_buffer(&buffer);
     }
 
-    pub fn update_folding_item(&mut self, item: FoldingDisplayItem) {
-        match item.ty {
-            FoldingDisplayType::UnfoldStart | FoldingDisplayType::Folded => {
-                self.folding_ranges.0.iter_mut().find_map(|range| {
-                    if range.start == item.position {
-                        range.status.click();
-                        Some(())
-                    } else {
-                        None
-                    }
-                });
+    // pub fn update_folding_item(&mut self, item: FoldingDisplayItem) {
+    //     match item.ty {
+    //         FoldingDisplayType::UnfoldStart | FoldingDisplayType::Folded => {
+    //             self.folding_ranges.0.iter_mut().find_map(|range| {
+    //                 if range.start == item.position {
+    //                     range.status.click();
+    //                     Some(())
+    //                 } else {
+    //                     None
+    //                 }
+    //             });
+    //         }
+    //         FoldingDisplayType::UnfoldEnd => {
+    //             self.folding_ranges.0.iter_mut().find_map(|range| {
+    //                 if range.end == item.position {
+    //                     range.status.click();
+    //                     Some(())
+    //                 } else {
+    //                     None
+    //                 }
+    //             });
+    //         }
+    //     }
+    //     self.update_lines();
+    // }
+
+    pub fn update_folding_ranges(&mut self, action: UpdateFolding) {
+        match action {
+            UpdateFolding::UpdateByItem(item) => {
+                self.folding_ranges.update_folding_item(item);
             }
-            FoldingDisplayType::UnfoldEnd => {
-                self.folding_ranges.0.iter_mut().find_map(|range| {
-                    if range.end == item.position {
-                        range.status.click();
-                        Some(())
-                    } else {
-                        None
-                    }
-                });
+            UpdateFolding::New(ranges) => {
+                self.folding_ranges.update_ranges(ranges);
             }
         }
         self.update_lines();
+        let screen_lines = self.screen_lines.get_untracked();
+        self.trigger_folding_items(
+            self.folding_ranges.to_display_items(&screen_lines),
+        );
     }
 
-    pub fn update_folding_ranges(&mut self, new: Vec<FoldingRange>) {
-        self.folding_ranges.update_ranges(new);
-        self.update_lines();
-    }
+    // pub fn update_folding_ranges(&mut self, new: Vec<FoldingRange>) {
+    //     self.folding_ranges.update_ranges(new);
+    //     self.update_lines();
+    // }
 
     pub fn clear_completion_lens(&mut self) {
         self.completion_lens = None;
@@ -1342,7 +1363,7 @@ impl DocLines {
         // }
         let buffer = self.buffer.get_untracked();
         self.line_styles.clear();
-        self.syntax.styles.as_ref().map(|x| {
+        if let Some(x) = self.syntax.styles.as_ref() {
             x.iter().for_each(|(Interval { start, end }, style)| {
                 let origin_line = buffer.line_of_offset(start);
                 let origin_line_offset = buffer.offset_of_line(origin_line);
@@ -1354,7 +1375,7 @@ impl DocLines {
                     style: style.clone(),
                 });
             })
-        });
+        };
         self.update_parser(&buffer);
         self.update_lines_with_buffer(&buffer);
     }
@@ -1364,10 +1385,8 @@ impl DocLines {
             if let Some(styles) = &mut self.semantic_styles {
                 styles.1.apply_shape(delta);
             }
-        } else {
-            if let Some(styles) = self.syntax.styles.as_mut() {
-                styles.apply_shape(delta);
-            }
+        } else if let Some(styles) = self.syntax.styles.as_mut() {
+            styles.apply_shape(delta);
         }
         self.syntax.lens.apply_delta(delta);
         self.update_lines()
@@ -2034,6 +2053,8 @@ impl LinesEditorStyle {
 struct Signals {
     show_indent_guide: RwSignal<(bool, Color)>,
     viewport: RwSignal<Rect>,
+    folding_items_signal: RwSignal<Vec<FoldingDisplayItem>>,
+    folding_items: Vec<FoldingDisplayItem>,
 }
 
 impl Signals {
@@ -2041,13 +2062,26 @@ impl Signals {
         let show_indent_guide =
             cx.create_rw_signal((style.show_indent_guide(), style.indent_guide()));
         let viewport = cx.create_rw_signal(viewport);
+        let folding_items_signal = cx.create_rw_signal(Vec::new());
         Self {
             show_indent_guide,
             viewport,
+            folding_items_signal,
+            folding_items: Vec::new(),
         }
     }
 }
 impl DocLines {
+    pub fn trigger_folding_items(&mut self, folding_items: Vec<FoldingDisplayItem>) {
+        if self.signals.folding_items != folding_items {
+            self.signals.folding_items = folding_items.clone();
+            self.signals.folding_items_signal.set(folding_items);
+        }
+    }
+    pub fn folding_items_signal(&self) -> ReadSignal<Vec<FoldingDisplayItem>> {
+        self.signals.folding_items_signal.read_only()
+    }
+
     pub fn trigger_viewport(&mut self, viewport: Rect) {
         if self.viewport != viewport {
             self.viewport = viewport;

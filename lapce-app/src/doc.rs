@@ -73,6 +73,7 @@ use smallvec::SmallVec;
 use tracing::error;
 
 use crate::editor::editor::{CommonAction, CursorInfo, Editor};
+use crate::editor::gutter::FoldingRange;
 use crate::editor::lines::{DocLines, DocLinesManager};
 use crate::editor::screen_lines::ScreenLines;
 use crate::editor::EditorViewKind;
@@ -855,7 +856,7 @@ impl Doc {
         let doc = self.clone();
         let send = create_ext_action(self.scope, move |(styles, result_id)| {
             if let Some(styles) = styles {
-                error!("{:?}", styles);
+                // error!("{:?}", styles);
                 if doc.buffer.with_untracked(|b| b.rev()) == rev {
                     doc.doc_lines
                         .update(|x| x.semantic_styles = Some((result_id, styles)));
@@ -1135,16 +1136,14 @@ impl Doc {
                         resp, ..
                     }) = result
                     {
-                        let folding = resp
+                        let folding: Vec<FoldingRange> = resp
                             .unwrap_or_default()
                             .into_iter()
-                            .map(|x| {
-                                crate::editor::gutter::FoldingRange::from_lsp(x)
-                            })
+                            .map(FoldingRange::from_lsp)
                             .sorted_by(|x, y| x.start.line.cmp(&y.start.line))
                             .collect();
                         doc.doc_lines.update(|symbol| {
-                            symbol.update_folding_ranges(folding);
+                            symbol.update_folding_ranges(folding.into());
                         });
                         doc.clear_text_cache();
                     }

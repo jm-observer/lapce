@@ -259,7 +259,7 @@ impl FoldingRanges {
 
         FoldedRanges(range)
     }
-    pub fn to_display_items(&self, lines: ScreenLines) -> Vec<FoldingDisplayItem> {
+    pub fn to_display_items(&self, lines: &ScreenLines) -> Vec<FoldingDisplayItem> {
         let mut folded = HashMap::new();
         let mut unfold_start: HashMap<u32, FoldingDisplayItem> = HashMap::new();
         let mut unfold_end = HashMap::new();
@@ -329,6 +329,31 @@ impl FoldingRanges {
         let folded_range = self.get_folded_range();
         new.iter_mut().for_each(|x| folded_range.update_status(x));
         self.0 = new;
+    }
+
+    pub fn update_folding_item(&mut self, item: FoldingDisplayItem) {
+        match item.ty {
+            FoldingDisplayType::UnfoldStart | FoldingDisplayType::Folded => {
+                self.0.iter_mut().find_map(|range| {
+                    if range.start == item.position {
+                        range.status.click();
+                        Some(())
+                    } else {
+                        None
+                    }
+                });
+            }
+            FoldingDisplayType::UnfoldEnd => {
+                self.0.iter_mut().find_map(|range| {
+                    if range.end == item.position {
+                        range.status.click();
+                        Some(())
+                    } else {
+                        None
+                    }
+                });
+            }
+        }
     }
 }
 

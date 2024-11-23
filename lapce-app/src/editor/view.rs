@@ -1335,18 +1335,12 @@ pub fn editor_container_view(
     let debug_breakline = window_tab_data.terminal.breakline;
 
     let viewport = ed.lines.with_untracked(|x| x.signal_viewport());
-    let screen_lines = ed.screen_lines.read_only();
 
     stack((
         editor_breadcrumbs(workspace, editor.get_untracked(), config),
         stack((
             editor_gutter(window_tab_data.clone(), editor),
-            editor_gutter_folding_range(
-                window_tab_data.clone(),
-                doc,
-                screen_lines,
-                viewport,
-            ),
+            editor_gutter_folding_range(window_tab_data.clone(), doc, viewport),
             editor_content(editor, debug_breakline, is_active),
             empty().style(move |s| {
                 let config = config.get();
@@ -1773,29 +1767,21 @@ fn editor_gutter_code_lens(
 fn editor_gutter_folding_range(
     window_tab_data: Rc<WindowTabData>,
     doc: DocSignal,
-    screen_lines: ReadSignal<ScreenLines>,
     viewport: ReadSignal<Rect>,
 ) -> impl View {
     let config = window_tab_data.common.config;
     let doc_lines = doc.get_untracked().doc_lines;
+    let folding_items = doc_lines.with_untracked(|x| x.folding_items_signal());
     dyn_stack(
-        move || {
-            doc_lines
-                .get()
-                .folding_ranges
-                .to_display_items(screen_lines.get())
-        },
+        move || folding_items.get(),
         move |item| *item,
         move |item| {
             editor_gutter_folding_view(window_tab_data.clone(), viewport, item)
                 .on_click_stop({
                     let doc_lines = doc_lines;
                     move |_| {
-                        batch(|| {
-                            doc_lines.update(|x| {
-                                x.update_folding_item(item);
-                            });
-                            // doc.get_untracked().clear_text_cache();
+                        doc_lines.update(|x| {
+                            x.update_folding_ranges(item.into());
                         });
                     }
                 })
