@@ -6,6 +6,7 @@ use floem::{
     text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     Renderer, View, ViewId,
 };
+use floem_editor_core::cursor::CursorAffinity;
 use im::HashMap;
 use lsp_types::Position;
 use serde::{Deserialize, Serialize};
@@ -140,18 +141,17 @@ impl View for EditorGutterView {
         let (offset, mode) = cursor.with_untracked(|c| (c.offset(), c.get_mode()));
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
-        let last_line = self.editor.editor.last_line();
+        // let _last_line = self.editor.editor.last_line();
         // let current_line = self
         //     .editor
         //     .doc()
         //     .buffer
         //     .with_untracked(|buffer| buffer.line_of_offset(offset));
 
-        let (current_visual_line, _line_offset, _) = self
-            .editor
-            .editor
-            .lines()
-            .with_untracked(|x| x.visual_line_of_offset(offset));
+        let (current_visual_line, _line_offset, _) =
+            self.editor.editor.lines.with_untracked(|x| {
+                x.visual_line_of_offset(offset, CursorAffinity::Forward)
+            });
 
         let family: Vec<FamilyOwned> =
             FamilyOwned::parse_list(&config.editor.font_family).collect();

@@ -427,20 +427,20 @@ impl EditorView {
     ) {
         let e_data = self.editor.clone();
         let ed = e_data.editor.clone();
+        let doc = e_data.doc();
         let cursor = self.editor.cursor();
         let config = self.editor.common.config;
+        let lines = ed.lines;
 
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
         let viewport = self.doc_lines.with_untracked(|x| x.viewport());
 
-        let current_line_color =
-            ed.lines().with_untracked(|x| x.current_line_color());
+        let current_line_color = lines.with_untracked(|x| x.current_line_color());
 
         let breakline = self.debug_breakline.get_untracked().and_then(
             |(breakline, breakline_path)| {
-                if e_data
-                    .doc()
+                if doc
                     .content
                     .with_untracked(|c| c.path() == Some(&breakline_path))
                 {
@@ -485,10 +485,6 @@ impl EditorView {
                             .info(rvline)
                             .filter(|_| Some(rvline.line) != breakline)
                         {
-                            // tracing::info!(
-                            //     "end={end} rvline={rvline:?} info={:?}",
-                            //     info
-                            // );
                             let rect = Rect::from_origin_size(
                                 (viewport.x0, info.vline_y),
                                 (viewport.width(), line_height),
@@ -1046,7 +1042,7 @@ impl View for EditorView {
     fn style_pass(&mut self, cx: &mut StyleCx<'_>) {
         let editor = &self.editor.editor;
         if editor
-            .lines()
+            .lines
             .try_update(|s| s.update_editor_style(cx))
             .unwrap()
         {
@@ -1117,9 +1113,7 @@ impl View for EditorView {
             };
 
             let margin_bottom = if !is_local
-                && editor
-                    .lines()
-                    .with_untracked(|x| x.scroll_beyond_last_line())
+                && editor.lines.with_untracked(|x| x.scroll_beyond_last_line())
             {
                 viewport_size.height.min(last_line_height) - line_height
             } else {
@@ -1340,7 +1334,7 @@ pub fn editor_container_view(
     let replace_focus = main_split.common.find.replace_focus;
     let debug_breakline = window_tab_data.terminal.breakline;
 
-    let viewport = ed.lines().with_untracked(|x| x.signal_viewport());
+    let viewport = ed.lines.with_untracked(|x| x.signal_viewport());
     let screen_lines = ed.screen_lines.read_only();
 
     stack((
@@ -1536,7 +1530,7 @@ fn editor_gutter_breakpoints(
 
     let (ed, doc, config) = e_data
         .with_untracked(|e| (e.editor.clone(), e.doc_signal(), e.common.config));
-    let viewport = ed.lines().with_untracked(|x| x.signal_viewport());
+    let viewport = ed.lines.with_untracked(|x| x.signal_viewport());
     let screen_lines = ed.screen_lines.read_only();
 
     let num_display_lines = create_memo(move |_| {
@@ -1822,7 +1816,7 @@ fn editor_gutter_code_actions(
 ) -> impl View {
     let (ed, doc, config) = e_data
         .with_untracked(|e| (e.editor.clone(), e.doc_signal(), e.common.config));
-    let viewport = ed.lines().with_untracked(|x| x.signal_viewport());
+    let viewport = ed.lines.with_untracked(|x| x.signal_viewport());
     let cursor = ed.cursor;
 
     let code_action_vline = create_memo(move |_| {
@@ -1903,7 +1897,7 @@ fn editor_gutter(
 
     let (ed, doc, config) = e_data
         .with_untracked(|e| (e.editor.clone(), e.doc_signal(), e.common.config));
-    let viewport = ed.lines().with_untracked(|x| x.signal_viewport());
+    let viewport = ed.lines.with_untracked(|x| x.signal_viewport());
     let scroll_delta = ed.scroll_delta;
     let screen_lines = ed.screen_lines.read_only();
 
@@ -2191,7 +2185,7 @@ fn editor_content(
         if let Some(offset_line_from_top) = offset_line_from_top {
             let offset_height = (offset_line_from_top * line_height) as f64;
             rect.y0 -= offset_height;
-            rect.y1 = rect.y1 - offset_height;
+            rect.y1 -= offset_height;
         }
         tracing::info!(
             "{:?} {rect:?} offset_line_from_top={offset_line_from_top:?} vline={vline} offset={offset}",

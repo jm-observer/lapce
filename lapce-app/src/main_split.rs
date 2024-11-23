@@ -693,25 +693,43 @@ impl MainSplitData {
             self.common.focus.set(Focus::Workbench);
         }
         let mut off_top_line = None;
+        // 计算当前鼠标所在行在窗口的位置，便于跳转后依旧在该位置
         if let Some(tab) = self.get_active_editor_untracked() {
             let cursor = tab.editor.cursor.get_untracked();
-            if let Some(min_visual_line) = tab
-                .editor
-                .screen_lines
-                .with_untracked(|x| x.info.get(&x.lines[0]).cloned())
+            let (min_visual_line, max_visual_line) =
+                tab.editor.screen_lines.with_untracked(|x| {
+                    (
+                        x.visual_lines[0].clone(),
+                        x.visual_lines[x.visual_lines.len() - 1].clone(),
+                    )
+                });
+            let lines = tab.editor.lines.lines_of_origin_offset(cursor.offset());
+            if min_visual_line.visual_line.line_index <= lines.visual_line.line_index
+                && lines.visual_line.line_index
+                    <= max_visual_line.visual_line.line_index
             {
-                tab.editor.cursor.get_untracked().offset();
-                let line = tab
-                    .editor
-                    .visual_line_of_offset(cursor.offset(), CursorAffinity::Forward)
-                    .0
-                    .vline
-                    .0;
                 off_top_line = Some(
-                    line.saturating_sub(min_visual_line.vline_info.vline.0)
-                        .max(5),
-                )
+                    lines.visual_line.line_index
+                        - min_visual_line.visual_line.line_index,
+                );
             }
+            //
+            // if let Some(min_visual_line) = tab
+            //     .editor
+            //     .screen_lines
+            //     .with_untracked(|x| x.info.get(&x.lines[0]).cloned())
+            // {
+            //     let line = tab
+            //         .editor
+            //         .visual_line_of_offset(cursor.offset(), CursorAffinity::Forward)
+            //         .0
+            //         .vline
+            //         .0;
+            //     off_top_line = Some(
+            //         line.saturating_sub(min_visual_line.vline_info.vline.0)
+            //             .max(5),
+            //     )
+            // }
         }
         let path = location.path.clone();
         let (doc, new_doc) = self.get_doc(path.clone(), None, true);

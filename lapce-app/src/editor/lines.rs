@@ -1,3 +1,4 @@
+use alacritty_terminal::selection::SelectionType::Lines;
 use floem::context::StyleCx;
 use floem::kurbo::Rect;
 use floem::peniko::{Brush, Color};
@@ -153,6 +154,18 @@ impl From<&VisualLine> for VLine {
         value.vline()
     }
 }
+#[derive(Clone)]
+pub struct LinesOfOriginOffset {
+    pub origin_offset: usize,
+    pub origin_line: OriginLine,
+    pub origin_folded_line: OriginFoldedLine,
+    // 在折叠行的偏移值
+    pub origin_folded_line_offest: usize,
+    pub visual_line: VisualLine,
+    // 在视觉行的偏移值
+    pub visual_line_offest: usize,
+}
+
 #[derive(Clone, Copy)]
 pub struct DocLinesManager {
     lines: RwSignal<DocLines>,
@@ -206,6 +219,13 @@ impl DocLinesManager {
         f: impl FnOnce(&mut DocLines) -> O,
     ) -> Option<O> {
         batch(|| self.lines.try_update(f))
+    }
+
+    pub fn lines_of_origin_offset(
+        &self,
+        origin_offset: usize,
+    ) -> LinesOfOriginOffset {
+        self.with_untracked(|x| x.lines_of_origin_offset(origin_offset))
     }
 }
 #[derive(Clone)]
@@ -497,6 +517,20 @@ impl DocLines {
         &self.visual_lines[self.visual_lines.len() - 1]
     }
 
+    // pub fn visual_line_of_offset(
+    //     &self,
+    //     offset: usize,
+    //     affinity: CursorAffinity,
+    // ) -> (VLineInfo, usize, bool) {
+    //     let (origin_line, offset_of_line) = {
+    //         let origin_line = self.buffer.line_of_offset(offset);
+    //         let origin_line_start_offset = self.buffer.offset_of_line(origin_line);
+    //         (origin_line, origin_line_start_offset)
+    //     };
+    //     let offset = offset - offset_of_line;
+    //     self.visual_line_of_origin_line_offset(origin_line, offset, affinity)
+    // }
+
     /// 原始字符所在的视觉行，以及行的偏移位置和是否是最后一个字符
     pub fn visual_line_of_origin_line_offset(
         &self,
@@ -537,15 +571,61 @@ impl DocLines {
         (visual_line.vline_info(), final_offset, last_char)
     }
 
-    /// 原始字符所在的视觉行，以及行的偏移位置和是否是最后一个字符
-    pub fn visual_line_of_offset(&self, offset: usize) -> (VisualLine, usize, bool) {
+    /// 原始位移字符所在的行信息（折叠行、原始行、视觉行）
+    pub fn lines_of_origin_offset(
+        &self,
+        origin_offset: usize,
+    ) -> LinesOfOriginOffset {
         // 位于的原始行，以及在原始行的起始offset
-        let (origin_line, _offset_of_line) = self.buffer.with_untracked(|text| {
-            let origin_line = text.line_of_offset(offset);
-            let origin_line_start_offset = text.offset_of_line(origin_line);
-            (origin_line, origin_line_start_offset)
-        });
-        // let mut offset = offset - offset_of_line;
+        let origin_line = self
+            .buffer
+            .with_untracked(|text| text.line_of_offset(origin_offset));
+        let origin_line = self.origin_lines[origin_line];
+        let offset = origin_offset - origin_line.start_offset;
+        let folded_line = self.folded_line_of_origin_line(origin_line.line_index);
+        let origin_folded_line_offest = folded_line
+            .text_layout
+            .phantom_text
+            .final_col_of_col(origin_line.line_index, offset, false);
+        let folded_line_layout = folded_line.text_layout.text.line_layout();
+        let mut sub_line_index = folded_line_layout.len() - 1;
+        let mut visual_line_offest = origin_folded_line_offest;
+        for (index, sub_line) in folded_line_layout.iter().enumerate() {
+            if visual_line_offest < sub_line.glyphs.len() {
+                sub_line_index = index;
+                break;
+            } else {
+                visual_line_offest -= sub_line.glyphs.len();
+            }
+        }
+        let visual_line = self.visual_line_of_folded_line_and_sub_index(
+            folded_line.line_index,
+            sub_line_index,
+        );
+        LinesOfOriginOffset {
+            origin_offset: 0,
+            origin_line,
+            origin_folded_line: folded_line.clone(),
+            origin_folded_line_offest: 0,
+            visual_line: *visual_line,
+            visual_line_offest: 0,
+        }
+    }
+
+    /// 原始位移字符所在的视觉行，以及行的偏移位置和是否是最后一个字符
+    pub fn visual_line_of_offset(
+        &self,
+        offset: usize,
+        _affinity: CursorAffinity,
+    ) -> (VisualLine, usize, bool) {
+        // 位于的原始行，以及在原始行的起始offset
+        let (origin_line, offset_of_origin_line) =
+            self.buffer.with_untracked(|text| {
+                let origin_line = text.line_of_offset(offset);
+                let origin_line_start_offset = text.offset_of_line(origin_line);
+                (origin_line, origin_line_start_offset)
+            });
+        let offset = offset - offset_of_origin_line;
         let folded_line = self.folded_line_of_origin_line(origin_line);
         let mut final_offset = folded_line
             .text_layout

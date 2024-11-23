@@ -522,6 +522,7 @@ fn first_non_blank(
     }
 }
 
+/// ?
 fn start_of_line(
     view: &Editor,
     affinity: &mut CursorAffinity,

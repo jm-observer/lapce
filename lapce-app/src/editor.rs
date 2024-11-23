@@ -347,7 +347,7 @@ impl EditorData {
         //     .editor
         //     .viewport
         //     .set(self.editor.viewport.get_untracked());
-        let viewport = self.editor.lines().with_untracked(|x| x.viewport());
+        let viewport = self.editor.lines.with_untracked(|x| x.viewport());
         editor
             .editor
             .scroll_to
@@ -387,11 +387,11 @@ impl EditorData {
     }
 
     pub fn viewport(&self) -> Rect {
-        self.editor.lines().with_untracked(|x| x.viewport())
+        self.editor.lines.with_untracked(|x| x.viewport())
     }
 
     pub fn signal_viewport(&self) -> ReadSignal<Rect> {
-        self.editor.lines().with_untracked(|x| x.signal_viewport())
+        self.editor.lines.with_untracked(|x| x.signal_viewport())
     }
 
     pub fn window_origin(&self) -> RwSignal<Point> {
@@ -439,7 +439,7 @@ impl EditorData {
         let doc = self.doc();
         let text = self.editor.rope_text();
         let is_local = doc.content.with_untracked(|content| content.is_local());
-        let modal = self.editor.lines().with_untracked(|x| x.modal()) && !is_local;
+        let modal = self.editor.lines.with_untracked(|x| x.modal()) && !is_local;
         let smart_tab = self
             .common
             .config

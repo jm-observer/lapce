@@ -114,6 +114,8 @@ pub struct Editor {
     // /// The Editor Style
     // pub es: RwSignal<EditorStyle>,
     pub floem_style_id: RwSignal<u64>,
+
+    pub lines: DocLinesManager,
 }
 impl Editor {
     /// Create a new editor into the given document, using the styling.  
@@ -164,6 +166,7 @@ impl Editor {
         let cursor = Cursor::new(cursor_mode, None, None);
         let cursor = cx.create_rw_signal(cursor);
         let screen_lines = doc.screen_lines;
+        let lines = doc.doc_lines;
         let doc = cx.create_rw_signal(doc);
         // let font_sizes = Rc::new(EditorFontSizes {
         //     id,
@@ -177,6 +180,7 @@ impl Editor {
 
         let ed = Editor {
             cx: Cell::new(cx),
+            lines,
             effects_cx: Cell::new(cx.create_child()),
             id,
             active: cx.create_rw_signal(false),
@@ -264,12 +268,12 @@ impl Editor {
     //         // });
     //
     //         let ed = self.clone();
-    //         self.lines().update(|x| {
+    //         self.lines.update(|x| {
     //             x.update(&ed);
     //         });
     //         //
-    //         // *self.lines().font_sizes.borrow_mut() =
-    //         // self.lines().clear(0, None);
+    //         // *self.lines.font_sizes.borrow_mut() =
+    //         // self.lines.clear(0, None);
     //
     //         self.style.set(styling);
     //
@@ -335,7 +339,7 @@ impl Editor {
     }
 
     pub fn vline_infos(&self, start: usize, end: usize) -> Vec<VLineInfo<VLine>> {
-        self.lines().with_untracked(|x| x.vline_infos(start, end))
+        self.lines.with_untracked(|x| x.vline_infos(start, end))
     }
 
     pub fn text_prov(&self) -> &Self {
@@ -618,7 +622,7 @@ impl Editor {
     //     backwards: bool,
     //     start: VLine,
     // ) -> impl Iterator<Item = VLineInfo> + '_ {
-    //     self.lines().iter_vlines(self.text_prov(), backwards, start)
+    //     self.lines.iter_vlines(self.text_prov(), backwards, start)
     // }
 
     // /// Iterate over the visual lines in the view, starting at the given line and ending at the
@@ -629,7 +633,7 @@ impl Editor {
     //     start: VLine,
     //     end: VLine,
     // ) -> impl Iterator<Item = VLineInfo> + '_ {
-    //     self.lines()
+    //     self.lines
     //         .iter_vlines_over(self.text_prov(), backwards, start, end)
     // }
 
@@ -641,7 +645,7 @@ impl Editor {
     //     backwards: bool,
     //     start: RVLine,
     // ) -> impl Iterator<Item = VLineInfo<()>> + '_ {
-    //     self.lines()
+    //     self.lines
     //         .iter_rvlines(self.text_prov().clone(), backwards, start)
     // }
 
@@ -655,14 +659,14 @@ impl Editor {
     //     start: RVLine,
     //     end_line: usize,
     // ) -> impl Iterator<Item = VLineInfo<()>> + '_ {
-    //     self.lines()
+    //     self.lines
     //         .iter_rvlines_over(self.text_prov(), backwards, start, end_line)
     // }
 
     // ==== Position Information ====
 
     pub fn first_rvline_info(&self) -> VLineInfo<VLine> {
-        self.lines().with_untracked(|x| x.first_vline_info())
+        self.lines.with_untracked(|x| x.first_vline_info())
     }
 
     /// The number of lines in the document.
@@ -676,11 +680,11 @@ impl Editor {
     }
 
     pub fn last_vline(&self) -> VLine {
-        self.lines().with_untracked(|x| x.last_visual_line().into())
+        self.lines.with_untracked(|x| x.last_visual_line().into())
     }
 
     pub fn last_rvline(&self) -> RVLine {
-        self.lines().with_untracked(|x| x.last_visual_line().into())
+        self.lines.with_untracked(|x| x.last_visual_line().into())
     }
 
     // pub fn last_rvline_info(&self) -> VLineInfo<()> {
@@ -732,7 +736,7 @@ impl Editor {
             (origin_line, origin_line_start_offset)
         });
         let offset = offset - offset_of_line;
-        self.lines().with_untracked(|x| {
+        self.lines.with_untracked(|x| {
             x.visual_line_of_origin_line_offset(origin_line, offset, affinity)
                 .0
                 .vline
@@ -740,15 +744,15 @@ impl Editor {
     }
 
     // pub fn vline_of_line(&self, line: usize) -> VLine {
-    //     self.lines().vline_of_line(self.text_prov(), line)
+    //     self.lines.vline_of_line(self.text_prov(), line)
     // }
 
     // pub fn rvline_of_line(&self, line: usize) -> RVLine {
-    //     self.lines().rvline_of_line(self.text_prov(), line)
+    //     self.lines.rvline_of_line(self.text_prov(), line)
     // }
 
     pub fn vline_of_rvline(&self, rvline: RVLine) -> VLine {
-        self.lines().with_untracked(|x| {
+        self.lines.with_untracked(|x| {
             x.visual_line_of_folded_line_and_sub_index(
                 rvline.line,
                 rvline.line_index,
@@ -759,13 +763,13 @@ impl Editor {
 
     // /// Get the nearest offset to the start of the visual line.
     // pub fn offset_of_vline(&self, vline: VLine) -> usize {
-    //     self.lines().offset_of_vline(self.text_prov(), vline)
+    //     self.lines.offset_of_vline(self.text_prov(), vline)
     // }
 
     // /// Get the visual line and column of the given offset.
     // /// The column is before phantom text is applied.
     // pub fn vline_col_of_offset(&self, offset: usize, affinity: CursorAffinity) -> (VLine, usize) {
-    //     self.lines()
+    //     self.lines
     //         .vline_col_of_offset(self.text_prov(), offset, affinity)
     // }
 
@@ -782,7 +786,7 @@ impl Editor {
             (origin_line, origin_line_start_offset)
         });
         let offset = offset - offset_of_line;
-        self.lines().with_untracked(|x| {
+        self.lines.with_untracked(|x| {
             x.visual_line_of_origin_line_offset(origin_line, offset, affinity)
         })
     }
@@ -793,17 +797,17 @@ impl Editor {
         _affinity: CursorAffinity,
     ) -> OriginFoldedLine {
         let line = self.visual_line_of_offset(offset, _affinity).0.rvline.line;
-        self.lines()
+        self.lines
             .with_untracked(|x| x.folded_line_of_origin_line(line).clone())
     }
 
     // pub fn rvline_col_of_offset(&self, offset: usize, affinity: CursorAffinity) -> (RVLine, usize) {
-    //     self.lines()
+    //     self.lines
     //         .rvline_col_of_offset(self.text_prov().clone(), offset, affinity)
     // }
 
     // pub fn offset_of_rvline(&self, rvline: RVLine) -> usize {
-    //     self.lines().offset_of_rvline(self.text_prov(), rvline)
+    //     self.lines.offset_of_rvline(self.text_prov(), rvline)
     // }
 
     // pub fn vline_info(&self, vline: VLine) -> VLineInfo {
@@ -866,7 +870,7 @@ impl Editor {
     // ==== Points of locations ====
 
     pub fn max_line_width(&self) -> f64 {
-        self.lines().with_untracked(|x| x.max_width())
+        self.lines.with_untracked(|x| x.max_width())
     }
 
     /// Returns the point into the text layout of the line at the given offset.
@@ -1126,27 +1130,27 @@ impl Editor {
 
     /// ~~视觉~~行的text_layout信息
     pub fn text_layout_of_visual_line(&self, line: usize) -> Arc<TextLayoutLine> {
-        self.lines()
+        self.lines
             .with_untracked(|x| x.text_layout_of_visual_line(line))
     }
 
-    pub fn lines(&self) -> DocLinesManager {
-        self.doc.with_untracked(|x| x.doc_lines)
-    }
+    // pub fn lines(&self) -> DocLinesManager {
+    //     self.doc.with_untracked(|x| x.doc_lines)
+    // }
 
     pub fn viewport(&self) -> Rect {
-        self.lines().with_untracked(|x| x.viewport())
+        self.lines.with_untracked(|x| x.viewport())
     }
 
     // pub fn text_layout_trigger(&self, line: usize, trigger: bool) -> Arc<TextLayoutLine> {
     //     let cache_rev = self.doc().cache_rev().get_untracked();
-    //     self.lines()
+    //     self.lines
     //         .get_init_text_layout(cache_rev, self.config_id(), self, line, trigger)
     // }
 
     // fn try_get_text_layout(&self, line: usize) -> Option<Arc<TextLayoutLine>> {
     //     let cache_rev = self.doc().cache_rev().get_untracked();
-    //     self.lines()
+    //     self.lines
     //         .try_get_text_layout(cache_rev, self.config_id(), line)
     // }
 }
@@ -1615,7 +1619,7 @@ pub trait CommonAction {
 pub fn paint_selection(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines) {
     let cursor = ed.cursor;
 
-    let selection_color = ed.lines().with_untracked(|es| es.selection_color());
+    let selection_color = ed.lines.with_untracked(|es| es.selection_color());
 
     cursor.with_untracked(|cursor| match cursor.mode {
         CursorMode::Normal(_) => {}
@@ -1752,7 +1756,7 @@ fn paint_cursor(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines) {
 
     let viewport = ed.viewport();
 
-    let current_line_color = ed.lines().with_untracked(|es| es.current_line_color());
+    let current_line_color = ed.lines.with_untracked(|es| es.current_line_color());
 
     cursor.with_untracked(|cursor| {
         let highlight_current_line = match cursor.mode {
@@ -1883,7 +1887,7 @@ pub fn paint_text(
     let style = ed.doc();
 
     // TODO: cache indent text layout width
-    let indent_unit = ed.lines().with_untracked(|es| es.indent_style()).as_str();
+    let indent_unit = ed.lines.with_untracked(|es| es.indent_style()).as_str();
     // TODO: don't assume font family is the same for all lines?
     let family = style.font_family(0);
     let attrs = Attrs::new()
@@ -1925,7 +1929,7 @@ pub fn paint_text(
             let family = style.font_family(line);
             let font_size = style.font_size(line) as f32;
             let attrs = Attrs::new()
-                .color(ed.lines().with_untracked(|es| es.visible_whitespace()))
+                .color(ed.lines.with_untracked(|es| es.visible_whitespace()))
                 .family(&family)
                 .font_size(font_size);
             let attrs_list = AttrsList::new(attrs);
@@ -1957,7 +1961,7 @@ fn paint_cursor_caret(
 ) {
     let cursor = ed.cursor;
     let hide_cursor = ed.cursor_info.hidden;
-    let caret_color = ed.lines().with_untracked(|es| es.ed_caret());
+    let caret_color = ed.lines.with_untracked(|es| es.ed_caret());
 
     if !is_active || hide_cursor.get_untracked() {
         return;

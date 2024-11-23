@@ -10,6 +10,7 @@ use std::rc::Rc;
 // TODO(minor): We have diff sections in screen lines because Lapce uses them, but
 // we don't really have support for diffs in floem-editor! Is there a better design for this?
 // Possibly we should just move that out to a separate field on Lapce's editor.
+// 不允许滚到到窗口没有文本！！！因此lines等不会为空
 #[derive(Clone, Debug)]
 pub struct ScreenLines {
     pub lines: Vec<RVLine>,
