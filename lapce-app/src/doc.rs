@@ -226,7 +226,7 @@ pub struct Doc {
     // pub editor_style: RwSignal<EditorStyle>,
     // pub viewport: RwSignal<Rect>,
     pub doc_lines: DocLinesManager,
-    pub screen_lines: RwSignal<ScreenLines>,
+    // pub screen_lines: RwSignal<ScreenLines>,
 }
 impl Doc {
     pub fn new(
@@ -244,12 +244,10 @@ impl Doc {
         let viewport = Rect::ZERO;
         let editor_style = EditorStyle::default();
         let buffer = cx.create_rw_signal(Buffer::new(""));
-        let screen_lines = cx.create_rw_signal(ScreenLines::new(cx, viewport));
         let kind = cx.create_rw_signal(EditorViewKind::Normal);
         Doc {
             editor_id,
             kind,
-            screen_lines,
             // viewport
             // editor_style,
             scope: cx,
@@ -287,7 +285,6 @@ impl Doc {
                 editor_style,
                 rw_config,
                 buffer,
-                screen_lines,
                 kind,
             ),
         }
@@ -309,7 +306,6 @@ impl Doc {
         let rw_config = common.config;
         let lines = cx.create_rw_signal(Lines::new(cx));
         let viewport = Rect::ZERO;
-        let screen_lines = cx.create_rw_signal(ScreenLines::new(cx, viewport));
         let editor_style = EditorStyle::default();
         let diagnostics = DiagnosticData {
             expanded: cx.create_rw_signal(true),
@@ -322,7 +318,6 @@ impl Doc {
         Self {
             editor_id,
             kind,
-            screen_lines,
             scope: cx,
             buffer_id: BufferId::next(),
             buffer,
@@ -357,7 +352,6 @@ impl Doc {
                 editor_style,
                 rw_config,
                 buffer,
-                screen_lines,
                 kind,
             ),
         }
@@ -379,7 +373,6 @@ impl Doc {
         };
         let lines = cx.create_rw_signal(Lines::new(cx));
         let viewport = Rect::ZERO;
-        let screen_lines = cx.create_rw_signal(ScreenLines::new(cx, viewport));
         let editor_style = EditorStyle::default();
         let diagnostics = DiagnosticData {
             expanded: cx.create_rw_signal(true),
@@ -391,7 +384,6 @@ impl Doc {
         Self {
             editor_id,
             kind,
-            screen_lines,
             scope: cx,
             buffer_id: BufferId::next(),
             buffer,
@@ -434,7 +426,6 @@ impl Doc {
                 editor_style,
                 rw_config,
                 buffer,
-                screen_lines,
                 kind,
             ),
         }

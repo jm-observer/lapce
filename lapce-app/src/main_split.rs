@@ -697,7 +697,8 @@ impl MainSplitData {
         if let Some(tab) = self.get_active_editor_untracked() {
             let cursor = tab.editor.cursor.get_untracked();
             let (min_visual_line, max_visual_line) =
-                tab.editor.screen_lines.with_untracked(|x| {
+                tab.editor.lines.with_untracked(|x| {
+                    let x = &x.signals.screen_lines;
                     (
                         x.visual_lines[0].clone(),
                         x.visual_lines[x.visual_lines.len() - 1].clone(),

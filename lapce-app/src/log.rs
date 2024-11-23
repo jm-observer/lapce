@@ -12,7 +12,10 @@ pub fn print_screen_lines(window: &WindowTabData) {
     for (id, editor) in &window.main_split.editors.0.get_untracked() {
         let doc = editor.doc();
         if doc.content.get_untracked().is_file() {
-            let screen_lines = editor.editor.screen_lines.get_untracked();
+            let screen_lines = editor
+                .editor
+                .lines
+                .with_untracked(|x| x.signals.screen_lines.clone());
             error!("{id:?} {:?}", screen_lines.base);
             for (index, visual_line) in screen_lines.visual_lines.iter().enumerate()
             {

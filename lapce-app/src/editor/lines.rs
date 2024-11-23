@@ -185,7 +185,6 @@ impl DocLinesManager {
         editor_style: EditorStyle,
         config: ReadSignal<Arc<LapceConfig>>,
         buffer: RwSignal<Buffer>,
-        screen_lines: RwSignal<ScreenLines>,
         kind: RwSignal<EditorViewKind>,
     ) -> Self {
         Self {
@@ -198,7 +197,6 @@ impl DocLinesManager {
                 editor_style,
                 config,
                 buffer,
-                screen_lines,
                 kind,
             )),
         }
@@ -266,9 +264,8 @@ pub struct DocLines {
     viewport: Rect,
     pub config: ReadSignal<Arc<LapceConfig>>,
     pub buffer: RwSignal<Buffer>,
-    pub screen_lines: RwSignal<ScreenLines>,
     pub kind: RwSignal<EditorViewKind>,
-    signals: Signals,
+    pub signals: Signals,
     style_from_lsp: bool,
     folding_items: Vec<FoldingDisplayItem>,
 }
@@ -284,7 +281,6 @@ impl DocLines {
         editor_style: EditorStyle,
         config: ReadSignal<Arc<LapceConfig>>,
         buffer: RwSignal<Buffer>,
-        screen_lines: RwSignal<ScreenLines>,
         kind: RwSignal<EditorViewKind>,
     ) -> Self {
         let signals =
@@ -314,7 +310,6 @@ impl DocLines {
             parser,
             line_styles: Default::default(),
             buffer,
-            screen_lines,
             kind,
             style_from_lsp: false,
             folding_items: Default::default(),
@@ -1217,9 +1212,9 @@ impl DocLines {
             }
         }
         self.update_lines();
-        let screen_lines = self.screen_lines.get_untracked();
         self.trigger_folding_items(
-            self.folding_ranges.to_display_items(&screen_lines),
+            self.folding_ranges
+                .to_display_items(&self.signals.screen_lines),
         );
     }
 
@@ -1512,7 +1507,7 @@ impl DocLines {
         line
     }
 
-    pub fn compute_screen_lines(&self) {
+    pub fn compute_screen_lines(&mut self) {
         // TODO: this should probably be a get since we need to depend on line-height
         // let doc_lines = doc.doc_lines.get_untracked();
         let config = self.config.get_untracked();
@@ -1566,11 +1561,12 @@ impl DocLines {
                         },
                     );
                 }
-                self.screen_lines.update(|x| {
-                    x.lines = rvlines;
-                    x.info = Rc::new(info);
-                    x.diff_sections = None;
-                    x.visual_lines = visual_lines;
+                self.trigger_screen_lines(ScreenLines {
+                    lines: rvlines,
+                    visual_lines,
+                    info: Rc::new(info),
+                    diff_sections: None,
+                    base,
                 });
             }
             EditorViewKind::Diff(_diff_info) => {
@@ -1791,6 +1787,9 @@ impl DocLines {
 
     pub fn viewport(&self) -> Rect {
         self.viewport
+    }
+    pub fn screen_lines(&self) -> ScreenLines {
+        self.signals.screen_lines.clone()
     }
 }
 
@@ -2050,28 +2049,43 @@ impl LinesEditorStyle {
 }
 
 #[derive(Clone)]
-struct Signals {
+pub struct Signals {
     show_indent_guide: RwSignal<(bool, Color)>,
     viewport: RwSignal<Rect>,
     folding_items_signal: RwSignal<Vec<FoldingDisplayItem>>,
-    folding_items: Vec<FoldingDisplayItem>,
+    pub folding_items: Vec<FoldingDisplayItem>,
+    screen_lines_signal: RwSignal<ScreenLines>,
+    pub screen_lines: ScreenLines,
 }
 
 impl Signals {
     pub fn new(cx: Scope, style: &EditorStyle, viewport: Rect) -> Self {
         let show_indent_guide =
             cx.create_rw_signal((style.show_indent_guide(), style.indent_guide()));
+        let screen_lines = ScreenLines::new(cx, viewport);
+        let screen_lines_signal = cx.create_rw_signal(screen_lines.clone());
         let viewport = cx.create_rw_signal(viewport);
         let folding_items_signal = cx.create_rw_signal(Vec::new());
+
         Self {
             show_indent_guide,
             viewport,
             folding_items_signal,
             folding_items: Vec::new(),
+            screen_lines,
+            screen_lines_signal,
         }
     }
 }
 impl DocLines {
+    pub fn trigger_screen_lines(&mut self, screen_lines: ScreenLines) {
+        self.signals.screen_lines = screen_lines.clone();
+        self.signals.screen_lines_signal.set(screen_lines);
+    }
+    pub fn screen_lines_signal(&self) -> ReadSignal<ScreenLines> {
+        self.signals.screen_lines_signal.read_only()
+    }
+
     pub fn trigger_folding_items(&mut self, folding_items: Vec<FoldingDisplayItem>) {
         if self.signals.folding_items != folding_items {
             self.signals.folding_items = folding_items.clone();

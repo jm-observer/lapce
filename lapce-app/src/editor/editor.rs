@@ -98,7 +98,7 @@ pub struct Editor {
 
     /// Holds the cache of the lines and provides many utility functions for them.
     // lines: RwSignal<DocLines>,
-    pub screen_lines: RwSignal<ScreenLines>,
+    // pub screen_lines: RwSignal<ScreenLines>,
 
     /// Modal mode register
     pub register: RwSignal<Register>,
@@ -165,7 +165,6 @@ impl Editor {
         };
         let cursor = Cursor::new(cursor_mode, None, None);
         let cursor = cx.create_rw_signal(cursor);
-        let screen_lines = doc.screen_lines;
         let lines = doc.doc_lines;
         let doc = cx.create_rw_signal(doc);
         // let font_sizes = Rc::new(EditorFontSizes {
@@ -195,7 +194,7 @@ impl Editor {
             editor_view_focused: cx.create_trigger(),
             editor_view_focus_lost: cx.create_trigger(),
             editor_view_id: cx.create_rw_signal(None),
-            screen_lines,
+            // screen_lines,
             register: cx.create_rw_signal(Register::default()),
             cursor_info: CursorInfo::new(cx),
             last_movement: cx.create_rw_signal(Movement::Left),
@@ -923,8 +922,8 @@ impl Editor {
         let line = line_info.vline.0;
         let line_height = f64::from(self.doc().line_height(line));
 
-        let info = self.screen_lines.with_untracked(|sl| {
-            sl.iter_line_info().find(|info| {
+        let info = self.lines.with_untracked(|sl| {
+            sl.signals.screen_lines.iter_line_info().find(|info| {
                 info.vline_info.interval.start <= offset
                     && offset <= info.vline_info.interval.end
             })
@@ -992,7 +991,8 @@ impl Editor {
         let info = if point.y <= 0.0 {
             self.first_rvline_info()
         } else {
-            self.screen_lines.with_untracked(|sl| {
+            self.lines.with_untracked(|sl| {
+                let sl = &sl.signals.screen_lines;
                 if let Some(info) = sl.iter_line_info().find(|info| {
                     info.vline_y <= point.y && info.vline_y + line_height >= point.y
                 }) {

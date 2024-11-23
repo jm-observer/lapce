@@ -410,10 +410,10 @@ impl EditorData {
         self.editor.active
     }
 
-    /// Get the line information for lines on the screen.  
-    pub fn screen_lines(&self) -> RwSignal<ScreenLines> {
-        self.editor.screen_lines
-    }
+    // /// Get the line information for lines on the screen.
+    // pub fn screen_lines(&self) -> RwSignal<ScreenLines> {
+    //     self.editor.screen_lines
+    // }
 
     pub fn doc(&self) -> Rc<Doc> {
         self.editor.doc()
@@ -1194,7 +1194,10 @@ impl EditorData {
     }
 
     fn on_screen_find(&self, pattern: &str) -> Vec<SelRegion> {
-        let screen_lines = self.screen_lines().get_untracked();
+        let screen_lines = self
+            .editor
+            .lines
+            .with_untracked(|x| x.signals.screen_lines.clone());
         let lines: HashSet<usize> =
             screen_lines.lines.iter().map(|l| l.line).collect();
 

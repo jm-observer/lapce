@@ -133,7 +133,11 @@ impl View for EditorGutterView {
     fn paint(&mut self, cx: &mut floem::context::PaintCx) {
         let viewport = self.editor.viewport();
         let cursor = self.editor.cursor();
-        let screen_lines = self.editor.screen_lines();
+        let screen_lines = self
+            .editor
+            .editor
+            .lines
+            .with_untracked(|x| x.screen_lines_signal());
         let config = self.editor.common.config;
 
         let kind_is_normal =

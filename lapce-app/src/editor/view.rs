@@ -161,13 +161,15 @@ pub fn editor_view(
     let id = ViewId::new();
     let is_active = create_memo(move |_| is_active(true));
 
-    let viewport = e_data.signal_viewport();
+    let (viewport, screen_lines) = e_data
+        .editor
+        .lines
+        .with_untracked(|x| (x.signal_viewport(), x.screen_lines_signal()));
     // let viewport_rw = e_data.viewport_rw();
 
     let doc = e_data.doc_signal();
     let doc_lines = doc.with_untracked(|x| x.doc_lines);
     let view_kind = e_data.kind();
-    let screen_lines = e_data.screen_lines();
     create_effect(move |_| {
         doc.track();
         view_kind.track();
@@ -203,8 +205,11 @@ pub fn editor_view(
 
         let doc = doc.get();
         let rect = viewport.get();
-        let (screen_lines_len, screen_lines_first) = screen_lines
-            .with(|lines| (lines.lines.len(), lines.lines.first().copied()));
+        let screen_lines = screen_lines.get();
+        let (screen_lines_len, screen_lines_first) = (
+            screen_lines.lines.len(),
+            screen_lines.lines.first().copied(),
+        );
         let rev = (
             doc.content.get(),
             doc.buffer.with(|b| b.rev()),
@@ -219,9 +224,10 @@ pub fn editor_view(
 
         let sticky_header_info = get_sticky_header_info(
             &editor2,
-            viewport,
+            rect,
             sticky_header_height_signal,
             &config,
+            &screen_lines,
         );
 
         id.update_state(sticky_header_info);
@@ -1081,7 +1087,10 @@ impl View for EditorView {
             let viewport_size =
                 self.doc_lines.with_untracked(|x| x.viewport().size());
 
-            let screen_lines = e_data.screen_lines().get_untracked();
+            let screen_lines = e_data
+                .editor
+                .lines
+                .with_untracked(|x| x.signals.screen_lines.clone());
             let mut line_unique = HashSet::new();
             for (line, ..) in screen_lines.iter_lines_y() {
                 // fill in text layout cache so that max width is correct.
@@ -1144,7 +1153,7 @@ impl View for EditorView {
     }
 
     fn paint(&mut self, cx: &mut PaintCx) {
-        let viewport = self.editor.viewport();
+        // let viewport = self.editor.viewport();
         let show_indent_guide = self
             .doc_lines
             .with_untracked(|x| x.signal_show_indent_guide())
@@ -1168,7 +1177,9 @@ impl View for EditorView {
         // avoiding recomputation seems easiest/clearest.
         // I expect that most/all of the paint functions could restrict themselves to only what is
         // within the active screen lines without issue.
-        let screen_lines = ed.screen_lines.get_untracked();
+        let (viewport, screen_lines) = ed
+            .lines
+            .with_untracked(|x| (x.viewport(), x.screen_lines()));
         self.paint_current_line(cx, is_local, &screen_lines);
         paint_selection(cx, ed, &screen_lines);
         // let screen_lines = ed.screen_lines.get_untracked();
@@ -1195,16 +1206,14 @@ impl View for EditorView {
 
 fn get_sticky_header_info(
     editor_data: &EditorData,
-    viewport: ReadSignal<Rect>,
+    viewport: Rect,
     sticky_header_height_signal: RwSignal<f64>,
     config: &LapceConfig,
+    screen_lines: &ScreenLines,
 ) -> StickyHeaderInfo {
     let editor = &editor_data.editor;
     let doc = editor_data.doc();
-
-    let viewport = viewport.get();
     // TODO(minor): should this be a `get`
-    let screen_lines = editor.screen_lines.get();
     let line_height = config.editor.line_height() as f64;
     // let start_line = (viewport.y0 / line_height).floor() as usize;
     let Some(start) = screen_lines.lines.first() else {
@@ -1524,8 +1533,9 @@ fn editor_gutter_breakpoints(
 
     let (ed, doc, config) = e_data
         .with_untracked(|e| (e.editor.clone(), e.doc_signal(), e.common.config));
-    let viewport = ed.lines.with_untracked(|x| x.signal_viewport());
-    let screen_lines = ed.screen_lines.read_only();
+    let (viewport, screen_lines) = ed
+        .lines
+        .with_untracked(|x| (x.signal_viewport(), x.screen_lines_signal()));
 
     let num_display_lines = create_memo(move |_| {
         let screen_lines = screen_lines.get();
@@ -1883,9 +1893,10 @@ fn editor_gutter(
 
     let (ed, doc, config) = e_data
         .with_untracked(|e| (e.editor.clone(), e.doc_signal(), e.common.config));
-    let viewport = ed.lines.with_untracked(|x| x.signal_viewport());
+    let (viewport, screen_lines) = ed
+        .lines
+        .with_untracked(|x| (x.signal_viewport(), x.screen_lines_signal()));
     let scroll_delta = ed.scroll_delta;
-    let screen_lines = ed.screen_lines.read_only();
 
     let gutter_rect = create_rw_signal(Rect::ZERO);
     let gutter_width = create_memo(move |_| gutter_rect.get().width());
@@ -2547,7 +2558,9 @@ pub fn changes_colors_screen(
     editor: &Editor,
     changes: im::Vector<DiffLines>,
 ) -> Vec<(f64, usize, bool, Color)> {
-    let screen_lines = editor.screen_lines.get_untracked();
+    let screen_lines = editor
+        .lines
+        .with_untracked(|x| x.signals.screen_lines.clone());
 
     let Some((min, max)) = screen_lines.rvline_range() else {
         return Vec::new();
