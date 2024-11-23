@@ -525,17 +525,18 @@ fn first_non_blank(
 /// ?
 fn start_of_line(
     view: &Editor,
-    affinity: &mut CursorAffinity,
+    _affinity: &mut CursorAffinity,
     offset: usize,
 ) -> (usize, ColPosition) {
-    let folded_line = view.folded_line_of_offset(offset, *affinity);
-    let new_offset = view.offset_of_line(folded_line.origin_line_start);
-    // let new_offset = view.offset_of_rvline(rvline);
-    // TODO(minor): if the line has zero characters, it should probably be forward affinity but
-    // other cases might be better as backwards?
-    *affinity = CursorAffinity::Forward;
-
-    (new_offset, ColPosition::Start)
+    // let folded_line = view.folded_line_of_offset(offset, *affinity);
+    // let new_offset = view.offset_of_line(folded_line.origin_line_start);
+    // // let new_offset = view.offset_of_rvline(rvline);
+    // // TODO(minor): if the line has zero characters, it should probably be forward affinity but
+    // // other cases might be better as backwards?
+    // *affinity = CursorAffinity::Forward;
+    //
+    let lines = view.lines.lines_of_origin_offset(offset);
+    (lines.origin_line.start_offset, ColPosition::Start)
 }
 
 fn end_of_line(

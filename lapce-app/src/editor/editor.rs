@@ -453,14 +453,15 @@ impl Editor {
     pub fn triple_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.get_mode());
         let (mouse_offset, _) = self.offset_of_point(mode, pointer_event.pos, false);
-        let vline = self
-            .visual_line_of_offset(mouse_offset, CursorAffinity::Backward)
-            .0;
+        let lines = self.lines.lines_of_origin_offset(mouse_offset);
+        // let vline = self
+        //     .visual_line_of_offset(mouse_offset, CursorAffinity::Backward)
+        //     .0;
 
         self.cursor.update(|cursor| {
             cursor.add_region(
-                vline.interval.start,
-                vline.interval.end,
+                lines.origin_folded_line.origin_interval.start,
+                lines.origin_folded_line.origin_interval.end,
                 pointer_event.modifiers.shift(),
                 pointer_event.modifiers.alt(),
             )

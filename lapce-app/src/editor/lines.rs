@@ -61,8 +61,8 @@ type LineStyles = HashMap<usize, Vec<LineStyle>>;
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug)]
 pub struct OriginLine {
-    line_index: usize,
-    start_offset: usize,
+    pub line_index: usize,
+    pub start_offset: usize,
 }
 #[allow(dead_code)]
 #[derive(Clone)]
@@ -71,7 +71,7 @@ pub struct OriginFoldedLine {
     // [origin_line_start..origin_line_end]
     pub origin_line_start: usize,
     pub origin_line_end: usize,
-    origin_interval: Interval,
+    pub origin_interval: Interval,
     pub text_layout: Arc<TextLayoutLine>,
 }
 
