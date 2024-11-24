@@ -1145,9 +1145,7 @@ impl View for EditorView {
         cx: &mut floem::context::ComputeLayoutCx,
     ) -> Option<Rect> {
         let viewport = cx.current_viewport();
-        if self.doc_lines.with_untracked(|v| v.viewport() != viewport) {
-            self.doc_lines.update(|x| x.trigger_viewport(viewport));
-        }
+        self.doc_lines.update(|x| x.update_viewport(viewport));
 
         None
     }
@@ -2143,7 +2141,7 @@ fn editor_content(
         window_origin.set(point);
     })
     .on_scroll(move |rect| {
-        tracing::info!("on_scroll rect{:?}");
+        tracing::info!("on_scroll rect{rect:?}");
         if rect.y0 != current_scroll.get_untracked().y0 {
             // only cancel completion if scrolled vertically
             let e_data = e_data.get_untracked();

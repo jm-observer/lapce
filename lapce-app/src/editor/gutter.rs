@@ -274,7 +274,8 @@ impl FoldingRanges {
             }
             match item.status {
                 FoldingRangeStatus::Fold => {
-                    if let Some(line) = lines.info_for_line(item.start.line as usize)
+                    if let Some(line) = lines
+                        .visual_line_info_for_origin_line(item.start.line as usize)
                     {
                         folded.insert(
                             item.start.line,
@@ -289,9 +290,9 @@ impl FoldingRanges {
                 }
                 FoldingRangeStatus::Unfold => {
                     {
-                        if let Some(line) =
-                            lines.info_for_line(item.start.line as usize)
-                        {
+                        if let Some(line) = lines.visual_line_info_for_origin_line(
+                            item.start.line as usize,
+                        ) {
                             unfold_start.insert(
                                 item.start.line,
                                 FoldingDisplayItem {
@@ -303,8 +304,8 @@ impl FoldingRanges {
                         }
                     }
                     {
-                        if let Some(line) =
-                            lines.info_for_line(item.end.line as usize)
+                        if let Some(line) = lines
+                            .visual_line_info_for_origin_line(item.end.line as usize)
                         {
                             unfold_end.insert(
                                 item.end.line,

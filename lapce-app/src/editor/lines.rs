@@ -1209,11 +1209,16 @@ impl DocLines {
                 self.folding_ranges.update_ranges(ranges);
             }
         }
+        self.update();
+    }
+
+    fn update(&mut self) {
         self.update_lines();
         let screen_lines = self._compute_screen_lines();
-        let folding_items = self
-            .folding_ranges
-            .to_display_items(&self.signals.screen_lines);
+        self.signals.screen_lines = screen_lines.clone();
+
+        let folding_items = self.folding_ranges.to_display_items(&screen_lines);
+        self.folding_items = folding_items.clone();
 
         batch(|| {
             self.trigger_folding_items(folding_items);
@@ -1315,6 +1320,14 @@ impl DocLines {
     pub fn clear_inline_completion(&mut self) {
         self.inline_completion = None;
         self.update_lines();
+    }
+
+    pub fn update_viewport(&mut self, viewport: Rect) {
+        if self.viewport != viewport {
+            self.viewport = viewport;
+            tracing::warn!("update_viewport {viewport:?}");
+            self.update();
+        }
     }
 
     pub fn update_inline_completion(&mut self, delta: &RopeDelta) {
@@ -1538,6 +1551,21 @@ impl DocLines {
     }
     pub fn screen_lines(&self) -> ScreenLines {
         self.signals.screen_lines.clone()
+    }
+
+    pub fn log(&self) {
+        info!("DocLines viewport={:?}", self.viewport);
+        for visual_line in &self.signals.screen_lines.visual_lines {
+            info!("{:?}", visual_line);
+        }
+        info!("folding_items");
+        for item in &self.folding_items {
+            info!("{:?}", item);
+        }
+        info!("folding_ranges");
+        for range in &self.folding_ranges.0 {
+            info!("{:?}", range);
+        }
     }
 }
 
@@ -2066,7 +2094,6 @@ pub struct Signals {
     show_indent_guide: RwSignal<(bool, Color)>,
     viewport: RwSignal<Rect>,
     folding_items_signal: RwSignal<Vec<FoldingDisplayItem>>,
-    pub folding_items: Vec<FoldingDisplayItem>,
     screen_lines_signal: RwSignal<ScreenLines>,
     pub screen_lines: ScreenLines,
 }
@@ -2084,7 +2111,6 @@ impl Signals {
             show_indent_guide,
             viewport,
             folding_items_signal,
-            folding_items: Vec::new(),
             screen_lines,
             screen_lines_signal,
         }
@@ -2094,7 +2120,6 @@ impl Signals {
 /// 以界面为单位，进行触发。
 impl DocLines {
     pub fn trigger_screen_lines(&mut self, screen_lines: ScreenLines) {
-        self.signals.screen_lines = screen_lines.clone();
         self.signals.screen_lines_signal.set(screen_lines);
     }
     pub fn screen_lines_signal(&self) -> ReadSignal<ScreenLines> {
@@ -2102,17 +2127,13 @@ impl DocLines {
     }
 
     pub fn trigger_folding_items(&mut self, folding_items: Vec<FoldingDisplayItem>) {
-        info!("{:?}", folding_items);
-        if self.signals.folding_items != folding_items {
-            self.signals.folding_items = folding_items.clone();
-            self.signals.folding_items_signal.set(folding_items);
-        }
+        self.signals.folding_items_signal.set(folding_items);
     }
     pub fn folding_items_signal(&self) -> ReadSignal<Vec<FoldingDisplayItem>> {
         self.signals.folding_items_signal.read_only()
     }
 
-    pub fn trigger_viewport(&mut self, viewport: Rect) {
+    fn trigger_viewport(&mut self, viewport: Rect) {
         if self.viewport != viewport {
             self.viewport = viewport;
             self.signals.viewport.set(viewport);

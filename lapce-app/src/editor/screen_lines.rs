@@ -28,11 +28,9 @@ pub struct ScreenLines {
 
 #[derive(Debug, Clone)]
 pub struct VisualLineInfo {
-    /// 子行的y位置？
+    /// 该视觉行所属折叠行（原始行）在窗口的y偏移（不是整个文档的y偏移）。若该折叠行（原始行）只有1行视觉行，则y=vline_y
     pub y: f64,
-    /// The y position of the visual line
-    ///
-    /// 该行底部？在可视窗口的y位置，而不是整个文本的y位置
+    /// 视觉行在窗口的y偏移（不是整个文档的y偏移）。
     pub vline_y: f64,
     pub visual_line: VisualLine,
 }
@@ -197,6 +195,21 @@ impl ScreenLines {
     /// Get the earliest line info for a given line.
     pub fn info_for_line(&self, line: usize) -> Option<LineInfo> {
         self.info(self.first_rvline_for_line(line)?)
+    }
+
+    /// 获取原始行的视觉行信息。为none则说明被折叠，或者没有在窗口范围
+    pub fn visual_line_info_for_origin_line(
+        &self,
+        origin_line: usize,
+    ) -> Option<VisualLineInfo> {
+        for visual_line in &self.visual_lines {
+            if origin_line < visual_line.visual_line.origin_line {
+                return None;
+            } else if origin_line == visual_line.visual_line.origin_line {
+                return Some(visual_line.clone());
+            }
+        }
+        None
     }
 
     /// Get the earliest rvline for the given line

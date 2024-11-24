@@ -115,7 +115,7 @@ pub fn source_control_panel(
                     window_origin.set(pos + (10.0, 6.0));
                 })
                 .on_scroll(move |rect| {
-                    viewport.update(|x| x.trigger_viewport(rect));
+                    viewport.update(|x| x.update_viewport(rect));
                 })
                 .ensure_visible(move || {
                     let cursor = cursor.get();
