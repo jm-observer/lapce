@@ -2143,6 +2143,7 @@ fn editor_content(
         window_origin.set(point);
     })
     .on_scroll(move |rect| {
+        tracing::info!("on_scroll rect{:?}");
         if rect.y0 != current_scroll.get_untracked().y0 {
             // only cancel completion if scrolled vertically
             let e_data = e_data.get_untracked();
