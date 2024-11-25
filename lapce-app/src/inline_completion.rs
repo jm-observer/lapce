@@ -208,7 +208,7 @@ impl InlineCompletionData {
             return;
         };
 
-        let completion = doc.doc_lines.with_untracked(|cur| {
+        let completion = doc.lines.with_untracked(|cur| {
             let cur = cur.inline_completion.as_ref().map(|x| x.0.as_str());
             inline_completion_text(text, self.start_offset, cursor_offset, item, cur)
         });

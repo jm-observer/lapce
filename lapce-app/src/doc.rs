@@ -222,10 +222,10 @@ pub struct Doc {
 
     pub document_symbol_data: DocumentSymbolViewData,
 
-    pub lines: RwSignal<Lines>,
+    // pub lines: RwSignal<Lines>,
     // pub editor_style: RwSignal<EditorStyle>,
     // pub viewport: RwSignal<Rect>,
-    pub doc_lines: DocLinesManager,
+    pub lines: DocLinesManager,
     // pub screen_lines: RwSignal<ScreenLines>,
 }
 impl Doc {
@@ -240,7 +240,7 @@ impl Doc {
         let syntax = Syntax::init(&path);
         let config = common.config.get_untracked();
         let rw_config = common.config;
-        let lines = cx.create_rw_signal(Lines::new(cx));
+        // let lines = cx.create_rw_signal(Lines::new(cx));
         let viewport = Rect::ZERO;
         let editor_style = EditorStyle::default();
         let buffer = cx.create_rw_signal(Buffer::new(""));
@@ -271,8 +271,7 @@ impl Doc {
             document_symbol_data: DocumentSymbolViewData::new(cx),
             // folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
             // semantic_previous_rs_id: cx.create_rw_signal(None),
-            lines,
-            doc_lines: DocLinesManager::new(
+            lines: DocLinesManager::new(
                 cx,
                 diagnostics,
                 syntax,
@@ -304,7 +303,7 @@ impl Doc {
         let cx = cx.create_child();
         let config = common.config.get_untracked();
         let rw_config = common.config;
-        let lines = cx.create_rw_signal(Lines::new(cx));
+        // let lines = cx.create_rw_signal(Lines::new(cx));
         let viewport = Rect::ZERO;
         let editor_style = EditorStyle::default();
         let diagnostics = DiagnosticData {
@@ -336,10 +335,10 @@ impl Doc {
             document_symbol_data: DocumentSymbolViewData::new(cx),
             // folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
             // semantic_previous_rs_id: cx.create_rw_signal(None),
-            lines,
+            // lines,
             // viewport,
             // editor_style,
-            doc_lines: DocLinesManager::new(
+            lines: DocLinesManager::new(
                 cx,
                 diagnostics,
                 syntax,
@@ -371,7 +370,7 @@ impl Doc {
         } else {
             Syntax::plaintext()
         };
-        let lines = cx.create_rw_signal(Lines::new(cx));
+        // let lines = cx.create_rw_signal(Lines::new(cx));
         let viewport = Rect::ZERO;
         let editor_style = EditorStyle::default();
         let diagnostics = DiagnosticData {
@@ -410,10 +409,10 @@ impl Doc {
             document_symbol_data: DocumentSymbolViewData::new(cx),
             // folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
             // semantic_previous_rs_id: cx.create_rw_signal(None),
-            lines,
+            // lines,
             // viewport,
             // editor_style,
-            doc_lines: DocLinesManager::new(
+            lines: DocLinesManager::new(
                 cx,
                 diagnostics,
                 syntax,
@@ -471,12 +470,12 @@ impl Doc {
     }
 
     pub fn syntax(&self) -> Syntax {
-        self.doc_lines.with_untracked(|x| x.syntax.clone())
+        self.lines.with_untracked(|x| x.syntax.clone())
     }
 
     pub fn set_syntax(&self, syntax: Syntax) {
         batch(|| {
-            self.doc_lines.update(|x| {
+            self.lines.update(|x| {
                 x.set_syntax(syntax);
             });
             // {
@@ -489,7 +488,7 @@ impl Doc {
 
     /// Set the syntax highlighting this document should use.
     pub fn set_language(&self, language: LapceLanguage) {
-        self.doc_lines
+        self.lines
             .update(|x| x.set_syntax(Syntax::from_language(language)));
     }
 
@@ -724,12 +723,12 @@ impl Doc {
             self.get_document_symbol();
             self.get_folding_range();
 
-            self.doc_lines.update(|x| x.on_update_buffer());
+            self.lines.update(|x| x.on_update_buffer());
         });
     }
 
     // fn do_bracket_colorization(&self) {
-    //     self.doc_lines.update(|x| x.do_bracket_colorization());
+    //     self.lines.update(|x| x.do_bracket_colorization());
     // }
 
     pub fn do_text_edit(&self, edits: &[TextEdit]) {
@@ -752,12 +751,12 @@ impl Doc {
     /// Update the styles after an edit, so the highlights are at the correct positions.
     /// This does not do a reparse of the document itself.
     fn update_styles(&self, delta: &RopeDelta) {
-        self.doc_lines.update(|x| x.update_styles(delta));
+        self.lines.update(|x| x.update_styles(delta));
     }
 
     /// Update the inlay hints so their positions are correct after an edit.
     fn update_inlay_hints(&self, delta: &RopeDelta) {
-        self.doc_lines.update(|lines| {
+        self.lines.update(|lines| {
             lines.update_inlay_hints(delta);
         });
     }
@@ -769,7 +768,7 @@ impl Doc {
         let doc = self.clone();
         let send = create_ext_action(self.scope, move |syntax| {
             if doc.buffer.with_untracked(|b| b.rev()) == rev {
-                doc.doc_lines.update(|x| {
+                doc.lines.update(|x| {
                     x.set_syntax(syntax);
                 });
                 // doc.do_bracket_colorization();
@@ -778,7 +777,7 @@ impl Doc {
             }
         });
 
-        self.doc_lines
+        self.lines
             .update(|x| x.trigger_syntax_change(edits.clone()));
         let mut syntax = self.syntax();
         rayon::spawn(move || {
@@ -815,14 +814,14 @@ impl Doc {
     // /// Get the active style information, either the semantic styles or the
     // /// tree-sitter syntax styles.
     // fn styles(&self) -> Option<Spans<Style>> {
-    //     self.doc_lines.with_untracked(|lines| lines.styles())
+    //     self.lines.with_untracked(|lines| lines.styles())
     // }
 
     /// Get the style information for the particular line from semantic/syntax highlighting.
     /// This caches the result if possible.
     // pub fn line_style(&self, line: usize) -> Vec<LineStyle> {
     //     let buffer = self.buffer.get_untracked();
-    //     self.doc_lines
+    //     self.lines
     //         .try_update(|x| x.line_style(line, &buffer))
     //         .unwrap()
     // }
@@ -849,7 +848,7 @@ impl Doc {
             if let Some(styles) = styles {
                 // error!("{:?}", styles);
                 if doc.buffer.with_untracked(|b| b.rev()) == rev {
-                    doc.doc_lines
+                    doc.lines
                         .update(|x| x.semantic_styles = Some((result_id, styles)));
                     doc.clear_style_cache();
                 }
@@ -1065,7 +1064,7 @@ impl Doc {
         let doc = self.clone();
         let send = create_ext_action(self.scope, move |hints| {
             if doc.buffer.with_untracked(|b| b.rev()) == rev {
-                doc.doc_lines.update(|x| {
+                doc.lines.update(|x| {
                     x.set_inlay_hints(hints);
                 });
                 doc.clear_text_cache();
@@ -1094,12 +1093,12 @@ impl Doc {
     }
 
     pub fn diagnostics(&self) -> DiagnosticData {
-        self.doc_lines.with_untracked(|x| x.diagnostics.clone())
+        self.lines.with_untracked(|x| x.diagnostics.clone())
     }
 
     /// Update the diagnostics' positions after an edit so that they appear in the correct place.
     fn update_diagnostics(&self, delta: &RopeDelta) {
-        self.doc_lines.update(|x| x.update_diagnostics(delta));
+        self.lines.update(|x| x.update_diagnostics(delta));
     }
 
     /// init diagnostics offset ranges from lsp positions
@@ -1107,7 +1106,7 @@ impl Doc {
         batch(|| {
             self.clear_text_cache();
             self.clear_code_actions();
-            self.doc_lines.update(|x| {
+            self.lines.update(|x| {
                 x.init_diagnostics();
             });
         });
@@ -1133,7 +1132,7 @@ impl Doc {
                             .map(FoldingRange::from_lsp)
                             .sorted_by(|x, y| x.start.line.cmp(&y.start.line))
                             .collect();
-                        doc.doc_lines.update(|symbol| {
+                        doc.lines.update(|symbol| {
                             symbol.update_folding_ranges(folding.into());
                         });
                         doc.clear_text_cache();
@@ -1151,7 +1150,7 @@ impl Doc {
 
     /// Get the current completion lens text
     pub fn completion_lens(&self) -> Option<String> {
-        self.doc_lines.with_untracked(|x| x.completion_lens.clone())
+        self.lines.with_untracked(|x| x.completion_lens.clone())
     }
 
     pub fn set_completion_lens(
@@ -1160,12 +1159,12 @@ impl Doc {
         line: usize,
         col: usize,
     ) {
-        self.doc_lines
+        self.lines
             .update(|x| x.set_completion_lens(completion_lens, line, col));
     }
 
     pub fn clear_completion_lens(&self) {
-        self.doc_lines.update(|x| x.clear_completion_lens());
+        self.lines.update(|x| x.clear_completion_lens());
     }
 
     fn update_breakpoints(&self, delta: &RopeDelta, path: &Path, old_text: &Rope) {
@@ -1198,7 +1197,7 @@ impl Doc {
 
     /// Update the completion lens position after an edit so that it appears in the correct place.
     pub fn update_completion_lens(&self, delta: &RopeDelta) {
-        self.doc_lines.update(|x| x.update_completion_lens(delta));
+        self.lines.update(|x| x.update_completion_lens(delta));
     }
 
     fn update_find_result(&self, delta: &RopeDelta) {
@@ -1435,7 +1434,7 @@ impl Doc {
     ) {
         // TODO: more granular invalidation
         batch(|| {
-            self.doc_lines
+            self.lines
                 .update(|x| x.set_inline_completion(inline_completion, line, col));
             self.clear_text_cache();
         });
@@ -1443,13 +1442,13 @@ impl Doc {
 
     pub fn clear_inline_completion(&self) {
         batch(|| {
-            self.doc_lines.update(|x| x.clear_inline_completion());
+            self.lines.update(|x| x.clear_inline_completion());
             self.clear_text_cache();
         });
     }
 
     pub fn update_inline_completion(&self, delta: &RopeDelta) {
-        self.doc_lines.update(|x| {
+        self.lines.update(|x| {
             x.update_inline_completion(delta);
         })
     }
@@ -1481,9 +1480,9 @@ impl Doc {
         self.buffer.with_untracked(|buffer| buffer.text().clone())
     }
 
-    pub fn lines(&self) -> RwSignal<Lines> {
-        self.lines
-    }
+    // pub fn lines(&self) -> DocLinesManager {
+    //     self.lines
+    // }
     pub fn rope_text(&self) -> RopeTextVal {
         RopeTextVal::new(self.text())
     }
@@ -1529,7 +1528,7 @@ impl Doc {
     }
 
     pub fn preedit(&self) -> PreeditData {
-        self.doc_lines.with_untracked(|x| x.preedit.clone())
+        self.lines.with_untracked(|x| x.preedit.clone())
     }
 
     pub fn compute_screen_lines(
@@ -1555,10 +1554,10 @@ impl Doc {
         // //     editor.text_prov(),
         // //     editor.config_id(),
         // // )
-        // let doc_lines = editor_data
+        // let lines = editor_data
         //     .doc_signal()
-        //     .with_untracked(|x| x.doc_lines.get_untracked());
-        // compute_screen_lines(doc_lines)
+        //     .with_untracked(|x| x.lines.get_untracked());
+        // compute_screen_lines(lines)
     }
 
     pub fn run_command(
@@ -1636,7 +1635,7 @@ impl Doc {
 //         //     .get_untracked()
 //         //     .get_folded_range_by_line(line as u32);
 //         //
-//         // let inlay_hints = self.doc_linesinlay_hints.get_untracked();
+//         // let inlay_hints = self.linesinlay_hints.get_untracked();
 //         // // If hints are enabled, and the hints field is filled, then get the hints for this line
 //         // // and convert them into PhantomText instances
 //         // let hints = config
@@ -2045,7 +2044,7 @@ impl Styling for Doc {
         //     .collect();
         //
         // if let Some(bracket_styles) =
-        //     self.doc_lines.with_untracked(|x| x.line_styles(line))
+        //     self.lines.with_untracked(|x| x.line_styles(line))
         // {
         //     tracing::error!("bracket_styles.len={}", bracket_styles.len());
         //     styles.append(

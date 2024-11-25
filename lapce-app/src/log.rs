@@ -14,7 +14,7 @@ pub fn print_screen_lines(window: &WindowTabData) {
         let path = content.path();
         if let Some(path) = path {
             info!("{:?}", path);
-            editor.doc().doc_lines.with_untracked(|x| x.log());
+            editor.doc().lines.with_untracked(|x| x.log());
             info!("");
         }
     }

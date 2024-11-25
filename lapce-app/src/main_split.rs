@@ -697,14 +697,18 @@ impl MainSplitData {
         if let Some(tab) = self.get_active_editor_untracked() {
             let cursor = tab.editor.cursor.get_untracked();
             let (min_visual_line, max_visual_line) =
-                tab.editor.lines.with_untracked(|x| {
+                tab.editor.doc().lines.with_untracked(|x| {
                     let x = &x.signals.screen_lines;
                     (
                         x.visual_lines[0].clone(),
                         x.visual_lines[x.visual_lines.len() - 1].clone(),
                     )
                 });
-            let lines = tab.editor.lines.lines_of_origin_offset(cursor.offset());
+            let lines = tab
+                .editor
+                .doc()
+                .lines
+                .lines_of_origin_offset(cursor.offset());
             if min_visual_line.visual_line.line_index <= lines.visual_line.line_index
                 && lines.visual_line.line_index
                     <= max_visual_line.visual_line.line_index

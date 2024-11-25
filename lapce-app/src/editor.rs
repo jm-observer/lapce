@@ -347,7 +347,7 @@ impl EditorData {
         //     .editor
         //     .viewport
         //     .set(self.editor.viewport.get_untracked());
-        let viewport = self.editor.lines.with_untracked(|x| x.viewport());
+        let viewport = self.editor.doc().lines.with_untracked(|x| x.viewport());
         editor
             .editor
             .scroll_to
@@ -387,11 +387,14 @@ impl EditorData {
     }
 
     pub fn viewport(&self) -> Rect {
-        self.editor.lines.with_untracked(|x| x.viewport())
+        self.editor.doc().lines.with_untracked(|x| x.viewport())
     }
 
     pub fn signal_viewport(&self) -> ReadSignal<Rect> {
-        self.editor.lines.with_untracked(|x| x.signal_viewport())
+        self.editor
+            .doc()
+            .lines
+            .with_untracked(|x| x.signal_viewport())
     }
 
     pub fn window_origin(&self) -> RwSignal<Point> {
@@ -439,7 +442,8 @@ impl EditorData {
         let doc = self.doc();
         let text = self.editor.rope_text();
         let is_local = doc.content.with_untracked(|content| content.is_local());
-        let modal = self.editor.lines.with_untracked(|x| x.modal()) && !is_local;
+        let modal =
+            self.editor.doc().lines.with_untracked(|x| x.modal()) && !is_local;
         let smart_tab = self
             .common
             .config
@@ -1196,6 +1200,7 @@ impl EditorData {
     fn on_screen_find(&self, pattern: &str) -> Vec<SelRegion> {
         let screen_lines = self
             .editor
+            .doc()
             .lines
             .with_untracked(|x| x.signals.screen_lines.clone());
         let lines: HashSet<usize> =
@@ -2857,7 +2862,7 @@ impl EditorData {
         if let PhantomTextKind::InlayHint = phantom.kind {
             let line = phantom.line as u32;
             let index = phantom.col as u32;
-            let rs = self.doc().doc_lines.with_untracked(|x| {
+            let rs = self.doc().lines.with_untracked(|x| {
                 if let Some(hints) = &x.inlay_hints {
                     if let Some(rs) = hints.iter().find_map(|(_, hint)| {
                         if hint.position.line == line

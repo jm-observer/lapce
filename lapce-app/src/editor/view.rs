@@ -147,7 +147,7 @@ pub struct EditorView {
     is_active: Memo<bool>,
     inner_node: Option<NodeId>,
     // viewport: RwSignal<Rect>,
-    doc_lines: DocLinesManager,
+    // lines: DocLinesManager,
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     tracing: bool,
 }
@@ -163,12 +163,13 @@ pub fn editor_view(
 
     let (viewport, screen_lines) = e_data
         .editor
+        .doc()
         .lines
         .with_untracked(|x| (x.signal_viewport(), x.screen_lines_signal()));
     // let viewport_rw = e_data.viewport_rw();
 
     let doc = e_data.doc_signal();
-    let doc_lines = doc.with_untracked(|x| x.doc_lines);
+    // let lines = doc.with_untracked(|x| x.lines);
     let view_kind = e_data.kind();
     create_effect(move |_| {
         doc.track();
@@ -284,7 +285,6 @@ pub fn editor_view(
         // viewport: viewport_rw,
         debug_breakline,
         tracing,
-        doc_lines,
     }
     .on_event(EventListener::ImePreedit, move |event| {
         if !is_active.get_untracked() {
@@ -436,11 +436,11 @@ impl EditorView {
         let doc = e_data.doc();
         let cursor = self.editor.cursor();
         let config = self.editor.common.config;
-        let lines = ed.lines;
+        let lines = ed.doc().lines;
 
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
-        let viewport = self.doc_lines.with_untracked(|x| x.viewport());
+        let viewport = self.editor.doc().lines.with_untracked(|x| x.viewport());
 
         let current_line_color = lines.with_untracked(|x| x.current_line_color());
 
@@ -1048,6 +1048,7 @@ impl View for EditorView {
     fn style_pass(&mut self, cx: &mut StyleCx<'_>) {
         let editor = &self.editor.editor;
         if editor
+            .doc()
             .lines
             .try_update(|s| s.update_editor_style(cx))
             .unwrap()
@@ -1084,11 +1085,15 @@ impl View for EditorView {
             let e_data = &self.editor;
             let editor = &e_data.editor;
 
-            let viewport_size =
-                self.doc_lines.with_untracked(|x| x.viewport().size());
+            let viewport_size = self
+                .editor
+                .doc()
+                .lines
+                .with_untracked(|x| x.viewport().size());
 
             let screen_lines = e_data
                 .editor
+                .doc()
                 .lines
                 .with_untracked(|x| x.signals.screen_lines.clone());
             let mut line_unique = HashSet::new();
@@ -1122,7 +1127,10 @@ impl View for EditorView {
             };
 
             let margin_bottom = if !is_local
-                && editor.lines.with_untracked(|x| x.scroll_beyond_last_line())
+                && editor
+                    .doc()
+                    .lines
+                    .with_untracked(|x| x.scroll_beyond_last_line())
             {
                 viewport_size.height.min(last_line_height) - line_height
             } else {
@@ -1145,21 +1153,24 @@ impl View for EditorView {
         cx: &mut floem::context::ComputeLayoutCx,
     ) -> Option<Rect> {
         let viewport = cx.current_viewport();
-        self.doc_lines.update(|x| x.update_viewport(viewport));
+        self.editor
+            .doc()
+            .lines
+            .update(|x| x.update_viewport(viewport));
 
         None
     }
 
     fn paint(&mut self, cx: &mut PaintCx) {
         // let viewport = self.editor.viewport();
-        let show_indent_guide = self
-            .doc_lines
+        let doc = self.editor.doc_signal().get();
+        let show_indent_guide = doc
+            .lines
             .with_untracked(|x| x.signal_show_indent_guide())
             .get();
         let e_data = &self.editor;
         let ed = &e_data.editor;
         let config = e_data.common.config.get_untracked();
-        let doc = e_data.doc();
         let is_local = doc.content.with_untracked(|content| content.is_local());
         let find_focus = self.editor.find_focus;
         let is_active =
@@ -1176,6 +1187,7 @@ impl View for EditorView {
         // I expect that most/all of the paint functions could restrict themselves to only what is
         // within the active screen lines without issue.
         let (viewport, screen_lines) = ed
+            .doc()
             .lines
             .with_untracked(|x| (x.viewport(), x.screen_lines()));
         self.paint_current_line(cx, is_local, &screen_lines);
@@ -1341,7 +1353,7 @@ pub fn editor_container_view(
     let replace_focus = main_split.common.find.replace_focus;
     let debug_breakline = window_tab_data.terminal.breakline;
 
-    let viewport = ed.lines.with_untracked(|x| x.signal_viewport());
+    let viewport = ed.doc().lines.with_untracked(|x| x.signal_viewport());
 
     stack((
         editor_breadcrumbs(workspace, editor.get_untracked(), config),
@@ -1532,6 +1544,7 @@ fn editor_gutter_breakpoints(
     let (ed, doc, config) = e_data
         .with_untracked(|e| (e.editor.clone(), e.doc_signal(), e.common.config));
     let (viewport, screen_lines) = ed
+        .doc()
         .lines
         .with_untracked(|x| (x.signal_viewport(), x.screen_lines_signal()));
 
@@ -1778,17 +1791,20 @@ fn editor_gutter_folding_range(
     viewport: ReadSignal<Rect>,
 ) -> impl View {
     let config = window_tab_data.common.config;
-    let doc_lines = doc.get_untracked().doc_lines;
-    let folding_items = doc_lines.with_untracked(|x| x.folding_items_signal());
     dyn_stack(
-        move || folding_items.get(),
+        move || {
+            doc.get()
+                .lines
+                .with_untracked(|x| x.folding_items_signal())
+                .get()
+        },
         move |item| *item,
         move |item| {
             editor_gutter_folding_view(window_tab_data.clone(), viewport, item)
                 .on_click_stop({
-                    let doc_lines = doc_lines;
+                    let lines = doc.get_untracked().lines;
                     move |_| {
-                        doc_lines.update(|x| {
+                        lines.update(|x| {
                             x.update_folding_ranges(item.into());
                         });
                     }
@@ -1810,7 +1826,7 @@ fn editor_gutter_code_actions(
 ) -> impl View {
     let (ed, doc, config) = e_data
         .with_untracked(|e| (e.editor.clone(), e.doc_signal(), e.common.config));
-    let viewport = ed.lines.with_untracked(|x| x.signal_viewport());
+    let viewport = ed.doc().lines.with_untracked(|x| x.signal_viewport());
     let cursor = ed.cursor;
 
     let code_action_vline = create_memo(move |_| {
@@ -1892,6 +1908,7 @@ fn editor_gutter(
     let (ed, doc, config) = e_data
         .with_untracked(|e| (e.editor.clone(), e.doc_signal(), e.common.config));
     let (viewport, screen_lines) = ed
+        .doc()
         .lines
         .with_untracked(|x| (x.signal_viewport(), x.screen_lines_signal()));
     let scroll_delta = ed.scroll_delta;
@@ -2558,6 +2575,7 @@ pub fn changes_colors_screen(
     changes: im::Vector<DiffLines>,
 ) -> Vec<(f64, usize, bool, Color)> {
     let screen_lines = editor
+        .doc()
         .lines
         .with_untracked(|x| x.signals.screen_lines.clone());
 

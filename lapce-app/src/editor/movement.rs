@@ -535,7 +535,7 @@ fn start_of_line(
     // // other cases might be better as backwards?
     // *affinity = CursorAffinity::Forward;
     //
-    let lines = view.lines.lines_of_origin_offset(offset);
+    let lines = view.doc().lines.lines_of_origin_offset(offset);
     (lines.origin_line.start_offset, ColPosition::Start)
 }
 

@@ -360,8 +360,17 @@ impl DocLines {
         let mut current_line = 0;
         let mut origin_folded_line_index = 0;
         let mut visual_line_index = 0;
+        let config = self.config.get_untracked();
         while current_line <= last_line {
-            let text_layout = self.new_text_layout(current_line, buffer);
+            let start_offset = buffer.offset_of_line(current_line);
+            let end_offset = buffer.offset_of_line(current_line + 1);
+            let text_layout = self.new_text_layout(
+                current_line,
+                buffer,
+                start_offset,
+                end_offset,
+                &config,
+            );
             let origin_line_start = text_layout.phantom_text.line;
             let origin_line_end = text_layout.phantom_text.last_line;
 
@@ -373,7 +382,7 @@ impl DocLines {
             for origin_line in origin_line_start..=origin_line_end {
                 self.origin_lines.push(OriginLine {
                     line_index: origin_line,
-                    start_offset: buffer.offset_of_line(origin_line),
+                    start_offset,
                 });
             }
 
@@ -414,7 +423,7 @@ impl DocLines {
             }
 
             let origin_interval = Interval {
-                start: buffer.offset_of_line(origin_line_start),
+                start: buffer.offset_of_line(start_offset),
                 end: buffer.offset_of_line(origin_line_end + 1),
             };
             self.origin_folded_lines.push(OriginFoldedLine {
@@ -955,11 +964,14 @@ impl DocLines {
         &mut self,
         line: usize,
         buffer: &Buffer,
+        start_offset: usize,
+        end_offset: usize,
+        config: &LapceConfig,
     ) -> Arc<TextLayoutLine> {
         // TODO: we could share text layouts between different editor views given some knowledge of
         // their wrapping
         let viewport = self.viewport;
-        let config: Arc<LapceConfig> = self.config.get_untracked();
+        // let config: Arc<LapceConfig> = self.config.get_untracked();
 
         let mut line_content = String::new();
         // Get the line content with newline characters replaced with spaces
@@ -981,8 +993,16 @@ impl DocLines {
             .family(&family)
             .font_size(font_size as f32)
             .line_height(LineHeightValue::Px(line_height as f32));
+        let mut diagnostic_styles = Vec::new();
+        let mut max_severity: Option<DiagnosticSeverity> = None;
+        diagnostic_styles.extend(self.get_line_diagnostic_styles(
+            start_offset,
+            end_offset,
+            config,
+            &mut max_severity,
+        ));
 
-        let phantom_text = self.phantom_text(line, &config, buffer);
+        let phantom_text = self.phantom_text(line, config, buffer);
         let mut collapsed_line_col = phantom_text.folded_line();
         // let multi_styles: Vec<(usize, usize, Color, Attrs)> = self
         //     .line_styles(line, buffer, config.as_ref())
@@ -992,7 +1012,7 @@ impl DocLines {
 
         let mut phantom_text = PhantomTextMultiLine::new(phantom_text);
         let mut attrs_list = AttrsList::new(attrs);
-        if let Some(styles) = self.line_styles(line, config.as_ref()) {
+        if let Some(styles) = self.line_styles(line, config) {
             for (start, end, color) in styles.into_iter() {
                 let (Some(start), Some(end)) =
                     (phantom_text.col_at(start), phantom_text.col_at(end))
@@ -1010,17 +1030,26 @@ impl DocLines {
             );
 
             let offset_col = phantom_text.origin_text_len;
-            let attrs = Attrs::new()
-                .color(self.editor_style.ed_text_color())
-                .family(&family)
-                .font_size(font_size as f32)
-                .line_height(LineHeightValue::Px(line_height as f32));
+            // let attrs = Attrs::new()
+            //     .color(self.editor_style.ed_text_color())
+            //     .family(&family)
+            //     .font_size(font_size as f32)
+            //     .line_height(LineHeightValue::Px(line_height as f32));
             // let (next_phantom_text, collapsed_line_content, styles, next_collapsed_line_col)
             //     = calcuate_line_text_and_style(collapsed_line, &next_line_content, style.clone(), edid, &es, doc.clone(), offset_col, attrs);
 
             let next_phantom_text =
-                self.phantom_text(collapsed_line, &config, buffer);
+                self.phantom_text(collapsed_line, config, buffer);
+            let start_offset = buffer.offset_of_line(collapsed_line);
+            let end_offset = buffer.offset_of_line(collapsed_line + 1);
             collapsed_line_col = next_phantom_text.folded_line();
+            diagnostic_styles.extend(self.get_line_diagnostic_styles(
+                start_offset,
+                end_offset,
+                config,
+                &mut max_severity,
+            ));
+
             // let styles: Vec<(usize, usize, Color, Attrs)> = self
             //     .line_styles(collapsed_line, buffer, config.as_ref())
             //     .into_iter()
@@ -1029,7 +1058,7 @@ impl DocLines {
             //     })
             //     .collect();
             phantom_text.merge(next_phantom_text);
-            if let Some(styles) = self.line_styles(collapsed_line, config.as_ref()) {
+            if let Some(styles) = self.line_styles(collapsed_line, config) {
                 for (start, end, color) in styles.into_iter() {
                     let start = start + offset_col;
                     let end = end + offset_col;
@@ -1124,6 +1153,12 @@ impl DocLines {
         };
         // 下划线？背景色？
         apply_layout_styles(&mut layout_line);
+        self.apply_diagnostic_styles(
+            &mut layout_line,
+            config,
+            diagnostic_styles,
+            max_severity,
+        );
 
         Arc::new(layout_line)
     }
@@ -1567,6 +1602,104 @@ impl DocLines {
             info!("{:?}", range);
         }
     }
+
+    fn apply_diagnostic_styles(
+        &self,
+        layout_line: &mut TextLayoutLine,
+        config: &LapceConfig,
+        line_styles: Vec<(usize, usize, Color)>,
+        max_severity: Option<DiagnosticSeverity>,
+    ) {
+        let layout = &mut layout_line.text;
+        let phantom_text = &layout_line.phantom_text;
+        // 暂不考虑
+        let _ = line_styles.into_iter().filter_map(|(start, end, color)| {
+            info!("diagnostic {}-{}", start, end);
+            let start = phantom_text.col_at(start)?;
+            let end = phantom_text.col_at(end)?;
+            let styles =
+                extra_styles_for_range(layout, start, end, None, None, Some(color));
+            layout_line.extra_style.extend(styles);
+            None::<()>
+        });
+
+        // Add the styling for the diagnostic severity, if applicable
+        if let Some(max_severity) = max_severity {
+            let theme_prop = if max_severity == DiagnosticSeverity::ERROR {
+                LapceColor::ERROR_LENS_ERROR_BACKGROUND
+            } else if max_severity == DiagnosticSeverity::WARNING {
+                LapceColor::ERROR_LENS_WARNING_BACKGROUND
+            } else {
+                LapceColor::ERROR_LENS_OTHER_BACKGROUND
+            };
+
+            let size = layout_line.text.size();
+            let x1 = if !config.editor.error_lens_end_of_line {
+                let error_end_x = size.width;
+                Some(error_end_x.max(size.width))
+            } else {
+                None
+            };
+
+            // TODO(minor): Should we show the background only on wrapped lines that have the
+            // diagnostic actually on that line?
+            // That would make it more obvious where it is from and matches other editors.
+            layout_line.extra_style.push(LineExtraStyle {
+                x: 0.0,
+                y: 0.0,
+                width: x1,
+                height: size.height,
+                bg_color: Some(config.color(theme_prop)),
+                under_line: None,
+                wave_line: None,
+            });
+        }
+    }
+
+    /// return (line,start, end, color)
+    fn get_line_diagnostic_styles(
+        &self,
+        start_offset: usize,
+        end_offset: usize,
+        config: &LapceConfig,
+        max_severity: &mut Option<DiagnosticSeverity>,
+    ) -> Vec<(usize, usize, Color)> {
+        self.diagnostics.diagnostics_span.with_untracked(|diags| {
+            diags
+                .iter_chunks(start_offset..end_offset)
+                .filter_map(|(iv, diag)| {
+                    let start = iv.start();
+                    let end = iv.end();
+                    if start <= end_offset
+                        && end >= start_offset
+                        && diag.severity < Some(DiagnosticSeverity::HINT)
+                    {
+                        let color_name = match diag.severity {
+                            Some(DiagnosticSeverity::ERROR) => {
+                                LapceColor::LAPCE_ERROR
+                            }
+                            _ => LapceColor::LAPCE_WARN,
+                        };
+                        match (diag.severity, *max_severity) {
+                            (Some(severity), Some(max)) => {
+                                if severity < max {
+                                    *max_severity = Some(severity);
+                                }
+                            }
+                            (Some(severity), None) => {
+                                *max_severity = Some(severity);
+                            }
+                            _ => {}
+                        }
+                        let color = config.color(color_name);
+                        Some((start, end, color))
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        })
+    }
 }
 
 pub fn compute_screen_lines(
@@ -1897,91 +2030,6 @@ fn apply_layout_styles(layout_line: &mut TextLayoutLine) {
             layout_line.extra_style.push(style)
         }
     }
-    // 暂不考虑
-    // let mut max_severity: Option<DiagnosticSeverity> = None;
-    // self.diagnostics.diagnostics_span.with_untracked(|diags| {
-    //     diags
-    //         .iter_chunks(start_offset..end_offset)
-    //         .for_each(|(iv, diag)| {
-    //             let start = iv.start();
-    //             let end = iv.end();
-    //
-    //             if start <= end_offset
-    //                 && end >= start_offset
-    //                 && diag.severity < Some(DiagnosticSeverity::HINT)
-    //             {
-    //                 let start = if start > start_offset {
-    //                     start - start_offset
-    //                 } else {
-    //                     0
-    //                 };
-    //                 let end = end - start_offset;
-    //                 let start = phantom_text.col_after(start, true);
-    //                 let end = phantom_text.col_after(end, false);
-    //
-    //                 match (diag.severity, max_severity) {
-    //                     (Some(severity), Some(max)) => {
-    //                         if severity < max {
-    //                             max_severity = Some(severity);
-    //                         }
-    //                     }
-    //                     (Some(severity), None) => {
-    //                         max_severity = Some(severity);
-    //                     }
-    //                     _ => {}
-    //                 }
-    //
-    //                 let color_name = match diag.severity {
-    //                     Some(DiagnosticSeverity::ERROR) => {
-    //                         LapceColor::LAPCE_ERROR
-    //                     }
-    //                     _ => LapceColor::LAPCE_WARN,
-    //                 };
-    //                 let color = config.color(color_name);
-    //                 let styles = extra_styles_for_range(
-    //                     layout,
-    //                     start,
-    //                     end,
-    //                     None,
-    //                     None,
-    //                     Some(color),
-    //                 );
-    //                 layout_line.extra_style.extend(styles);
-    //             }
-    //         });
-    // });
-
-    // Add the styling for the diagnostic severity, if applicable
-    // if let Some(max_severity) = max_severity {
-    //     let theme_prop = if max_severity == DiagnosticSeverity::ERROR {
-    //         LapceColor::ERROR_LENS_ERROR_BACKGROUND
-    //     } else if max_severity == DiagnosticSeverity::WARNING {
-    //         LapceColor::ERROR_LENS_WARNING_BACKGROUND
-    //     } else {
-    //         LapceColor::ERROR_LENS_OTHER_BACKGROUND
-    //     };
-    //
-    //     let size = layout.size();
-    //     let x1 = if !config.editor.error_lens_end_of_line {
-    //         let error_end_x = size.width;
-    //         Some(error_end_x.max(size.width))
-    //     } else {
-    //         None
-    //     };
-    //
-    //     // TODO(minor): Should we show the background only on wrapped lines that have the
-    //     // diagnostic actually on that line?
-    //     // That would make it more obvious where it is from and matches other editors.
-    //     layout_line.extra_style.push(LineExtraStyle {
-    //         x: 0.0,
-    //         y: 0.0,
-    //         width: x1,
-    //         height: size.height,
-    //         bg_color: Some(config.color(theme_prop)),
-    //         under_line: None,
-    //         wave_line: None,
-    //     });
-    // }
 }
 
 fn extra_styles_for_range(

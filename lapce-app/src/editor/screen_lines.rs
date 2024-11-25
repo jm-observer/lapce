@@ -3,6 +3,7 @@ use floem::kurbo::Rect;
 use floem::reactive::{RwSignal, Scope, SignalGet, SignalUpdate};
 use floem::views::editor::view::{DiffSection, LineInfo};
 use floem::views::editor::visual_line::{RVLine, VLine, VLineInfo};
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::ops::RangeInclusive;
 use std::rc::Rc;
@@ -203,10 +204,14 @@ impl ScreenLines {
         origin_line: usize,
     ) -> Option<VisualLineInfo> {
         for visual_line in &self.visual_lines {
-            if origin_line < visual_line.visual_line.origin_line {
-                return None;
-            } else if origin_line == visual_line.visual_line.origin_line {
-                return Some(visual_line.clone());
+            match origin_line.cmp(&visual_line.visual_line.origin_line) {
+                Ordering::Less => {
+                    return None;
+                }
+                Ordering::Equal => {
+                    return Some(visual_line.clone());
+                }
+                _ => {}
             }
         }
         None

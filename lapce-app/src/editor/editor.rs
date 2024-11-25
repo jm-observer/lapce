@@ -114,8 +114,7 @@ pub struct Editor {
     // /// The Editor Style
     // pub es: RwSignal<EditorStyle>,
     pub floem_style_id: RwSignal<u64>,
-
-    pub lines: DocLinesManager,
+    // pub lines: DocLinesManager,
 }
 impl Editor {
     /// Create a new editor into the given document, using the styling.  
@@ -165,7 +164,7 @@ impl Editor {
         };
         let cursor = Cursor::new(cursor_mode, None, None);
         let cursor = cx.create_rw_signal(cursor);
-        let lines = doc.doc_lines;
+        // let lines = doc.doc_lines;
         let doc = cx.create_rw_signal(doc);
         // let font_sizes = Rc::new(EditorFontSizes {
         //     id,
@@ -179,7 +178,7 @@ impl Editor {
 
         let ed = Editor {
             cx: Cell::new(cx),
-            lines,
+            // lines,
             effects_cx: Cell::new(cx.create_child()),
             id,
             active: cx.create_rw_signal(false),
@@ -338,7 +337,9 @@ impl Editor {
     }
 
     pub fn vline_infos(&self, start: usize, end: usize) -> Vec<VLineInfo<VLine>> {
-        self.lines.with_untracked(|x| x.vline_infos(start, end))
+        self.doc()
+            .lines
+            .with_untracked(|x| x.vline_infos(start, end))
     }
 
     pub fn text_prov(&self) -> &Self {
@@ -452,7 +453,7 @@ impl Editor {
     pub fn triple_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.get_mode());
         let (mouse_offset, _) = self.offset_of_point(mode, pointer_event.pos, false);
-        let lines = self.lines.lines_of_origin_offset(mouse_offset);
+        let lines = self.doc().lines.lines_of_origin_offset(mouse_offset);
         // let vline = self
         //     .visual_line_of_offset(mouse_offset, CursorAffinity::Backward)
         //     .0;
@@ -666,7 +667,7 @@ impl Editor {
     // ==== Position Information ====
 
     pub fn first_rvline_info(&self) -> VLineInfo<VLine> {
-        self.lines.with_untracked(|x| x.first_vline_info())
+        self.doc().lines.with_untracked(|x| x.first_vline_info())
     }
 
     /// The number of lines in the document.
@@ -680,11 +681,15 @@ impl Editor {
     }
 
     pub fn last_vline(&self) -> VLine {
-        self.lines.with_untracked(|x| x.last_visual_line().into())
+        self.doc()
+            .lines
+            .with_untracked(|x| x.last_visual_line().into())
     }
 
     pub fn last_rvline(&self) -> RVLine {
-        self.lines.with_untracked(|x| x.last_visual_line().into())
+        self.doc()
+            .lines
+            .with_untracked(|x| x.last_visual_line().into())
     }
 
     // pub fn last_rvline_info(&self) -> VLineInfo<()> {
@@ -736,7 +741,7 @@ impl Editor {
             (origin_line, origin_line_start_offset)
         });
         let offset = offset - offset_of_line;
-        self.lines.with_untracked(|x| {
+        self.doc().lines.with_untracked(|x| {
             x.visual_line_of_origin_line_offset(origin_line, offset, affinity)
                 .0
                 .vline
@@ -752,7 +757,7 @@ impl Editor {
     // }
 
     pub fn vline_of_rvline(&self, rvline: RVLine) -> VLine {
-        self.lines.with_untracked(|x| {
+        self.doc().lines.with_untracked(|x| {
             x.visual_line_of_folded_line_and_sub_index(
                 rvline.line,
                 rvline.line_index,
@@ -786,7 +791,7 @@ impl Editor {
             (origin_line, origin_line_start_offset)
         });
         let offset = offset - offset_of_line;
-        self.lines.with_untracked(|x| {
+        self.doc().lines.with_untracked(|x| {
             x.visual_line_of_origin_line_offset(origin_line, offset, affinity)
         })
     }
@@ -797,7 +802,8 @@ impl Editor {
         _affinity: CursorAffinity,
     ) -> OriginFoldedLine {
         let line = self.visual_line_of_offset(offset, _affinity).0.rvline.line;
-        self.lines
+        self.doc()
+            .lines
             .with_untracked(|x| x.folded_line_of_origin_line(line).clone())
     }
 
@@ -870,7 +876,7 @@ impl Editor {
     // ==== Points of locations ====
 
     pub fn max_line_width(&self) -> f64 {
-        self.lines.with_untracked(|x| x.max_width())
+        self.doc().lines.with_untracked(|x| x.max_width())
     }
 
     /// Returns the point into the text layout of the line at the given offset.
@@ -922,7 +928,7 @@ impl Editor {
         let line = line_info.vline.0;
         let line_height = f64::from(self.doc().line_height(line));
 
-        let info = self.lines.with_untracked(|sl| {
+        let info = self.doc().lines.with_untracked(|sl| {
             sl.signals.screen_lines.iter_line_info().find(|info| {
                 info.vline_info.interval.start <= offset
                     && offset <= info.vline_info.interval.end
@@ -991,7 +997,7 @@ impl Editor {
         let info = if point.y <= 0.0 {
             self.first_rvline_info()
         } else {
-            self.lines.with_untracked(|sl| {
+            self.doc().lines.with_untracked(|sl| {
                 let sl = &sl.signals.screen_lines;
                 if let Some(info) = sl.iter_line_info().find(|info| {
                     info.vline_y <= point.y && info.vline_y + line_height >= point.y
@@ -1131,7 +1137,8 @@ impl Editor {
 
     /// ~~视觉~~行的text_layout信息
     pub fn text_layout_of_visual_line(&self, line: usize) -> Arc<TextLayoutLine> {
-        self.lines
+        self.doc()
+            .lines
             .with_untracked(|x| x.text_layout_of_visual_line(line))
     }
 
@@ -1140,7 +1147,7 @@ impl Editor {
     // }
 
     pub fn viewport(&self) -> Rect {
-        self.lines.with_untracked(|x| x.viewport())
+        self.doc().lines.with_untracked(|x| x.viewport())
     }
 
     // pub fn text_layout_trigger(&self, line: usize, trigger: bool) -> Arc<TextLayoutLine> {
@@ -1245,12 +1252,6 @@ const MIN_WRAPPED_WIDTH: f32 = 100.0;
 /// doc, text layouts, viewport, etc. change.
 /// This tries to be smart to a degree.
 fn create_view_effects(cx: Scope, ed: &Editor) {
-    // Cloning is fun.
-    // let ed2 = ed.clone();
-    // let ed3 = ed.clone();
-    // let ed4 = ed.clone();
-
-    // Reset cursor blinking whenever the cursor changes
     {
         let cursor_info = ed.cursor_info.clone();
         let cursor = ed.cursor;
@@ -1620,7 +1621,7 @@ pub trait CommonAction {
 pub fn paint_selection(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines) {
     let cursor = ed.cursor;
 
-    let selection_color = ed.lines.with_untracked(|es| es.selection_color());
+    let selection_color = ed.doc().lines.with_untracked(|es| es.selection_color());
 
     cursor.with_untracked(|cursor| match cursor.mode {
         CursorMode::Normal(_) => {}
@@ -1757,7 +1758,8 @@ fn paint_cursor(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines) {
 
     let viewport = ed.viewport();
 
-    let current_line_color = ed.lines.with_untracked(|es| es.current_line_color());
+    let current_line_color =
+        ed.doc().lines.with_untracked(|es| es.current_line_color());
 
     cursor.with_untracked(|cursor| {
         let highlight_current_line = match cursor.mode {
@@ -1888,7 +1890,11 @@ pub fn paint_text(
     let style = ed.doc();
 
     // TODO: cache indent text layout width
-    let indent_unit = ed.lines.with_untracked(|es| es.indent_style()).as_str();
+    let indent_unit = ed
+        .doc()
+        .lines
+        .with_untracked(|es| es.indent_style())
+        .as_str();
     // TODO: don't assume font family is the same for all lines?
     let family = style.font_family(0);
     let attrs = Attrs::new()
@@ -1930,7 +1936,7 @@ pub fn paint_text(
             let family = style.font_family(line);
             let font_size = style.font_size(line) as f32;
             let attrs = Attrs::new()
-                .color(ed.lines.with_untracked(|es| es.visible_whitespace()))
+                .color(ed.doc().lines.with_untracked(|es| es.visible_whitespace()))
                 .family(&family)
                 .font_size(font_size);
             let attrs_list = AttrsList::new(attrs);
@@ -1962,7 +1968,7 @@ fn paint_cursor_caret(
 ) {
     let cursor = ed.cursor;
     let hide_cursor = ed.cursor_info.hidden;
-    let caret_color = ed.lines.with_untracked(|es| es.ed_caret());
+    let caret_color = ed.doc().lines.with_untracked(|es| es.ed_caret());
 
     if !is_active || hide_cursor.get_untracked() {
         return;

@@ -15,6 +15,7 @@ use lapce_core::buffer::Buffer;
 use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
 
 use crate::config::{color::LapceColor, LapceConfig};
+use crate::doc::Doc;
 use crate::editor::screen_lines::ScreenLines;
 
 use super::{view::changes_colors_screen, EditorData};
@@ -48,12 +49,13 @@ impl EditorGutterView {
         viewport: Rect,
         is_normal: bool,
         config: &LapceConfig,
+        doc: &Doc,
     ) {
         if !is_normal {
             return;
         }
 
-        let changes = e_data.doc().head_changes().get_untracked();
+        let changes = doc.head_changes().get_untracked();
         let line_height = config.editor.line_height() as f64;
         let gutter_padding_right = self.gutter_padding_right.get_untracked() as f64;
 
@@ -131,13 +133,10 @@ impl View for EditorGutterView {
     }
 
     fn paint(&mut self, cx: &mut floem::context::PaintCx) {
+        let doc = self.editor.doc_signal().get();
         let viewport = self.editor.viewport();
         let cursor = self.editor.cursor();
-        let screen_lines = self
-            .editor
-            .editor
-            .lines
-            .with_untracked(|x| x.screen_lines_signal());
+        let screen_lines = doc.lines.with_untracked(|x| x.screen_lines_signal());
         let config = self.editor.common.config;
 
         let kind_is_normal =
@@ -146,16 +145,13 @@ impl View for EditorGutterView {
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
         // let _last_line = self.editor.editor.last_line();
-        // let current_line = self
-        //     .editor
-        //     .doc()
+        // let current_line = doc
         //     .buffer
         //     .with_untracked(|buffer| buffer.line_of_offset(offset));
 
-        let (current_visual_line, _line_offset, _) =
-            self.editor.editor.lines.with_untracked(|x| {
-                x.visual_line_of_offset(offset, CursorAffinity::Forward)
-            });
+        let (current_visual_line, _line_offset, _) = doc.lines.with_untracked(|x| {
+            x.visual_line_of_offset(offset, CursorAffinity::Forward)
+        });
 
         let family: Vec<FamilyOwned> =
             FamilyOwned::parse_list(&config.editor.font_family).collect();
@@ -205,7 +201,14 @@ impl View for EditorGutterView {
             }
         });
 
-        self.paint_head_changes(cx, &self.editor, viewport, kind_is_normal, &config);
+        self.paint_head_changes(
+            cx,
+            &self.editor,
+            viewport,
+            kind_is_normal,
+            &config,
+            &doc,
+        );
         self.paint_sticky_headers(cx, kind_is_normal, &config);
     }
 

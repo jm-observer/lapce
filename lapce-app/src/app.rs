@@ -3931,7 +3931,7 @@ pub fn launch() {
                 for (_, window) in app_data.windows.get_untracked() {
                     for (_, tab) in window.window_tabs.get_untracked() {
                         for (_, doc) in tab.main_split.docs.get_untracked() {
-                            doc.doc_lines.update(|lines| {
+                            doc.lines.update(|lines| {
                                 lines.set_syntax(Syntax::from_language(
                                     lines.syntax.language,
                                 ));
