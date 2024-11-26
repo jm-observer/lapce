@@ -40,7 +40,7 @@ use floem::views::editor::phantom_text::{
 use floem::views::editor::text::{Document, PreeditData, Styling, WrapMethod};
 use floem::views::editor::view::LineInfo;
 use floem::views::editor::visual_line::{
-    LayoutEvent, RVLine, ResolvedWrap, VLine, VLineInfo,
+    hit_position_aff, LayoutEvent, RVLine, ResolvedWrap, VLine, VLineInfo,
 };
 use floem::views::editor::{EditorStyle, Modal};
 use floem_editor_core::buffer::Buffer;
@@ -77,6 +77,30 @@ pub struct OriginFoldedLine {
     pub origin_line_end: usize,
     pub origin_interval: Interval,
     pub text_layout: Arc<TextLayoutLine>,
+}
+
+impl OriginFoldedLine {
+    fn final_offset_of_visual_line(
+        &self,
+        sub_line_index: usize,
+        line_offset: usize,
+    ) -> usize {
+        let final_offset =
+            self.text_layout.text.line_layout().iter().enumerate().fold(
+                line_offset,
+                |mut offset, (index, layout)| {
+                    if sub_line_index < index {
+                        offset += layout.glyphs.len();
+                    }
+                    offset
+                },
+            );
+        let (_orgin_line, _offset_of_line, offset_of_buffer) = self
+            .text_layout
+            .phantom_text
+            .cursor_position_of_final_col(final_offset);
+        offset_of_buffer
+    }
 }
 
 impl Debug for OriginFoldedLine {
@@ -634,7 +658,72 @@ impl DocLines {
         }
     }
 
-    /// 原始位移字符所在的视觉行，以及行的偏移位置和是否是最后一个字符
+    /// 视觉行的偏移位置，对应的上一行的偏移位置（原始文本）和是否为最后一个字符
+    pub fn previous_visual_line(
+        &self,
+        visual_line_index: usize,
+        mut line_offset: usize,
+        _affinity: CursorAffinity,
+    ) -> (VisualLine, usize, bool) {
+        let prev_visual_line = &self.visual_lines[visual_line_index.max(1) - 1];
+        let mut last_char = 0;
+        for (index, layout) in self.origin_folded_lines
+            [prev_visual_line.origin_folded_line]
+            .text_layout
+            .text
+            .line_layout()
+            .iter()
+            .enumerate()
+        {
+            if index < prev_visual_line.origin_folded_line_sub_index {
+                line_offset += layout.glyphs.len();
+            } else if index >= prev_visual_line.origin_folded_line_sub_index {
+                last_char = layout.glyphs.len() - 1;
+                break;
+            }
+        }
+        let (_origin_line, offset_line, _offset_buffer) = self.origin_folded_lines
+            [prev_visual_line.origin_folded_line]
+            .text_layout
+            .phantom_text
+            .cursor_position_of_final_col(line_offset);
+        (*prev_visual_line, offset_line, offset_line == last_char)
+    }
+
+    /// 视觉行的偏移位置，对应的上一行的偏移位置（原始文本）和是否为最后一个字符
+    pub fn next_visual_line(
+        &self,
+        visual_line_index: usize,
+        mut line_offset: usize,
+        _affinity: CursorAffinity,
+    ) -> (VisualLine, usize, bool) {
+        let next_visual_line = &self.visual_lines
+            [visual_line_index.min(self.visual_lines.len() - 2) + 1];
+        let mut last_char = 0;
+        for (index, layout) in self.origin_folded_lines
+            [next_visual_line.origin_folded_line]
+            .text_layout
+            .text
+            .line_layout()
+            .iter()
+            .enumerate()
+        {
+            if index < next_visual_line.origin_folded_line_sub_index {
+                line_offset += layout.glyphs.len();
+            } else if index >= next_visual_line.origin_folded_line_sub_index {
+                last_char = layout.glyphs.len() - 1;
+                break;
+            }
+        }
+        let (_origin_line, offset_line, _offset_buffer) = self.origin_folded_lines
+            [next_visual_line.origin_folded_line]
+            .text_layout
+            .phantom_text
+            .cursor_position_of_final_col(line_offset);
+        (*next_visual_line, offset_line, offset_line == last_char)
+    }
+
+    /// 原始位移字符所在的视觉行，以及行的偏移位置和是否是最后一个字符，point
     pub fn visual_line_of_offset(
         &self,
         offset: usize,
@@ -656,6 +745,7 @@ impl DocLines {
         let folded_line_layout = folded_line.text_layout.text.line_layout();
         let mut sub_line_index = folded_line_layout.len() - 1;
         let mut last_char = false;
+
         for (index, sub_line) in folded_line_layout.iter().enumerate() {
             if final_offset < sub_line.glyphs.len() {
                 sub_line_index = index;
@@ -665,6 +755,13 @@ impl DocLines {
                 final_offset -= sub_line.glyphs.len();
             }
         }
+
+        // hit_position_aff(
+        //     &folded_line.text_layout.text,
+        //     col,
+        //     affinity == CursorAffinity::Backward,
+        // )
+        // .point;
         let visual_line = self.visual_line_of_folded_line_and_sub_index(
             folded_line.line_index,
             sub_line_index,
@@ -969,7 +1066,7 @@ impl DocLines {
         }
         text.extend(folded_ranges.into_phantom_text(buffer, config, line));
 
-        PhantomTextLine::new(line, origin_text_len, text)
+        PhantomTextLine::new(line, origin_text_len, start_offset, text)
     }
 
     fn new_text_layout(

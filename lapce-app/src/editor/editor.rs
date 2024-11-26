@@ -22,7 +22,9 @@ use floem_editor_core::{
 };
 
 use crate::doc::Doc;
-use crate::editor::lines::{DocLines, DocLinesManager, OriginFoldedLine};
+use crate::editor::lines::{
+    DocLines, DocLinesManager, OriginFoldedLine, VisualLine,
+};
 use crate::editor::screen_lines::ScreenLines;
 use floem::context::PaintCx;
 use floem::kurbo::Line;
@@ -795,6 +797,40 @@ impl Editor {
             x.visual_line_of_origin_line_offset(origin_line, offset, affinity)
         })
     }
+    /// 该原始偏移字符所在的视觉行，以及在视觉行的偏移，是否是最后的字符
+    pub fn visual_line_of_offset_v2(
+        &self,
+        offset: usize,
+        affinity: CursorAffinity,
+    ) -> (VisualLine, usize, bool) {
+        self.doc()
+            .lines
+            .with_untracked(|x| x.visual_line_of_offset(offset, affinity))
+    }
+
+    /// 视觉行的偏移位置，对应的上一行的偏移位置（原始文本）和是否为最后一个字符
+    pub fn previous_visual_line(
+        &self,
+        visual_line_index: usize,
+        line_offset: usize,
+        _affinity: CursorAffinity,
+    ) -> (VisualLine, usize, bool) {
+        self.doc().lines.with_untracked(|x| {
+            x.previous_visual_line(visual_line_index, line_offset, _affinity)
+        })
+    }
+
+    /// 视觉行的偏移位置，对应的上一行的偏移位置（原始文本）和是否为最后一个字符
+    pub fn next_visual_line(
+        &self,
+        visual_line_index: usize,
+        line_offset: usize,
+        _affinity: CursorAffinity,
+    ) -> (VisualLine, usize, bool) {
+        self.doc().lines.with_untracked(|x| {
+            x.next_visual_line(visual_line_index, line_offset, _affinity)
+        })
+    }
 
     pub fn folded_line_of_offset(
         &self,
@@ -806,38 +842,6 @@ impl Editor {
             .lines
             .with_untracked(|x| x.folded_line_of_origin_line(line).clone())
     }
-
-    // pub fn rvline_col_of_offset(&self, offset: usize, affinity: CursorAffinity) -> (RVLine, usize) {
-    //     self.lines
-    //         .rvline_col_of_offset(self.text_prov().clone(), offset, affinity)
-    // }
-
-    // pub fn offset_of_rvline(&self, rvline: RVLine) -> usize {
-    //     self.lines.offset_of_rvline(self.text_prov(), rvline)
-    // }
-
-    // pub fn vline_info(&self, vline: VLine) -> VLineInfo {
-    //     let vline = vline.min(self.last_vline());
-    //     self.iter_vlines(false, vline).next().unwrap()
-    // }
-
-    // pub fn screen_rvline_info_of_offset(
-    //     &self,
-    //     offset: usize,
-    //     affinity: CursorAffinity,
-    // ) -> Option<VLineInfo<()>> {
-    //     let rvline = self.visual_line_of_offset(offset, affinity);
-    //     self.screen_lines.with_untracked(|screen_lines| {
-    //         screen_lines
-    //             .iter_vline_info()
-    //             .find(|vline_info| vline_info.rvline == rvline)
-    //     })
-    // }
-
-    // pub fn rvline_info(&self, rvline: RVLine) -> VLineInfo<()> {
-    //     let rvline = rvline.min(self.last_rvline());
-    //     self.iter_rvlines(false, rvline).next().unwrap()
-    // }
 
     pub fn rvline_info_of_offset(
         &self,
@@ -1028,7 +1032,7 @@ impl Editor {
         let hit_point = text_layout.text.hit_point(Point::new(point.x, y as f64));
         // We have to unapply the phantom text shifting in order to get back to the column in
         // the actual buffer
-        let (line, col) = text_layout
+        let (line, col, _) = text_layout
             .phantom_text
             .cursor_position_of_final_col(hit_point.index);
         // Ensure that the column doesn't end up out of bounds, so things like clicking on the far
