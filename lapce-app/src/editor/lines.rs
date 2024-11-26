@@ -234,7 +234,7 @@ impl DocLinesManager {
 pub struct DocLines {
     origin_lines: Vec<OriginLine>,
     origin_folded_lines: Vec<OriginFoldedLine>,
-    visual_lines: Vec<VisualLine>,
+    pub visual_lines: Vec<VisualLine>,
     // pub font_sizes: Rc<EditorFontSizes>,
     // font_size_cache_id: FontSizeCacheId,
     // wrap: ResolvedWrap,

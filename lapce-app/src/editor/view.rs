@@ -1089,17 +1089,17 @@ impl View for EditorView {
                 .lines
                 .with_untracked(|x| x.viewport().size());
 
-            let screen_lines = e_data
-                .editor
-                .doc()
-                .lines
-                .with_untracked(|x| x.signals.screen_lines.clone());
-            let mut line_unique = HashSet::new();
-            for (line, ..) in screen_lines.iter_lines_y() {
-                // fill in text layout cache so that max width is correct.
-                line_unique.insert(line);
-                editor.text_layout_of_visual_line(line);
-            }
+            // let screen_lines = e_data
+            //     .editor
+            //     .doc()
+            //     .lines
+            //     .with_untracked(|x| x.signals.screen_lines.clone());
+            // let mut line_unique = HashSet::new();
+            // for (line, ..) in screen_lines.iter_lines_y() {
+            //     // fill in text layout cache so that max width is correct.
+            //     line_unique.insert(line);
+            //     editor.text_layout_of_visual_line(line);
+            // }
 
             let inner_node = self.inner_node.unwrap();
 
@@ -1114,9 +1114,14 @@ impl View for EditorView {
             } else {
                 width
             };
-            let lines =
-                editor.last_line() + screen_lines.lines.len() - line_unique.len();
-            let last_line_height = line_height * (lines + 1) as f64;
+
+            let (visual_line_len, scroll_beyond_last_line) =
+                e_data.doc().lines.with_untracked(|x| {
+                    (x.visual_lines.len(), x.scroll_beyond_last_line())
+                });
+            // let lines =
+            //     editor.last_line() + screen_lines.lines.len() - line_unique.len();
+            let last_line_height = line_height * visual_line_len as f64;
             let height = last_line_height.max(line_height);
             let height = if !is_local {
                 height.max(viewport_size.height)
@@ -1124,12 +1129,7 @@ impl View for EditorView {
                 height
             };
 
-            let margin_bottom = if !is_local
-                && editor
-                    .doc()
-                    .lines
-                    .with_untracked(|x| x.scroll_beyond_last_line())
-            {
+            let margin_bottom = if !is_local && scroll_beyond_last_line {
                 viewport_size.height.min(last_line_height) - line_height
             } else {
                 0.0
