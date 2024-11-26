@@ -2149,7 +2149,7 @@ impl EditorData {
         edits: &[(impl AsRef<Selection>, &str)],
         format_before_save: bool,
     ) {
-        tracing::debug!("{:?} {}", old_selection, format_before_save);
+        // tracing::debug!("{:?} {}", old_selection, format_before_save);
         let mut cursor = self.cursor().get_untracked();
         let doc = self.doc();
 
@@ -2207,7 +2207,7 @@ impl EditorData {
                         buffer.offset_of_position(&edit.range.start),
                         buffer.offset_of_position(&edit.range.end),
                     );
-                    tracing::debug!("{edit:?} {selection:?}");
+                    // tracing::debug!("{edit:?} {selection:?}");
                     (selection, edit.new_text.as_str())
                 })
                 .collect::<Vec<_>>();
@@ -2461,7 +2461,7 @@ impl EditorData {
                 {
                     let current_rev = editor.doc().rev();
                     if current_rev == rev {
-                        tracing::debug!("{:?}", edits);
+                        // tracing::debug!("{:?}", edits);
                         editor.do_text_edit(&edits, true);
                     }
                 }

@@ -21,7 +21,7 @@ use std::sync::{atomic, Arc};
 
 use floem_editor_core::buffer::rope_text::RopeText;
 use floem_editor_core::cursor::CursorAffinity;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 use crate::config::color::LapceColor;
 use crate::config::LapceConfig;
@@ -354,7 +354,6 @@ impl DocLines {
     // return do_update
     fn update_lines_with_buffer(&mut self, buffer: &Buffer) {
         self.clear();
-        warn!("update_lines_with_buffer");
         let last_line = buffer.last_line();
         // self.update_parser(buffer);
         let mut current_line = 0;
@@ -386,23 +385,40 @@ impl DocLines {
                 });
             }
 
+            let origin_interval = Interval {
+                start: buffer.offset_of_line(start_offset),
+                end: buffer.offset_of_line(origin_line_end + 1),
+            };
+
             let mut visual_offset_start = 0;
             let mut visual_offset_end;
+
             // [visual_offset_start..visual_offset_end)
             for (origin_folded_line_sub_index, layout) in
                 text_layout.text.line_layout().iter().enumerate()
             {
+                if layout.glyphs.is_empty() {
+                    self.visual_lines.push(VisualLine {
+                        line_index: visual_line_index,
+                        origin_interval: Interval::new(
+                            origin_interval.end,
+                            origin_interval.end,
+                        ),
+                        origin_line: origin_line_start,
+                        origin_folded_line: origin_folded_line_index,
+                        origin_folded_line_sub_index: 0,
+                    });
+                    continue;
+                }
                 visual_offset_end = visual_offset_start + layout.glyphs.len();
-
                 let offset_info = text_layout
                     .phantom_text
-                    .origin_position_of_final_col(visual_offset_start);
+                    .cursor_position_of_final_col(visual_offset_start);
                 let origin_interval_start =
                     buffer.offset_of_line_col(offset_info.0, offset_info.1);
-
                 let offset_info = text_layout
                     .phantom_text
-                    .origin_position_of_final_col(visual_offset_end);
+                    .cursor_position_of_final_col(visual_offset_end);
                 let origin_interval_end =
                     buffer.offset_of_line_col(offset_info.0, offset_info.1);
                 let origin_interval = Interval {
@@ -422,10 +438,6 @@ impl DocLines {
                 visual_line_index += 1;
             }
 
-            let origin_interval = Interval {
-                start: buffer.offset_of_line(start_offset),
-                end: buffer.offset_of_line(origin_line_end + 1),
-            };
             self.origin_folded_lines.push(OriginFoldedLine {
                 line_index: origin_folded_line_index,
                 origin_line_start,
@@ -1000,6 +1012,7 @@ impl DocLines {
             end_offset,
             config,
             &mut max_severity,
+            0,
         ));
 
         let phantom_text = self.phantom_text(line, config, buffer);
@@ -1048,6 +1061,7 @@ impl DocLines {
                 end_offset,
                 config,
                 &mut max_severity,
+                offset_col,
             ));
 
             // let styles: Vec<(usize, usize, Color, Attrs)> = self
@@ -1315,13 +1329,15 @@ impl DocLines {
     }
     /// init by lsp
     fn init_diagnostics_with_buffer(&self, buffer: &Buffer) {
+        error!("init_diagnostics_with_buffer");
         let len = buffer.len();
         let diagnostics = self.diagnostics.diagnostics.get_untracked();
         let mut span = SpansBuilder::new(len);
-        for diag in diagnostics.iter() {
+        for diag in diagnostics.into_iter() {
             let start = buffer.offset_of_position(&diag.range.start);
             let end = buffer.offset_of_position(&diag.range.end);
-            span.add_span(Interval::new(start, end), diag.to_owned());
+            warn!("start={start} end={end} {:?}", diag);
+            span.add_span(Interval::new(start, end), diag);
         }
         let span = span.build();
         self.diagnostics.diagnostics_span.set(span);
@@ -1613,15 +1629,18 @@ impl DocLines {
         let layout = &mut layout_line.text;
         let phantom_text = &layout_line.phantom_text;
         // 暂不考虑
-        let _ = line_styles.into_iter().filter_map(|(start, end, color)| {
-            info!("diagnostic {}-{}", start, end);
-            let start = phantom_text.col_at(start)?;
-            let end = phantom_text.col_at(end)?;
+        for (start, end, color) in line_styles {
+            error!("diagnostic {}-{}", start, end);
+            let Some(start) = phantom_text.col_at(start) else {
+                continue;
+            };
+            let Some(end) = phantom_text.col_at(end) else {
+                continue;
+            };
             let styles =
                 extra_styles_for_range(layout, start, end, None, None, Some(color));
             layout_line.extra_style.extend(styles);
-            None::<()>
-        });
+        }
 
         // Add the styling for the diagnostic severity, if applicable
         if let Some(max_severity) = max_severity {
@@ -1663,6 +1682,7 @@ impl DocLines {
         end_offset: usize,
         config: &LapceConfig,
         max_severity: &mut Option<DiagnosticSeverity>,
+        line_offset: usize,
     ) -> Vec<(usize, usize, Color)> {
         self.diagnostics.diagnostics_span.with_untracked(|diags| {
             diags
@@ -1670,8 +1690,9 @@ impl DocLines {
                 .filter_map(|(iv, diag)| {
                     let start = iv.start();
                     let end = iv.end();
+                    // warn!("start_offset={start_offset} end_offset={end_offset} interval={iv:?}");
                     if start <= end_offset
-                        && end >= start_offset
+                        && start_offset <= end
                         && diag.severity < Some(DiagnosticSeverity::HINT)
                     {
                         let color_name = match diag.severity {
@@ -1692,7 +1713,11 @@ impl DocLines {
                             _ => {}
                         }
                         let color = config.color(color_name);
-                        Some((start, end, color))
+                        Some((
+                            start + line_offset - start_offset,
+                            end + line_offset - start_offset,
+                            color,
+                        ))
                     } else {
                         None
                     }
@@ -2012,24 +2037,27 @@ fn push_strip_suffix(line_content_original: &str, rs: &mut String) {
 fn apply_layout_styles(layout_line: &mut TextLayoutLine) {
     layout_line.extra_style.clear();
     let layout = &layout_line.text;
-    for phantom in &layout_line.phantom_text.text {
-        if (phantom.bg.is_none() && phantom.under_line.is_none())
-            || phantom.text.is_empty()
-        {
-            continue;
-        }
-        let iter = extra_styles_for_range(
-            layout,
-            phantom.final_col,
-            phantom.final_col + phantom.text.len(),
-            phantom.bg,
-            phantom.under_line,
-            None,
-        );
-        for style in iter {
-            layout_line.extra_style.push(style)
-        }
-    }
+    layout_line
+        .phantom_text
+        .iter_phantom_text()
+        .for_each(|phantom| {
+            if (phantom.bg.is_none() && phantom.under_line.is_none())
+                || phantom.text.is_empty()
+            {
+                return;
+            }
+            let iter = extra_styles_for_range(
+                layout,
+                phantom.final_col,
+                phantom.final_col + phantom.text.len(),
+                phantom.bg,
+                phantom.under_line,
+                None,
+            );
+            for style in iter {
+                layout_line.extra_style.push(style)
+            }
+        });
 }
 
 fn extra_styles_for_range(

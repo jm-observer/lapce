@@ -263,8 +263,6 @@ pub fn editor_view(
                 let doc = ed1.doc.get_untracked();
 
                 if doc.loaded() {
-                    error!("{:?}", doc.content.get_untracked());
-                    // todo
                     let (_, point_below) = ed1.points_of_offset(offset, affinity);
                     let window_origin = editor_window_origin.get();
                     let viewport = editor_viewport.get();

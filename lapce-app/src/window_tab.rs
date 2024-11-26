@@ -49,7 +49,7 @@ use lsp_types::{
     ProgressToken, ShowMessageParams,
 };
 use serde_json::Value;
-use tracing::{debug, error, event, info, Level};
+use tracing::{debug, error, event, info, warn, Level};
 
 use crate::debug::DapData;
 use crate::id::TerminalTabId;
@@ -2219,12 +2219,14 @@ impl WindowTabData {
                     .diagnostics
                     .set(diagnostics);
 
+                warn!("PublishDiagnostics {:?}", path);
                 // inform the document about the diagnostics
                 if let Some(doc) = self
                     .main_split
                     .docs
                     .with_untracked(|docs| docs.get(&path).cloned())
                 {
+                    warn!("PublishDiagnostics docs {:?}", path);
                     doc.init_diagnostics();
                 }
             }
