@@ -64,6 +64,8 @@ use floem_editor_core::command::MultiSelectionCommand::{
 use floem_editor_core::command::{EditCommand, MultiSelectionCommand};
 use floem_editor_core::mode::{MotionMode, VisualMode};
 use floem_editor_core::selection::SelRegion;
+use floem_editor_core::word::{get_char_property, CharClassification, WordCursor};
+use tracing::warn;
 
 pub(crate) const CHAR_WIDTH: f64 = 7.5;
 
@@ -1069,60 +1071,75 @@ impl Editor {
         ((line, col), hit_point.is_inside)
     }
 
-    // TODO: colposition probably has issues with wrapping?
-    pub fn line_horiz_col(
-        &self,
-        _line: usize,
-        _horiz: &ColPosition,
-        _caret: bool,
-    ) -> (usize, usize) {
-        // match *horiz {
-        //     ColPosition::Col(x) => {
-        //         // TODO: won't this be incorrect with phantom text? Shouldn't this just use
-        //         // line_col_of_point and get the col from that?
-        //         let text_layout = self.text_layout_of_visual_line(line);
-        //         let hit_point = text_layout.text.hit_point(Point::new(x, 0.0));
-        //         let n = hit_point.index;
-        //         text_layout.phantom_text.origin_position_of_final_col(n)
-        //     }
-        //     ColPosition::End => (line, self.line_end_col(line, caret)),
-        //     ColPosition::Start => (line, 0),
-        //     ColPosition::FirstNonBlank => {
-        //         (line, self.first_non_blank_character_on_line(line))
-        //     }
-        // }
-        todo!()
-    }
-
-    // /// Advance to the right in the manner of the given mode.
-    // /// Get the column from a horizontal at a specific line index (in a text layout)
-    // pub fn rvline_horiz_col(
+    // pub fn line_horiz_col(
     //     &self,
-    //     RVLine { line, line_index }: RVLine,
+    //     line: usize,
     //     horiz: &ColPosition,
-    //     caret: bool,
-    // ) -> (usize, usize) {
+    //     caret: bool, visual_line: &VisualLine,
+    // ) -> usize {
     //     match *horiz {
     //         ColPosition::Col(x) => {
+    //             // TODO: won't this be incorrect with phantom text? Shouldn't this just use
+    //             // line_col_of_point and get the col from that?
     //             let text_layout = self.text_layout_of_visual_line(line);
-    //             let y_pos = text_layout
-    //                 .text
-    //                 .layout_runs()
-    //                 .nth(line_index)
-    //                 .map(|run| run.line_y)
-    //                 .or_else(|| {
-    //                     text_layout.text.layout_runs().last().map(|run| run.line_y)
-    //                 })
-    //                 .unwrap_or(0.0);
-    //             let hit_point =
-    //                 text_layout.text.hit_point(Point::new(x, y_pos as f64));
+    //             let hit_point = text_layout.text.hit_point(Point::new(x, 0.0));
     //             let n = hit_point.index;
     //             text_layout.phantom_text.origin_position_of_final_col(n)
     //         }
-    //         // Otherwise it is the same as the other function
-    //         _ => self.line_horiz_col(line, horiz, caret),
+    //         ColPosition::End => (line, self.line_end_col(line, caret)),
+    //         ColPosition::Start => (line, 0),
+    //         ColPosition::FirstNonBlank => {
+    //             (line, self.first_non_blank_character_on_line(line))
+    //         }
     //     }
     // }
+
+    /// Advance to the right in the manner of the given mode.
+    /// Get the column from a horizontal at a specific line index (in a text layout)
+    pub fn rvline_horiz_col(
+        &self,
+        // RVLine { line, line_index }: RVLine,
+        horiz: &ColPosition,
+        _caret: bool,
+        visual_line: &VisualLine,
+    ) -> usize {
+        match *horiz {
+            ColPosition::Col(x) => {
+                let text_layout = &visual_line.text_layout;
+                let y_pos = text_layout
+                    .text
+                    .layout_runs()
+                    .nth(visual_line.origin_folded_line_sub_index)
+                    .map(|run| run.line_y)
+                    .or_else(|| {
+                        text_layout.text.layout_runs().last().map(|run| run.line_y)
+                    })
+                    .unwrap_or(0.0);
+                let hit_point =
+                    text_layout.text.hit_point(Point::new(x, y_pos as f64));
+                let n = hit_point.index;
+                let rs = text_layout.phantom_text.cursor_position_of_final_col(n);
+                warn!("rs={rs:?}");
+                rs.2
+            }
+            ColPosition::End => visual_line.origin_interval.end,
+            ColPosition::Start => visual_line.origin_interval.start,
+            ColPosition::FirstNonBlank => {
+                let final_offset = visual_line.text_layout.text.line().text()
+                    [visual_line.visual_interval.start
+                        ..visual_line.visual_interval.end]
+                    .char_indices()
+                    .find(|(_, c)| !c.is_whitespace())
+                    .map(|(idx, _)| visual_line.visual_interval.start + idx)
+                    .unwrap_or(visual_line.visual_interval.end);
+                visual_line
+                    .text_layout
+                    .phantom_text
+                    .cursor_position_of_final_col(final_offset)
+                    .2
+            }
+        }
+    }
 
     /// Advance to the right in the manner of the given mode.  
     /// This is not the same as the [`Movement::Right`] command.

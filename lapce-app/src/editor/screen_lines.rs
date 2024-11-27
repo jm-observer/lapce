@@ -12,7 +12,7 @@ use std::rc::Rc;
 // we don't really have support for diffs in floem-editor! Is there a better design for this?
 // Possibly we should just move that out to a separate field on Lapce's editor.
 // 不允许滚到到窗口没有文本！！！因此lines等不会为空
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ScreenLines {
     pub lines: Vec<RVLine>,
     pub visual_lines: Vec<VisualLineInfo>,
@@ -27,7 +27,7 @@ pub struct ScreenLines {
     pub base: Rect,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct VisualLineInfo {
     /// 该视觉行所属折叠行（原始行）在窗口的y偏移（不是整个文档的y偏移）。若该折叠行（原始行）只有1行视觉行，则y=vline_y
     pub y: f64,

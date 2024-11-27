@@ -110,13 +110,31 @@ impl Debug for OriginFoldedLine {
     }
 }
 
-#[derive(Clone, Debug, Copy, Eq, PartialEq)]
+#[derive(Clone)]
 pub struct VisualLine {
     pub line_index: usize,
     pub origin_interval: Interval,
+    pub visual_interval: Interval,
     pub origin_line: usize,
     pub origin_folded_line: usize,
     pub origin_folded_line_sub_index: usize,
+    pub text_layout: Arc<TextLayoutLine>,
+}
+
+impl Debug for VisualLine {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VisualLine")
+            .field("line_index", &self.line_index)
+            .field("origin_interval", &self.origin_interval)
+            .field("visual_interval", &self.visual_interval)
+            .field("origin_line", &self.origin_line)
+            .field("origin_folded_line", &self.origin_folded_line)
+            .field(
+                "origin_folded_line_sub_index",
+                &self.origin_folded_line_sub_index,
+            )
+            .finish()
+    }
 }
 
 impl VisualLine {
@@ -428,9 +446,14 @@ impl DocLines {
                             origin_interval.end,
                             origin_interval.end,
                         ),
+                        visual_interval: Interval::new(
+                            visual_offset_start,
+                            visual_offset_start,
+                        ),
                         origin_line: origin_line_start,
                         origin_folded_line: origin_folded_line_index,
                         origin_folded_line_sub_index: 0,
+                        text_layout: text_layout.clone(),
                     });
                     continue;
                 }
@@ -456,6 +479,11 @@ impl DocLines {
                     origin_line: origin_line_start,
                     origin_folded_line: origin_folded_line_index,
                     origin_folded_line_sub_index,
+                    text_layout: text_layout.clone(),
+                    visual_interval: Interval::new(
+                        visual_offset_start,
+                        visual_offset_end,
+                    ),
                 });
 
                 visual_offset_start = visual_offset_end;
@@ -653,7 +681,7 @@ impl DocLines {
             origin_line,
             origin_folded_line: folded_line.clone(),
             origin_folded_line_offest: 0,
-            visual_line: *visual_line,
+            visual_line: visual_line.clone(),
             visual_line_offest: 0,
         }
     }
@@ -687,7 +715,11 @@ impl DocLines {
             .text_layout
             .phantom_text
             .cursor_position_of_final_col(line_offset);
-        (*prev_visual_line, offset_line, offset_line == last_char)
+        (
+            prev_visual_line.clone(),
+            offset_line,
+            offset_line == last_char,
+        )
     }
 
     /// 视觉行的偏移位置，对应的上一行的偏移位置（原始文本）和是否为最后一个字符
@@ -720,7 +752,11 @@ impl DocLines {
             .text_layout
             .phantom_text
             .cursor_position_of_final_col(line_offset);
-        (*next_visual_line, offset_line, offset_line == last_char)
+        (
+            next_visual_line.clone(),
+            offset_line,
+            offset_line == last_char,
+        )
     }
 
     /// 原始位移字符所在的视觉行，以及行的偏移位置和是否是最后一个字符，point
@@ -767,7 +803,7 @@ impl DocLines {
             sub_line_index,
         );
 
-        (*visual_line, final_offset, last_char)
+        (visual_line.clone(), final_offset, last_char)
     }
 
     pub fn visual_lines(&self, start: usize, end: usize) -> Vec<VisualLine> {
@@ -776,7 +812,7 @@ impl DocLines {
 
         let mut vline_infos = Vec::with_capacity(end - start + 1);
         for index in start..=end {
-            vline_infos.push(self.visual_lines[index]);
+            vline_infos.push(self.visual_lines[index].clone());
         }
         vline_infos
     }
@@ -1847,12 +1883,13 @@ pub fn compute_screen_lines(
                 let vline_y = y_idx * line_height;
                 let line_y = vline_y - rvline.line_index * line_height;
 
+                let vline_info = visual_line.vline_info();
                 let visual_line_info = VisualLineInfo {
                     y: line_y as f64 - y0,
                     vline_y: vline_y as f64 - y0,
                     visual_line,
                 };
-                visual_lines.push(visual_line_info);
+                visual_lines.push(visual_line_info.clone());
 
                 // Add the information to make it cheap to get in the future.
                 // This y positions are shifted by the baseline y0
@@ -1861,7 +1898,7 @@ pub fn compute_screen_lines(
                     LineInfo {
                         y: line_y as f64 - y0,
                         vline_y: vline_y as f64 - y0,
-                        vline_info: visual_line.vline_info(),
+                        vline_info,
                     },
                 );
             }

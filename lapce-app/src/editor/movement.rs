@@ -14,7 +14,7 @@ use floem_editor_core::{
     selection::{SelRegion, Selection},
     soft_tab::{snap_to_soft_tab, SnapDirection},
 };
-use tracing::error;
+use tracing::{error, warn};
 
 /// Move a selection region by a given movement.
 /// Much of the time, this will just be a matter of moving the cursor, but
@@ -336,30 +336,16 @@ fn move_up(
     _mode: Mode,
     _count: usize,
 ) -> (usize, ColPosition) {
-    // let (rvline, ..) = view.visual_line_of_offset(offset, *affinity);
     let (visual_line, line_offset, ..) =
         view.visual_line_of_offset_v2(offset, *affinity);
-    if visual_line.origin_line == 0 && visual_line.origin_folded_line_sub_index == 0
-    {
-        // Zeroth line
-        let horiz = horiz.unwrap_or_else(|| {
-            ColPosition::Col(view.line_point_of_offset(offset, *affinity).x)
-        });
-
-        *affinity = CursorAffinity::Backward;
-
-        return (0, horiz);
-    }
-
     let (visual_line, line_offset, ..) =
         view.previous_visual_line(visual_line.line_index, line_offset, *affinity);
 
-    let offset_of_buffer = visual_line.origin_interval.start + line_offset;
-
     let horiz = horiz.unwrap_or_else(|| {
-        ColPosition::Col(view.line_point_of_offset(line_offset, *affinity).x)
+        ColPosition::Col(view.line_point_of_offset(offset, *affinity).x)
     });
-    // let (line, col) = view.rvline_horiz_col(rvline, &horiz, mode != Mode::Normal);
+    let offset_of_buffer =
+        view.rvline_horiz_col(&horiz, _mode != Mode::Normal, &visual_line);
 
     // TODO: this should maybe be doing `new_offset == info.interval.start`?
     *affinity = if line_offset == 0 {
@@ -367,9 +353,6 @@ fn move_up(
     } else {
         CursorAffinity::Backward
     };
-
-    // let new_offset = view.offset_of_line_col(line, col);
-
     (offset_of_buffer, horiz)
 }
 
@@ -452,22 +435,17 @@ fn move_down(
         view.visual_line_of_offset_v2(offset, *affinity);
     let (visual_line, line_offset, ..) =
         view.next_visual_line(visual_line.line_index, line_offset, *affinity);
-
-    let offset_of_buffer = visual_line.origin_interval.start + line_offset;
-
     let horiz = horiz.unwrap_or_else(|| {
-        ColPosition::Col(view.line_point_of_offset(line_offset, *affinity).x)
+        ColPosition::Col(view.line_point_of_offset(offset, *affinity).x)
     });
-    // let (line, col) = view.rvline_horiz_col(rvline, &horiz, mode != Mode::Normal);
-
-    // TODO: this should maybe be doing `new_offset == info.interval.start`?
+    let offset_of_buffer =
+        view.rvline_horiz_col(&horiz, _mode != Mode::Normal, &visual_line);
     *affinity = if line_offset == 0 {
         CursorAffinity::Forward
     } else {
         CursorAffinity::Backward
     };
-
-    // let new_offset = view.offset_of_line_col(line, col);
+    warn!("offset_of_buffer={offset_of_buffer} horiz={horiz:?}");
 
     (offset_of_buffer, horiz)
 }
@@ -560,7 +538,7 @@ fn end_of_line(
 
     (new_offset, ColPosition::End)
 }
-
+#[allow(unused_variables)]
 fn to_line(
     view: &Editor,
     offset: usize,
@@ -583,10 +561,11 @@ fn to_line(
                 .x,
         )
     });
-    let (line, col) = view.line_horiz_col(line, &horiz, mode != Mode::Normal);
-    let new_offset = rope_text.offset_of_line_col(line, col);
-
-    (new_offset, horiz)
+    todo!()
+    // let (line, col) = view.line_horiz_col(line, &horiz, mode != Mode::Normal);
+    // let new_offset = rope_text.offset_of_line_col(line, col);
+    //
+    // (new_offset, horiz)
 }
 
 /// Move the current cursor.  
