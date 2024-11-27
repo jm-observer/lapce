@@ -59,7 +59,7 @@ impl DiffEditorInfo {
                     doc
                 }
                 DocContent::Local => {
-                    Rc::new(Doc::new_local(cx, data.editors, common.clone()))
+                    Rc::new(Doc::new_local(cx, data.editors, common.clone(), None))
                 }
                 DocContent::History(history) => {
                     let doc = Doc::new_history(
@@ -101,6 +101,7 @@ impl DiffEditorInfo {
                         doc_content,
                         data.editors,
                         common.clone(),
+                        None,
                     );
                     let doc = Rc::new(doc);
                     data.scratch_docs.update(|scratch_docs| {

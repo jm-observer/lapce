@@ -133,6 +133,7 @@ impl Debug for VisualLine {
                 "origin_folded_line_sub_index",
                 &self.origin_folded_line_sub_index,
             )
+            .field("text_layout", &self.text_layout.text.line().layout_opt())
             .finish()
     }
 }
@@ -1460,7 +1461,6 @@ impl DocLines {
     }
     /// init by lsp
     fn init_diagnostics_with_buffer(&self, buffer: &Buffer) {
-        error!("init_diagnostics_with_buffer");
         let len = buffer.len();
         let diagnostics = self.diagnostics.diagnostics.get_untracked();
         let mut span = SpansBuilder::new(len);
@@ -1738,17 +1738,21 @@ impl DocLines {
     }
 
     pub fn log(&self) {
-        info!("DocLines viewport={:?}", self.viewport);
+        warn!(
+            "DocLines viewport={:?} {}",
+            self.viewport,
+            self.buffer.get_untracked().text().to_string()
+        );
         for visual_line in &self.signals.screen_lines.visual_lines {
-            info!("{:?}", visual_line);
+            warn!("{:?}", visual_line);
         }
-        info!("folding_items");
+        warn!("folding_items");
         for item in &self.folding_items {
-            info!("{:?}", item);
+            warn!("{:?}", item);
         }
-        info!("folding_ranges");
+        warn!("folding_ranges");
         for range in &self.folding_ranges.0 {
-            info!("{:?}", range);
+            warn!("{:?}", range);
         }
     }
 

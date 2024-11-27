@@ -172,6 +172,7 @@ pub type AllCodeLens = im::HashMap<usize, (PluginId, usize, im::Vector<CodeLens>
 #[derive(Clone)]
 pub struct Doc {
     pub editor_id: EditorId,
+    pub name: Option<String>,
     pub scope: Scope,
     pub buffer_id: BufferId,
     pub content: RwSignal<DocContent>,
@@ -245,6 +246,7 @@ impl Doc {
         let kind = cx.create_rw_signal(EditorViewKind::Normal);
         Doc {
             editor_id,
+            name: None,
             kind,
             // viewport
             // editor_style,
@@ -287,8 +289,13 @@ impl Doc {
         }
     }
 
-    pub fn new_local(cx: Scope, editors: Editors, common: Rc<CommonData>) -> Doc {
-        Self::new_content(cx, DocContent::Local, editors, common)
+    pub fn new_local(
+        cx: Scope,
+        editors: Editors,
+        common: Rc<CommonData>,
+        name: Option<String>,
+    ) -> Doc {
+        Self::new_content(cx, DocContent::Local, editors, common, name)
     }
 
     pub fn new_content(
@@ -296,6 +303,7 @@ impl Doc {
         content: DocContent,
         editors: Editors,
         common: Rc<CommonData>,
+        name: Option<String>,
     ) -> Doc {
         let editor_id = EditorId::next();
         let cx = cx.create_child();
@@ -314,6 +322,7 @@ impl Doc {
         let kind = cx.create_rw_signal(EditorViewKind::Normal);
         Self {
             editor_id,
+            name,
             kind,
             scope: cx,
             buffer_id: BufferId::next(),
@@ -380,6 +389,7 @@ impl Doc {
         let kind = cx.create_rw_signal(EditorViewKind::Normal);
         Self {
             editor_id,
+            name: None,
             kind,
             scope: cx,
             buffer_id: BufferId::next(),
@@ -656,21 +666,20 @@ impl Doc {
 
     pub fn apply_deltas(&self, deltas: &[(Rope, RopeDelta, InvalLines)]) {
         let rev = self.rev() - deltas.len() as u64;
-        batch(|| {
-            for (i, (_, delta, inval)) in deltas.iter().enumerate() {
-                self.apply_deltas_for_lines(delta);
-                self.update_find_result(delta);
-                if let DocContent::File { path, .. } = self.content.get_untracked() {
+        if let DocContent::File { path, .. } = self.content.get_untracked() {
+            batch(|| {
+                for (i, (_, delta, inval)) in deltas.iter().enumerate() {
+                    self.apply_deltas_for_lines(delta);
+                    self.update_find_result(delta);
                     self.update_breakpoints(delta, &path, &inval.old_text);
                     self.common.proxy.update(
-                        path,
+                        path.clone(),
                         delta.clone(),
                         rev + i as u64 + 1,
                     );
                 }
-            }
-        });
-
+            });
+        }
         // TODO(minor): We could avoid this potential allocation since most apply_delta callers are actually using a Vec
         // which we could reuse.
         // We use a smallvec because there is unlikely to be more than a couple of deltas
@@ -702,7 +711,10 @@ impl Doc {
     fn on_update(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
         if self.content.get_untracked().is_local() {
             tracing::debug!("on_update cancle because doc is local");
-            self.clear_text_cache();
+            batch(|| {
+                self.clear_text_cache();
+                self.lines.update(|x| x.on_update_buffer());
+            });
             return;
         }
         batch(|| {

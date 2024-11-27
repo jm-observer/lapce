@@ -151,8 +151,8 @@ impl EditorInfo {
 
                 editor.id()
             }
-            DocContent::Local => editors.new_local(data.scope, common),
-            DocContent::History(_) => editors.new_local(data.scope, common),
+            DocContent::Local => editors.new_local(data.scope, common, None),
+            DocContent::History(_) => editors.new_local(data.scope, common, None),
             DocContent::Scratch { name, .. } => {
                 let doc = data
                     .scratch_docs
@@ -169,6 +169,7 @@ impl EditorInfo {
                             content,
                             data.editors,
                             data.common.clone(),
+                            None,
                         );
                         let doc = Rc::new(doc);
                         if let Some(unsaved) = &self.unsaved {
@@ -285,8 +286,13 @@ impl EditorData {
     /// Create a new local editor.  
     /// You should prefer calling [`Editors::make_local`] / [`Editors::new_local`] instead to
     /// register the editor.
-    pub fn new_local(cx: Scope, editors: Editors, common: Rc<CommonData>) -> Self {
-        Self::new_local_id(cx, editors, common)
+    pub fn new_local(
+        cx: Scope,
+        editors: Editors,
+        common: Rc<CommonData>,
+        name: Option<String>,
+    ) -> Self {
+        Self::new_local_id(cx, editors, common, name)
     }
 
     /// Create a new local editor with the given id.  
@@ -296,9 +302,10 @@ impl EditorData {
         cx: Scope,
         editors: Editors,
         common: Rc<CommonData>,
+        name: Option<String>,
     ) -> Self {
         let cx = cx.create_child();
-        let doc = Rc::new(Doc::new_local(cx, editors, common.clone()));
+        let doc = Rc::new(Doc::new_local(cx, editors, common.clone(), name));
         let editor = doc.create_editor(cx, true);
         Self::new(cx, editor, None, None, None, common)
     }

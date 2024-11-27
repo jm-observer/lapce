@@ -260,15 +260,30 @@ impl Editors {
         });
     }
 
-    pub fn new_local(&self, cx: Scope, common: Rc<CommonData>) -> EditorId {
-        let editor = EditorData::new_local(cx, *self, common);
+    pub fn new_local(
+        &self,
+        cx: Scope,
+        common: Rc<CommonData>,
+        name: Option<String>,
+    ) -> EditorId {
+        let editor = EditorData::new_local(cx, *self, common, name);
 
         self.insert(editor)
     }
 
     /// Equivalent to [`Self::new_local`], but immediately gets the created editor.
     pub fn make_local(&self, cx: Scope, common: Rc<CommonData>) -> EditorData {
-        let id = self.new_local(cx, common);
+        let id = self.new_local(cx, common, None);
+        self.editor_untracked(id).unwrap()
+    }
+    /// Equivalent to [`Self::new_local`], but immediately gets the created editor.
+    pub fn make_local_with_name(
+        &self,
+        cx: Scope,
+        common: Rc<CommonData>,
+        name: String,
+    ) -> EditorData {
+        let id = self.new_local(cx, common, Some(name));
         self.editor_untracked(id).unwrap()
     }
 
@@ -1124,6 +1139,7 @@ impl MainSplitData {
                         doc_content,
                         self.editors,
                         self.common.clone(),
+                        None,
                     );
                     let doc = Rc::new(doc);
                     self.scratch_docs.update(|scratch_docs| {

@@ -2,7 +2,7 @@
 use crate::window_tab::WindowTabData;
 use floem::reactive::SignalGet;
 use itertools::Itertools;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 pub fn log(window: &WindowTabData) {
     print_screen_lines(window);
@@ -10,12 +10,15 @@ pub fn log(window: &WindowTabData) {
 
 pub fn print_screen_lines(window: &WindowTabData) {
     for (_, editor) in &window.main_split.editors.0.get_untracked() {
-        let content = editor.doc().content.get_untracked();
-        let path = content.path();
-        if let Some(path) = path {
-            info!("{:?}", path);
+        // if let Some(path) = path {
+        //     warn!("{:?}", path);
+        //     editor.doc().lines.with_untracked(|x| x.log());
+        //     warn!("");
+        // }
+        if editor.doc().name.is_some() {
+            // warn!("{:?}", path);
             editor.doc().lines.with_untracked(|x| x.log());
-            info!("");
+            warn!("");
         }
     }
 }
