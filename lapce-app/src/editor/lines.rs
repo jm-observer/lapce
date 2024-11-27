@@ -428,7 +428,7 @@ impl DocLines {
             }
 
             let origin_interval = Interval {
-                start: buffer.offset_of_line(start_offset),
+                start: buffer.offset_of_line(origin_line_start),
                 end: buffer.offset_of_line(origin_line_end + 1),
             };
 
