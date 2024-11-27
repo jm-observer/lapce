@@ -658,10 +658,7 @@ impl Doc {
         let rev = self.rev() - deltas.len() as u64;
         batch(|| {
             for (i, (_, delta, inval)) in deltas.iter().enumerate() {
-                self.update_styles(delta);
-                self.update_inlay_hints(delta);
-                self.update_diagnostics(delta);
-                self.update_completion_lens(delta);
+                self.apply_deltas_for_lines(delta);
                 self.update_find_result(delta);
                 if let DocContent::File { path, .. } = self.content.get_untracked() {
                     self.update_breakpoints(delta, &path, &inval.old_text);
@@ -720,7 +717,6 @@ impl Doc {
             self.get_code_lens();
             self.get_document_symbol();
             self.get_folding_range();
-
             self.lines.update(|x| x.on_update_buffer());
         });
     }
@@ -748,15 +744,8 @@ impl Doc {
 
     /// Update the styles after an edit, so the highlights are at the correct positions.
     /// This does not do a reparse of the document itself.
-    fn update_styles(&self, delta: &RopeDelta) {
-        self.lines.update(|x| x.update_styles(delta));
-    }
-
-    /// Update the inlay hints so their positions are correct after an edit.
-    fn update_inlay_hints(&self, delta: &RopeDelta) {
-        self.lines.update(|lines| {
-            lines.update_inlay_hints(delta);
-        });
+    fn apply_deltas_for_lines(&self, delta: &RopeDelta) {
+        self.lines.update(|x| x.apply_delta(delta));
     }
 
     pub fn trigger_syntax_change(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
@@ -1094,10 +1083,10 @@ impl Doc {
         self.lines.with_untracked(|x| x.diagnostics.clone())
     }
 
-    /// Update the diagnostics' positions after an edit so that they appear in the correct place.
-    fn update_diagnostics(&self, delta: &RopeDelta) {
-        self.lines.update(|x| x.update_diagnostics(delta));
-    }
+    // /// Update the diagnostics' positions after an edit so that they appear in the correct place.
+    // fn update_diagnostics(&self, delta: &RopeDelta) {
+    //     self.lines.update(|x| );
+    // }
 
     /// init diagnostics offset ranges from lsp positions
     pub fn init_diagnostics(&self) {
@@ -1193,10 +1182,10 @@ impl Doc {
         }
     }
 
-    /// Update the completion lens position after an edit so that it appears in the correct place.
-    pub fn update_completion_lens(&self, delta: &RopeDelta) {
-        self.lines.update(|x| x.update_completion_lens(delta));
-    }
+    // /// Update the completion lens position after an edit so that it appears in the correct place.
+    // pub fn update_completion_lens(&self, delta: &RopeDelta) {
+    //     self.lines.update(|x| x.update_completion_lens(delta));
+    // }
 
     fn update_find_result(&self, delta: &RopeDelta) {
         self.find_result.occurrences.update(|s| {

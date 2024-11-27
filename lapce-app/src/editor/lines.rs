@@ -10,7 +10,7 @@ use floem::reactive::{
 use floem::text::{
     Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout, Wrap, FONT_SYSTEM,
 };
-use lapce_xi_rope::{Interval, RopeDelta, Transformer};
+use lapce_xi_rope::{Interval, Rope, RopeDelta, Transformer};
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -43,7 +43,7 @@ use floem::views::editor::visual_line::{
     hit_position_aff, LayoutEvent, RVLine, ResolvedWrap, VLine, VLineInfo,
 };
 use floem::views::editor::{EditorStyle, Modal};
-use floem_editor_core::buffer::Buffer;
+use floem_editor_core::buffer::{Buffer, InvalLines};
 use floem_editor_core::indent::IndentStyle;
 use floem_editor_core::word::{get_char_property, CharClassification};
 use itertools::Itertools;
@@ -1310,11 +1310,10 @@ impl DocLines {
         Arc::new(layout_line)
     }
 
-    pub fn update_inlay_hints(&mut self, delta: &RopeDelta) {
+    fn update_inlay_hints(&mut self, delta: &RopeDelta) {
         if let Some(hints) = self.inlay_hints.as_mut() {
             hints.apply_shape(delta);
         }
-        self.update_lines();
     }
     pub fn set_inlay_hints(&mut self, inlay_hint: Spans<InlayHint>) {
         self.inlay_hints = Some(inlay_hint);
@@ -1418,7 +1417,7 @@ impl DocLines {
         self.update_lines();
     }
 
-    pub fn update_completion_lens(&mut self, delta: &RopeDelta) {
+    fn update_completion_lens(&mut self, delta: &RopeDelta) {
         let Some(completion) = &mut self.completion_lens else {
             return;
         };
@@ -1453,7 +1452,6 @@ impl DocLines {
         let new_pos = buffer.offset_to_line_col(new_offset);
 
         self.completion_pos = new_pos;
-        self.update_lines_with_buffer(&buffer);
     }
     pub fn init_diagnostics(&mut self) {
         let buffer = self.buffer.get_untracked();
@@ -1476,7 +1474,7 @@ impl DocLines {
         self.diagnostics.diagnostics_span.set(span);
     }
 
-    pub fn update_diagnostics(&mut self, delta: &RopeDelta) {
+    fn update_diagnostics(&mut self, delta: &RopeDelta) {
         if self
             .diagnostics
             .diagnostics
@@ -1488,7 +1486,6 @@ impl DocLines {
         self.diagnostics.diagnostics_span.update(|diagnostics| {
             diagnostics.apply_shape(delta);
         });
-        self.update_lines();
     }
 
     pub fn set_inline_completion(
@@ -1575,7 +1572,7 @@ impl DocLines {
         self.update_lines_with_buffer(&buffer);
     }
 
-    pub fn update_styles(&mut self, delta: &RopeDelta) {
+    pub fn apply_delta(&mut self, delta: &RopeDelta) {
         if self.style_from_lsp {
             if let Some(styles) = &mut self.semantic_styles {
                 styles.1.apply_shape(delta);
@@ -1584,7 +1581,10 @@ impl DocLines {
             styles.apply_shape(delta);
         }
         self.syntax.lens.apply_delta(delta);
-        self.update_lines()
+        self.update_diagnostics(delta);
+        self.update_inlay_hints(delta);
+        self.update_completion_lens(delta);
+        // self.update_lines();
     }
 
     pub fn trigger_syntax_change(
