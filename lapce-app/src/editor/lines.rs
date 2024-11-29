@@ -105,8 +105,8 @@ impl OriginFoldedLine {
 
 impl Debug for OriginFoldedLine {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "OriginFoldedLine line_index={} origin_line_start={} origin_line_end={} origin_interval={}",
-            self.line_index, self.origin_line_start, self.origin_line_end, self.origin_interval)
+        write!(f, "OriginFoldedLine line_index={} origin_line_start={} origin_line_end={} origin_interval={}  phantom_text={:?}",
+            self.line_index, self.origin_line_start, self.origin_line_end, self.origin_interval, self.text_layout.phantom_text)
     }
 }
 
@@ -134,6 +134,7 @@ impl Debug for VisualLine {
                 &self.origin_folded_line_sub_index,
             )
             .field("text_layout", &self.text_layout.text.line().layout_opt())
+            .field("phantom_text", &self.text_layout.phantom_text)
             .finish()
     }
 }
@@ -389,10 +390,9 @@ impl DocLines {
         }
     }
 
-    pub fn update_lines(&mut self) {
+    fn update_lines(&mut self) {
         let buffer = self.buffer.get_untracked();
         self.update_lines_with_buffer(&buffer);
-        // todo update screen_lines
     }
     // return do_update
     fn update_lines_with_buffer(&mut self, buffer: &Buffer) {
@@ -471,7 +471,7 @@ impl DocLines {
                     buffer.offset_of_line_col(offset_info.0, offset_info.1);
                 let origin_interval = Interval {
                     start: origin_interval_start,
-                    end: origin_interval_end,
+                    end: origin_interval_end + 1,
                 };
 
                 self.visual_lines.push(VisualLine {
@@ -613,6 +613,9 @@ impl DocLines {
         offset: usize,
         _affinity: CursorAffinity,
     ) -> (VLineInfo, usize, bool) {
+        if offset > 0 {
+            println!("");
+        }
         // 位于的原始行，以及在原始行的起始offset
         // let (origin_line, offset_of_line) = self.font_sizes.doc.with_untracked(|x| {
         //     let text = x.text();
@@ -621,18 +624,25 @@ impl DocLines {
         //     (origin_line, origin_line_start_offset)
         // });
         // let mut offset = offset - offset_of_line;
+        let before_cursor = _affinity.before_cursor();
         let folded_line = self.folded_line_of_origin_line(origin_line);
         let mut final_offset = folded_line
             .text_layout
             .phantom_text
-            .final_col_of_col(origin_line, offset, false);
+            .final_col_of_col(origin_line, offset, before_cursor);
         let folded_line_layout = folded_line.text_layout.text.line_layout();
         let mut sub_line_index = folded_line_layout.len() - 1;
         let mut last_char = false;
         for (index, sub_line) in folded_line_layout.iter().enumerate() {
-            if final_offset < sub_line.glyphs.len() {
+            if before_cursor && final_offset < sub_line.glyphs.len() {
                 sub_line_index = index;
                 last_char = final_offset == sub_line.glyphs.len() - 1;
+                break;
+            } else if before_cursor {
+                final_offset -= sub_line.glyphs.len();
+            } else if final_offset <= sub_line.glyphs.len() {
+                sub_line_index = index;
+                last_char = final_offset + 1 >= sub_line.glyphs.len();
                 break;
             } else {
                 final_offset -= sub_line.glyphs.len();
@@ -1311,51 +1321,6 @@ impl DocLines {
         Arc::new(layout_line)
     }
 
-    fn update_inlay_hints(&mut self, delta: &RopeDelta) {
-        if let Some(hints) = self.inlay_hints.as_mut() {
-            hints.apply_shape(delta);
-        }
-    }
-    pub fn set_inlay_hints(&mut self, inlay_hint: Spans<InlayHint>) {
-        self.inlay_hints = Some(inlay_hint);
-        self.update_lines();
-    }
-
-    pub fn set_completion_lens(
-        &mut self,
-        completion_lens: String,
-        line: usize,
-        col: usize,
-    ) {
-        self.completion_lens = Some(completion_lens);
-        self.completion_pos = (line, col);
-        self.update_lines();
-    }
-
-    pub fn update_semantic_styles_from_lsp(
-        &mut self,
-        styles: (Option<String>, Spans<Style>),
-    ) {
-        // self.semantic_styles = Some(styles);
-        self.style_from_lsp = true;
-        let buffer = self.buffer.get_untracked();
-        styles
-            .1
-            .iter()
-            .for_each(|(Interval { start, end }, style)| {
-                let origin_line = buffer.line_of_offset(start);
-                let origin_line_offset = buffer.offset_of_line(origin_line);
-                let entry = self.line_styles.entry(origin_line).or_default();
-                entry.push(NewLineStyle {
-                    origin_line,
-                    origin_line_offset_start: start - origin_line_offset,
-                    origin_line_offset_end: end - origin_line_offset,
-                    style: style.clone(),
-                });
-            });
-        self.update_lines_with_buffer(&buffer);
-    }
-
     // pub fn update_folding_item(&mut self, item: FoldingDisplayItem) {
     //     match item.ty {
     //         FoldingDisplayType::UnfoldStart | FoldingDisplayType::Folded => {
@@ -1382,20 +1347,8 @@ impl DocLines {
     //     self.update_lines();
     // }
 
-    pub fn update_folding_ranges(&mut self, action: UpdateFolding) {
-        match action {
-            UpdateFolding::UpdateByItem(item) => {
-                self.folding_ranges.update_folding_item(item);
-            }
-            UpdateFolding::New(ranges) => {
-                self.folding_ranges.update_ranges(ranges);
-            }
-        }
-        self.update();
-    }
-
-    fn update(&mut self) {
-        self.update_lines();
+    fn update(&mut self, buffer: &Buffer) {
+        self.update_lines_with_buffer(buffer);
         let screen_lines = self._compute_screen_lines();
         self.signals.screen_lines = screen_lines.clone();
 
@@ -1413,24 +1366,12 @@ impl DocLines {
     //     self.update_lines();
     // }
 
-    pub fn clear_completion_lens(&mut self) {
-        self.completion_lens = None;
-        self.update_lines();
-    }
-
-    fn update_completion_lens(&mut self, delta: &RopeDelta) {
+    fn update_completion_lens(&mut self, delta: &RopeDelta, buffer: &Buffer) {
         let Some(completion) = &mut self.completion_lens else {
             return;
         };
-        let buffer = self.buffer.get_untracked();
         let (line, col) = self.completion_pos;
         let offset = buffer.offset_of_line_col(line, col);
-
-        // If the edit is easily checkable + updateable from, then we alter the lens' text.
-        // In normal typing, if we didn't do this, then the text would jitter forward and then
-        // backwards as the completion lens is updated.
-        // TODO: this could also handle simple deletion, but we don't currently keep track of
-        // the past copmletion lens string content in the field.
         if delta.as_simple_insert().is_some() {
             let (iv, new_len) = delta.summary();
             if iv.start() == iv.end()
@@ -1451,14 +1392,9 @@ impl DocLines {
 
         let new_offset = transformer.transform(offset, true);
         let new_pos = buffer.offset_to_line_col(new_offset);
-
         self.completion_pos = new_pos;
     }
-    pub fn init_diagnostics(&mut self) {
-        let buffer = self.buffer.get_untracked();
-        self.init_diagnostics_with_buffer(&buffer);
-        self.update_lines_with_buffer(&buffer);
-    }
+
     /// init by lsp
     fn init_diagnostics_with_buffer(&self, buffer: &Buffer) {
         let len = buffer.len();
@@ -1488,114 +1424,6 @@ impl DocLines {
         });
     }
 
-    pub fn set_inline_completion(
-        &mut self,
-        inline_completion: String,
-        line: usize,
-        col: usize,
-    ) {
-        self.inline_completion = Some((inline_completion, line, col));
-        self.update_lines();
-    }
-
-    pub fn clear_inline_completion(&mut self) {
-        self.inline_completion = None;
-        self.update_lines();
-    }
-
-    pub fn update_viewport(&mut self, viewport: Rect) {
-        if self.viewport != viewport {
-            self.viewport = viewport;
-            tracing::warn!("update_viewport {viewport:?}");
-            self.update();
-        }
-    }
-
-    pub fn update_inline_completion(&mut self, delta: &RopeDelta) {
-        let Some((completion, ..)) = self.inline_completion.take() else {
-            return;
-        };
-        let buffer = self.buffer.get_untracked();
-
-        let (line, col) = self.completion_pos;
-        let offset = buffer.offset_of_line_col(line, col);
-
-        // Shift the position by the rope delta
-        let mut transformer = Transformer::new(delta);
-
-        let new_offset = transformer.transform(offset, true);
-        let new_pos = buffer.offset_to_line_col(new_offset);
-
-        if delta.as_simple_insert().is_some() {
-            let (iv, new_len) = delta.summary();
-            if iv.start() == iv.end()
-                && iv.start() == offset
-                && new_len <= completion.len()
-            {
-                // Remove the # of newly inserted characters
-                // These aren't necessarily the same as the characters literally in the
-                // text, but the completion will be updated when the completion widget
-                // receives the update event, and it will fix this if needed.
-                self.inline_completion =
-                    Some((completion[new_len..].to_string(), new_pos.0, new_pos.1));
-            }
-        } else {
-            self.inline_completion = Some((completion, new_pos.0, new_pos.1));
-        }
-        self.update_lines_with_buffer(&buffer);
-    }
-
-    pub fn set_syntax(&mut self, syntax: Syntax) {
-        self.syntax = syntax;
-        if self.style_from_lsp {
-            return;
-        }
-        // if self.semantic_styles.is_none() {
-        //     self.line_styles.clear();
-        // }
-        let buffer = self.buffer.get_untracked();
-        self.line_styles.clear();
-        if let Some(x) = self.syntax.styles.as_ref() {
-            x.iter().for_each(|(Interval { start, end }, style)| {
-                let origin_line = buffer.line_of_offset(start);
-                let origin_line_offset = buffer.offset_of_line(origin_line);
-                let entry = self.line_styles.entry(origin_line).or_default();
-                entry.push(NewLineStyle {
-                    origin_line,
-                    origin_line_offset_start: start - origin_line_offset,
-                    origin_line_offset_end: end - origin_line_offset,
-                    style: style.clone(),
-                });
-            })
-        };
-        self.update_parser(&buffer);
-        self.update_lines_with_buffer(&buffer);
-    }
-
-    pub fn apply_delta(&mut self, delta: &RopeDelta) {
-        if self.style_from_lsp {
-            if let Some(styles) = &mut self.semantic_styles {
-                styles.1.apply_shape(delta);
-            }
-        } else if let Some(styles) = self.syntax.styles.as_mut() {
-            styles.apply_shape(delta);
-        }
-        self.syntax.lens.apply_delta(delta);
-        self.update_diagnostics(delta);
-        self.update_inlay_hints(delta);
-        self.update_completion_lens(delta);
-        // self.update_lines();
-    }
-
-    pub fn trigger_syntax_change(
-        &mut self,
-        _edits: Option<SmallVec<[SyntaxEdit; 3]>>,
-    ) {
-        self.syntax.cancel_flag.store(1, atomic::Ordering::Relaxed);
-        self.syntax.cancel_flag = Arc::new(AtomicUsize::new(0));
-        self.update_lines();
-    }
-
     // fn styles(&self) -> Option<Spans<Style>> {
     //     if let Some(semantic_styles) = &self.semantic_styles {
     //         Some(semantic_styles.1.clone())
@@ -1603,18 +1431,6 @@ impl DocLines {
     //         self.syntax.styles.clone()
     //     }
     // }
-
-    pub fn on_update_buffer(&mut self) {
-        let buffer = self.buffer.get_untracked();
-        if self.syntax.styles.is_some() {
-            self.parser.update_code(&buffer, Some(&self.syntax));
-        } else {
-            self.parser.update_code(&buffer, None);
-        }
-        self.init_diagnostics_with_buffer(&buffer);
-        self.update_lines_with_buffer(&buffer);
-        // self.do_bracket_colorization(&buffer);
-    }
 
     // fn do_bracket_colorization(&mut self, buffer: &Buffer) {
     //     if self.parser.active {
@@ -1743,6 +1559,12 @@ impl DocLines {
             self.viewport,
             self.buffer.get_untracked().text().to_string()
         );
+        for origin_folded_line in &self.origin_folded_lines {
+            warn!("{:?}", origin_folded_line);
+        }
+        for visual_line in &self.visual_lines {
+            warn!("{:?}", visual_line);
+        }
         for visual_line in &self.signals.screen_lines.visual_lines {
             warn!("{:?}", visual_line);
         }
@@ -1861,6 +1683,204 @@ impl DocLines {
                 })
                 .collect()
         })
+    }
+    fn update_inlay_hints(&mut self, delta: &RopeDelta) {
+        if let Some(hints) = self.inlay_hints.as_mut() {
+            hints.apply_shape(delta);
+        }
+    }
+}
+
+type UpdateLines = DocLines;
+
+impl UpdateLines {
+    pub fn clear_completion_lens(&mut self) {
+        self.completion_lens = None;
+        let buffer = self.buffer.get_untracked();
+        self.update(&buffer);
+    }
+    pub fn init_diagnostics(&mut self) {
+        let buffer = self.buffer.get_untracked();
+        self.init_diagnostics_with_buffer(&buffer);
+        self.update(&buffer);
+    }
+    pub fn update_viewport(&mut self, viewport: Rect) {
+        if self.viewport != viewport {
+            let buffer = self.buffer.get_untracked();
+            self.viewport = viewport;
+            tracing::warn!("update_viewport {viewport:?}");
+            self.update(&buffer);
+        }
+    }
+
+    pub fn on_update_buffer(&mut self) {
+        let buffer = self.buffer.get_untracked();
+        if self.syntax.styles.is_some() {
+            self.parser.update_code(&buffer, Some(&self.syntax));
+        } else {
+            self.parser.update_code(&buffer, None);
+        }
+        self.init_diagnostics_with_buffer(&buffer);
+        self.update(&buffer);
+    }
+    pub fn update_folding_ranges(&mut self, action: UpdateFolding) {
+        match action {
+            UpdateFolding::UpdateByItem(item) => {
+                self.folding_ranges.update_folding_item(item);
+            }
+            UpdateFolding::New(ranges) => {
+                self.folding_ranges.update_ranges(ranges);
+            }
+        }
+        let buffer = self.buffer.get_untracked();
+        self.update(&buffer);
+    }
+
+    pub fn update_inline_completion(&mut self, delta: &RopeDelta) {
+        let Some((completion, ..)) = self.inline_completion.take() else {
+            return;
+        };
+        let buffer = self.buffer.get_untracked();
+
+        let (line, col) = self.completion_pos;
+        let offset = buffer.offset_of_line_col(line, col);
+
+        // Shift the position by the rope delta
+        let mut transformer = Transformer::new(delta);
+
+        let new_offset = transformer.transform(offset, true);
+        let new_pos = buffer.offset_to_line_col(new_offset);
+
+        if delta.as_simple_insert().is_some() {
+            let (iv, new_len) = delta.summary();
+            if iv.start() == iv.end()
+                && iv.start() == offset
+                && new_len <= completion.len()
+            {
+                // Remove the # of newly inserted characters
+                // These aren't necessarily the same as the characters literally in the
+                // text, but the completion will be updated when the completion widget
+                // receives the update event, and it will fix this if needed.
+                self.inline_completion =
+                    Some((completion[new_len..].to_string(), new_pos.0, new_pos.1));
+            }
+        } else {
+            self.inline_completion = Some((completion, new_pos.0, new_pos.1));
+        }
+        self.update(&buffer);
+    }
+
+    pub fn apply_delta(&mut self, delta: &RopeDelta) {
+        if self.style_from_lsp {
+            if let Some(styles) = &mut self.semantic_styles {
+                styles.1.apply_shape(delta);
+            }
+        } else if let Some(styles) = self.syntax.styles.as_mut() {
+            styles.apply_shape(delta);
+        }
+        let buffer = self.buffer.get_untracked();
+        self.syntax.lens.apply_delta(delta);
+        self.update_diagnostics(delta);
+        self.update_inlay_hints(delta);
+        self.update_completion_lens(delta, &buffer);
+
+        self.update(&buffer);
+    }
+    pub fn trigger_syntax_change(
+        &mut self,
+        _edits: Option<SmallVec<[SyntaxEdit; 3]>>,
+    ) {
+        self.syntax.cancel_flag.store(1, atomic::Ordering::Relaxed);
+        self.syntax.cancel_flag = Arc::new(AtomicUsize::new(0));
+        let buffer = self.buffer.get_untracked();
+        self.update(&buffer);
+    }
+    pub fn set_inline_completion(
+        &mut self,
+        inline_completion: String,
+        line: usize,
+        col: usize,
+    ) {
+        self.inline_completion = Some((inline_completion, line, col));
+        let buffer = self.buffer.get_untracked();
+        self.update(&buffer);
+    }
+
+    pub fn clear_inline_completion(&mut self) {
+        self.inline_completion = None;
+        let buffer = self.buffer.get_untracked();
+        self.update(&buffer);
+    }
+
+    pub fn set_syntax(&mut self, syntax: Syntax) {
+        self.syntax = syntax;
+        if self.style_from_lsp {
+            return;
+        }
+        // if self.semantic_styles.is_none() {
+        //     self.line_styles.clear();
+        // }
+        let buffer = self.buffer.get_untracked();
+        self.line_styles.clear();
+        if let Some(x) = self.syntax.styles.as_ref() {
+            x.iter().for_each(|(Interval { start, end }, style)| {
+                let origin_line = buffer.line_of_offset(start);
+                let origin_line_offset = buffer.offset_of_line(origin_line);
+                let entry = self.line_styles.entry(origin_line).or_default();
+                entry.push(NewLineStyle {
+                    origin_line,
+                    origin_line_offset_start: start - origin_line_offset,
+                    origin_line_offset_end: end - origin_line_offset,
+                    style: style.clone(),
+                });
+            })
+        };
+        self.update_parser(&buffer);
+
+        self.update(&buffer);
+    }
+
+    pub fn set_inlay_hints(&mut self, inlay_hint: Spans<InlayHint>) {
+        self.inlay_hints = Some(inlay_hint);
+        let buffer = self.buffer.get_untracked();
+        self.update(&buffer);
+    }
+
+    pub fn set_completion_lens(
+        &mut self,
+        completion_lens: String,
+        line: usize,
+        col: usize,
+    ) {
+        self.completion_lens = Some(completion_lens);
+        self.completion_pos = (line, col);
+        let buffer = self.buffer.get_untracked();
+        self.update(&buffer);
+    }
+
+    pub fn update_semantic_styles_from_lsp(
+        &mut self,
+        styles: (Option<String>, Spans<Style>),
+    ) {
+        // self.semantic_styles = Some(styles);
+        self.style_from_lsp = true;
+        let buffer = self.buffer.get_untracked();
+        styles
+            .1
+            .iter()
+            .for_each(|(Interval { start, end }, style)| {
+                let origin_line = buffer.line_of_offset(start);
+                let origin_line_offset = buffer.offset_of_line(origin_line);
+                let entry = self.line_styles.entry(origin_line).or_default();
+                entry.push(NewLineStyle {
+                    origin_line,
+                    origin_line_offset_start: start - origin_line_offset,
+                    origin_line_offset_end: end - origin_line_offset,
+                    style: style.clone(),
+                });
+            });
+        let buffer = self.buffer.get_untracked();
+        self.update(&buffer);
     }
 }
 

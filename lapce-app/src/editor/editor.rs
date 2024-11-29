@@ -1994,6 +1994,7 @@ fn paint_cursor_caret(
 
     cursor.with_untracked(|cursor| {
         let style = ed.doc();
+        // let cursor_offset = cursor.offset();
         for (_, end) in cursor.regions_iter() {
             let is_block = match cursor.mode {
                 CursorMode::Normal(_) | CursorMode::Visual { .. } => true,
@@ -2002,6 +2003,7 @@ fn paint_cursor_caret(
             let LineRegion { x, width, rvline } =
                 cursor_caret(ed, end, is_block, cursor.affinity);
 
+            warn!("end={end} is_block={is_block}, x={x} width={width} rvline={rvline:?} cursor={:?}", cursor);
             if let Some(info) = screen_lines.info(rvline) {
                 if !style.paint_caret(ed.id(), rvline.line) {
                     continue;
