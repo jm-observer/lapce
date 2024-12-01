@@ -1,3 +1,5 @@
+use doc::lines::diff::DiffInfo;
+use doc::EditorViewKind;
 use std::{rc::Rc, sync::atomic};
 
 use floem::{
@@ -18,7 +20,7 @@ use lapce_rpc::{buffer::BufferId, proxy::ProxyResponse};
 use lapce_xi_rope::Rope;
 use serde::{Deserialize, Serialize};
 
-use super::{EditorData, EditorViewKind};
+use super::EditorData;
 use crate::{
     config::{color::LapceColor, icon::LapceIcons},
     doc::{Doc, DocContent},
@@ -28,11 +30,11 @@ use crate::{
     window_tab::CommonData,
 };
 
-#[derive(Clone)]
-pub struct DiffInfo {
-    pub is_right: bool,
-    pub changes: Vec<DiffLines>,
-}
+// #[derive(Clone)]
+// pub struct DiffInfo {
+//     pub is_right: bool,
+//     pub changes: Vec<DiffLines>,
+// }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct DiffEditorInfo {

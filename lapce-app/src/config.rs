@@ -1023,4 +1023,36 @@ impl LapceConfig {
 
         Some(())
     }
+
+    pub fn get_doc_editor_config(&self) -> doc::config::EditorConfig {
+        doc::config::EditorConfig {
+            font_family: self.editor.font_family.clone(),
+            font_size: self.editor.font_size(),
+            line_height: self.editor.line_height(),
+            enable_inlay_hints: self.editor.enable_inlay_hints,
+            inlay_hint_font_size: self.editor.inlay_hint_font_size,
+            enable_error_lens: self.editor.enable_error_lens,
+            error_lens_end_of_line: self.editor.error_lens_end_of_line,
+            error_lens_multiline: self.editor.error_lens_multiline,
+            error_lens_font_size: self.editor.error_lens_font_size,
+            enable_completion_lens: self.editor.enable_completion_lens,
+            enable_inline_completion: self.editor.enable_inline_completion,
+            completion_lens_font_size: self.editor.completion_lens_font_size,
+            only_render_error_styling: self.editor.only_render_error_styling,
+            diagnostic_error: self.color(LapceColor::LAPCE_ERROR),
+            diagnostic_warn: self.color(LapceColor::LAPCE_WARN),
+            inlay_hint_fg: self.color(LapceColor::INLAY_HINT_FOREGROUND),
+            inlay_hint_bg: self.color(LapceColor::INLAY_HINT_BACKGROUND),
+            error_lens_error_foreground: self
+                .color(LapceColor::ERROR_LENS_ERROR_FOREGROUND),
+            error_lens_warning_foreground: self
+                .color(LapceColor::ERROR_LENS_WARNING_FOREGROUND),
+            error_lens_other_foreground: self
+                .color(LapceColor::ERROR_LENS_OTHER_FOREGROUND),
+            completion_lens_foreground: self
+                .color(LapceColor::COMPLETION_LENS_FOREGROUND),
+            editor_foreground: self.color(LapceColor::EDITOR_FOREGROUND),
+            syntax: self.color.syntax.clone(),
+        }
+    }
 }

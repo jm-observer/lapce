@@ -159,6 +159,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 
 [[package]]
+name = "ansi_term"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d52a9bb7ec0cf484c551830a7ce27bd20d67eac647e1befb56b0be4ee39a55d2"
+dependencies = [
+ "winapi",
+]
+
+[[package]]
 name = "anstyle"
 version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1295,6 +1304,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "custom-utils"
+version = "0.10.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f09a96c3e5008c6904e832b52048af090c7d65e2e93ac3c228669225a84d25e"
+dependencies = [
+ "ansi_term",
+ "anyhow",
+ "flexi_logger",
+ "lazy_static",
+ "log",
+]
+
+[[package]]
 name = "d3d12"
 version = "22.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1447,6 +1469,40 @@ checksum = "abc28c350337837f23b4750f774371f63db232338c9f89bdb9eb48523a7c4722"
 dependencies = [
  "log",
  "plist",
+]
+
+[[package]]
+name = "doc"
+version = "0.1.0"
+dependencies = [
+ "ahash",
+ "anyhow",
+ "arc-swap",
+ "custom-utils",
+ "directories",
+ "floem",
+ "floem-editor-core",
+ "git2",
+ "hashbrown 0.14.5",
+ "im",
+ "itertools 0.12.1",
+ "lapce-xi-rope",
+ "libloading",
+ "log",
+ "lsp-types",
+ "regex",
+ "serde",
+ "serde_json",
+ "slotmap",
+ "smallvec",
+ "strum",
+ "strum_macros",
+ "thiserror",
+ "tracing 0.2.0",
+ "tracing-appender",
+ "tracing-log",
+ "tracing-subscriber",
+ "tree-sitter",
 ]
 
 [[package]]
@@ -1690,6 +1746,23 @@ checksum = "a1b589b4dc103969ad3cf85c950899926ec64300a1a46d76c03a6072957036f0"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
+]
+
+[[package]]
+name = "flexi_logger"
+version = "0.28.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cca927478b3747ba47f98af6ba0ac0daea4f12d12f55e9104071b3dc00276310"
+dependencies = [
+ "chrono",
+ "glob",
+ "log",
+ "notify-debouncer-mini",
+ "nu-ansi-term 0.50.1",
+ "serde",
+ "serde_derive",
+ "thiserror",
+ "toml 0.8.19",
 ]
 
 [[package]]
@@ -2213,6 +2286,12 @@ dependencies = [
  "log",
  "xml-rs",
 ]
+
+[[package]]
+name = "glob"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 
 [[package]]
 name = "globset"
@@ -2976,6 +3055,7 @@ dependencies = [
  "criterion",
  "crossbeam-channel",
  "dmg",
+ "doc",
  "flate2",
  "floem",
  "floem-editor-core",
@@ -2991,7 +3071,7 @@ dependencies = [
  "lapce-rpc",
  "lapce-xi-rope",
  "lsp-types",
- "notify",
+ "notify 5.2.0",
  "nucleo",
  "once_cell",
  "open",
@@ -3080,7 +3160,7 @@ dependencies = [
  "libc",
  "locale_config",
  "lsp-types",
- "notify",
+ "notify 5.2.0",
  "parking_lot",
  "polling",
  "psp-types",
@@ -3531,6 +3611,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "notify"
+version = "6.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6205bd8bb1e454ad2e27422015fb5e4f2bcc7e08fa8f27058670d208324a4d2d"
+dependencies = [
+ "bitflags 2.6.0",
+ "crossbeam-channel",
+ "filetime",
+ "fsevent-sys",
+ "inotify",
+ "kqueue",
+ "libc",
+ "log",
+ "mio 0.8.11",
+ "walkdir",
+ "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "notify-debouncer-mini"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d40b221972a1fc5ef4d858a2f671fb34c75983eb385463dff3780eeff6a9d43"
+dependencies = [
+ "log",
+ "notify 6.1.1",
+]
+
+[[package]]
 name = "nu-ansi-term"
 version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3538,6 +3647,15 @@ checksum = "77a8165726e8236064dbb45459242600304b42a5ea24ee2948e18e023bf7ba84"
 dependencies = [
  "overload",
  "winapi",
+]
+
+[[package]]
+name = "nu-ansi-term"
+version = "0.50.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4a28e057d01f97e61255210fcff094d74ed0466038633e95017f5beb68e4399"
+dependencies = [
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5488,7 +5606,7 @@ name = "tracing-subscriber"
 version = "0.3.0"
 source = "git+https://github.com/jm-observer/tracing#0f0d0940f94ebbfc435465edf6d07df0b8589993"
 dependencies = [
- "nu-ansi-term",
+ "nu-ansi-term 0.46.0",
  "sharded-slab",
  "smallvec",
  "thread_local",

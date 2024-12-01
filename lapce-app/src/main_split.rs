@@ -1,3 +1,5 @@
+use doc::syntax::Syntax;
+use doc::DiagnosticData;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -16,9 +18,10 @@ use floem::{
     views::editor::id::EditorId,
 };
 use itertools::Itertools;
+use lapce_core::directory::Directory;
 use lapce_core::{
     buffer::rope_text::RopeText, command::FocusCommand, cursor::Cursor,
-    rope_text_pos::RopeTextPosition, selection::Selection, syntax::Syntax,
+    rope_text_pos::RopeTextPosition, selection::Selection,
 };
 use lapce_rpc::{
     buffer::BufferId,
@@ -42,7 +45,7 @@ use crate::{
     alert::AlertButton,
     code_lens::CodeLensData,
     command::InternalCommand,
-    doc::{DiagnosticData, Doc, DocContent, DocHistory, EditorDiagnostic},
+    doc::{Doc, DocContent, DocHistory, EditorDiagnostic},
     editor::{
         diff::DiffEditorData,
         location::{EditorLocation, EditorPosition},
@@ -2531,7 +2534,15 @@ impl MainSplitData {
                                 err
                             );
                         } else {
-                            let syntax = Syntax::init(&path);
+                            let queries_directory =
+                                Directory::queries_directory().unwrap();
+                            let grammars_directory =
+                                Directory::grammars_directory().unwrap();
+                            let syntax = Syntax::init(
+                                &path,
+                                &grammars_directory,
+                                &queries_directory,
+                            );
                             doc.content.set(DocContent::File {
                                 path: path.clone(),
                                 read_only: false,
@@ -2586,7 +2597,7 @@ impl MainSplitData {
                                 err
                             );
                         } else {
-                            let syntax = Syntax::init(&path);
+                            // let syntax = Syntax::init(&path);
                             doc.content.set(DocContent::File {
                                 path: path.clone(),
                                 read_only: false,
@@ -2594,7 +2605,7 @@ impl MainSplitData {
                             doc.buffer.update(|buffer| {
                                 buffer.set_pristine();
                             });
-                            doc.set_syntax(syntax);
+                            // doc.set_syntax(syntax);
                             doc.trigger_syntax_change(None);
                             action();
                         }

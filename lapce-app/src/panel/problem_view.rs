@@ -1,3 +1,4 @@
+use doc::DiagnosticData;
 use std::{path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
@@ -17,7 +18,7 @@ use crate::panel::position::PanelContainerPosition;
 use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
-    doc::{DiagnosticData, EditorDiagnostic},
+    doc::EditorDiagnostic,
     editor::location::{EditorLocation, EditorPosition},
     listener::Listener,
     lsp::path_from_url,

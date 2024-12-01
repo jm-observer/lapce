@@ -1,3 +1,4 @@
+use doc::EditorViewKind;
 use std::{
     collections::{HashMap, HashSet},
     rc::Rc,
@@ -55,14 +56,9 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 use view::StickyHeaderInfo;
 
-use self::{
-    diff::DiffInfo,
-    location::{EditorLocation, EditorPosition},
-};
+use self::location::{EditorLocation, EditorPosition};
 use crate::editor::editor::{do_motion_mode, Editor};
-use crate::editor::lines::DocLines;
 use crate::editor::movement::{do_multi_selection, move_cursor};
-use crate::editor::screen_lines::ScreenLines;
 use crate::editor::FindHintRs::{Match, MatchWithoutLocation, NoMatchBreak};
 use crate::panel::call_hierarchy_view::CallHierarchyData;
 use crate::{
@@ -93,12 +89,10 @@ use crate::{
 pub mod diff;
 pub mod editor;
 pub mod gutter;
-pub mod lines;
 pub mod location;
 pub mod view;
 
 pub mod movement;
-pub mod screen_lines;
 
 #[derive(Clone, Debug)]
 pub enum InlineFindDirection {
@@ -193,17 +187,17 @@ impl EditorInfo {
     }
 }
 
-#[derive(Clone)]
-pub enum EditorViewKind {
-    Normal,
-    Diff(DiffInfo),
-}
+// #[derive(Clone)]
+// pub enum EditorViewKind {
+//     Normal,
+//     Diff(DiffInfo),
+// }
 
-impl EditorViewKind {
-    pub fn is_normal(&self) -> bool {
-        matches!(self, EditorViewKind::Normal)
-    }
-}
+// impl EditorViewKind {
+//     pub fn is_normal(&self) -> bool {
+//         matches!(self, EditorViewKind::Normal)
+//     }
+// }
 
 #[derive(Clone)]
 pub struct OnScreenFind {

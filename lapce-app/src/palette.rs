@@ -13,6 +13,8 @@ use std::{
 
 use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender, TryRecvError};
+use doc::language::LapceLanguage;
+use doc::syntax::Syntax;
 use floem::{
     ext_event::{create_ext_action, create_signal_from_channel},
     keyboard::Modifiers,
@@ -23,10 +25,10 @@ use floem::{
 };
 use im::Vector;
 use itertools::Itertools;
+use lapce_core::directory::Directory;
 use lapce_core::{
-    buffer::rope_text::RopeText, command::FocusCommand, language::LapceLanguage,
-    line_ending::LineEnding, mode::Mode, movement::Movement, selection::Selection,
-    syntax::Syntax,
+    buffer::rope_text::RopeText, command::FocusCommand, line_ending::LineEnding,
+    mode::Mode, movement::Movement, selection::Selection,
 };
 use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;
@@ -1362,8 +1364,14 @@ impl PaletteData {
                             return;
                         }
                     };
+                    let queries_directory = Directory::queries_directory().unwrap();
+                    let grammars_directory =
+                        Directory::grammars_directory().unwrap();
                     if name.is_empty() || name.to_lowercase().eq("plain text") {
-                        doc.set_syntax(Syntax::plaintext())
+                        doc.set_syntax(Syntax::plaintext(
+                            &grammars_directory,
+                            &queries_directory,
+                        ))
                     } else {
                         let lang = match LapceLanguage::from_name(name) {
                             Some(v) => v,

@@ -1,3 +1,5 @@
+use doc::lines::fold::{FoldingDisplayItem, FoldingDisplayType};
+use doc::lines::screen_lines::ScreenLines;
 use std::collections::HashSet;
 use std::io::Read;
 use std::{
@@ -54,16 +56,12 @@ use lapce_rpc::{dap_types::DapId, plugin::PluginId};
 
 use crate::debug::update_breakpoints;
 use crate::editor::editor::{cursor_caret, paint_selection, paint_text, Editor};
-use crate::editor::gutter::FoldingDisplayType;
-use crate::editor::lines::{DocLines, DocLinesManager};
-use crate::editor::screen_lines::ScreenLines;
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
     config::{color::LapceColor, editor::WrapStyle, icon::LapceIcons, LapceConfig},
     debug::{DapData, LapceBreakpoint},
     doc::DocContent,
-    editor::gutter::FoldingDisplayItem,
     text_input::TextInputBuilder,
     window_tab::{CommonData, Focus, WindowTabData},
     workspace::LapceWorkspace,

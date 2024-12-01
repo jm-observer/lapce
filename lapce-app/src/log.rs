@@ -10,15 +10,15 @@ pub fn log(window: &WindowTabData) {
 
 pub fn print_screen_lines(window: &WindowTabData) {
     for (_, editor) in &window.main_split.editors.0.get_untracked() {
-        // if let Some(path) = path {
-        //     warn!("{:?}", path);
-        //     editor.doc().lines.with_untracked(|x| x.log());
-        //     warn!("");
-        // }
-        if editor.doc().name.is_some() {
-            // warn!("{:?}", path);
+        if let Some(path) = editor.doc().content.get_untracked().path() {
+            warn!("{:?}", path);
             editor.doc().lines.with_untracked(|x| x.log());
             warn!("");
         }
+        // if editor.doc().name.is_some() {
+        //     // warn!("{:?}", path);
+        //     editor.doc().lines.with_untracked(|x| x.log());
+        //     warn!("");
+        // }
     }
 }

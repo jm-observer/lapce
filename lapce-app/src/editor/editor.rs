@@ -1,3 +1,5 @@
+use doc::lines::screen_lines::ScreenLines;
+use doc::lines::{OriginFoldedLine, VisualLine};
 use std::ops::Range;
 use std::{
     cell::Cell,
@@ -22,10 +24,6 @@ use floem_editor_core::{
 };
 
 use crate::doc::Doc;
-use crate::editor::lines::{
-    DocLines, DocLinesManager, OriginFoldedLine, VisualLine,
-};
-use crate::editor::screen_lines::ScreenLines;
 use floem::context::PaintCx;
 use floem::kurbo::Line;
 use floem::reactive::{SignalGet, SignalTrack, SignalUpdate, SignalWith, Trigger};

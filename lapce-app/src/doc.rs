@@ -1,3 +1,10 @@
+use doc::language::LapceLanguage;
+use doc::lines::fold::FoldingRange;
+use doc::lines::screen_lines::ScreenLines;
+use doc::lines::DocLinesManager;
+use doc::syntax::edit::SyntaxEdit;
+use doc::syntax::{BracketParser, Syntax};
+use doc::{DiagnosticData, EditorViewKind};
 use std::{
     borrow::Cow,
     cell::RefCell,
@@ -34,6 +41,7 @@ use floem::{
 };
 use floem_editor_core::buffer::rope_text::RopeTextVal;
 use itertools::Itertools;
+use lapce_core::directory::Directory;
 use lapce_core::{
     buffer::{
         diff::{rope_diff, DiffLines},
@@ -45,14 +53,12 @@ use lapce_core::{
     cursor::{Cursor, CursorAffinity},
     editor::{Action, EditConf, EditType},
     indent::IndentStyle,
-    language::LapceLanguage,
     line_ending::LineEnding,
     mode::MotionMode,
     register::Register,
     rope_text_pos::RopeTextPosition,
     selection::{InsertDrift, Selection},
     style::line_styles,
-    syntax::{edit::SyntaxEdit, BracketParser, Syntax},
     word::{get_char_property, CharClassification, WordCursor},
 };
 use lapce_rpc::{
@@ -73,15 +79,10 @@ use smallvec::SmallVec;
 use tracing::error;
 
 use crate::editor::editor::{CommonAction, CursorInfo, Editor};
-use crate::editor::gutter::FoldingRange;
-use crate::editor::lines::{DocLines, DocLinesManager};
-use crate::editor::screen_lines::ScreenLines;
-use crate::editor::EditorViewKind;
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand},
     config::LapceConfig,
     editor::{
-        gutter::FoldingRanges,
         location::{EditorLocation, EditorPosition},
         EditorData,
     },
@@ -96,12 +97,12 @@ use crate::{
     workspace::LapceWorkspace,
 };
 
-#[derive(Clone, Debug)]
-pub struct DiagnosticData {
-    pub expanded: RwSignal<bool>,
-    pub diagnostics: RwSignal<im::Vector<Diagnostic>>,
-    pub diagnostics_span: RwSignal<Spans<Diagnostic>>,
-}
+// #[derive(Clone, Debug)]
+// pub struct DiagnosticData {
+//     pub expanded: RwSignal<bool>,
+//     pub diagnostics: RwSignal<im::Vector<Diagnostic>>,
+//     pub diagnostics_span: RwSignal<Spans<Diagnostic>>,
+// }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EditorDiagnostic {
@@ -236,9 +237,11 @@ impl Doc {
         common: Rc<CommonData>,
     ) -> Self {
         let editor_id = EditorId::next();
-        let syntax = Syntax::init(&path);
+        let queries_directory = Directory::queries_directory().unwrap();
+        let grammars_directory = Directory::grammars_directory().unwrap();
+        let syntax = Syntax::init(&path, &grammars_directory, &queries_directory);
         let config = common.config.get_untracked();
-        let rw_config = common.config;
+        let rw_config = common.editor_config;
         // let lines = cx.create_rw_signal(Lines::new(cx));
         let viewport = Rect::ZERO;
         let editor_style = EditorStyle::default();
@@ -308,7 +311,7 @@ impl Doc {
         let editor_id = EditorId::next();
         let cx = cx.create_child();
         let config = common.config.get_untracked();
-        let rw_config = common.config;
+        let rw_config = common.editor_config;
         // let lines = cx.create_rw_signal(Lines::new(cx));
         let viewport = Rect::ZERO;
         let editor_style = EditorStyle::default();
@@ -317,7 +320,9 @@ impl Doc {
             diagnostics: cx.create_rw_signal(im::Vector::new()),
             diagnostics_span: cx.create_rw_signal(SpansBuilder::new(0).build()),
         };
-        let syntax = Syntax::plaintext();
+        let queries_directory = Directory::queries_directory().unwrap();
+        let grammars_directory = Directory::grammars_directory().unwrap();
+        let syntax = Syntax::plaintext(&grammars_directory, &queries_directory);
         let buffer = cx.create_rw_signal(Buffer::new(""));
         let kind = cx.create_rw_signal(EditorViewKind::Normal);
         Self {
@@ -371,11 +376,14 @@ impl Doc {
     ) -> Doc {
         let editor_id = EditorId::next();
         let config = common.config.get_untracked();
-        let rw_config = common.config;
+        let rw_config = common.editor_config;
+
+        let queries_directory = Directory::queries_directory().unwrap();
+        let grammars_directory = Directory::grammars_directory().unwrap();
         let syntax = if let DocContent::History(history) = &content {
-            Syntax::init(&history.path)
+            Syntax::init(&history.path, &grammars_directory, &queries_directory)
         } else {
-            Syntax::plaintext()
+            Syntax::plaintext(&grammars_directory, &queries_directory)
         };
         // let lines = cx.create_rw_signal(Lines::new(cx));
         let viewport = Rect::ZERO;
@@ -496,8 +504,15 @@ impl Doc {
 
     /// Set the syntax highlighting this document should use.
     pub fn set_language(&self, language: LapceLanguage) {
-        self.lines
-            .update(|x| x.set_syntax(Syntax::from_language(language)));
+        let queries_directory = Directory::queries_directory().unwrap();
+        let grammars_directory = Directory::grammars_directory().unwrap();
+        self.lines.update(|x| {
+            x.set_syntax(Syntax::from_language(
+                language,
+                &grammars_directory,
+                &queries_directory,
+            ))
+        });
     }
 
     pub fn find(&self) -> &Find {
@@ -780,7 +795,15 @@ impl Doc {
             .update(|x| x.trigger_syntax_change(edits.clone()));
         let mut syntax = self.syntax();
         rayon::spawn(move || {
-            syntax.parse(rev, text, edits.as_deref());
+            let queries_directory = Directory::queries_directory().unwrap();
+            let grammars_directory = Directory::grammars_directory().unwrap();
+            syntax.parse(
+                rev,
+                text,
+                edits.as_deref(),
+                &grammars_directory,
+                &queries_directory,
+            );
             send(syntax);
         });
     }
@@ -874,10 +897,12 @@ impl Doc {
                                 send((None, result_id));
                                 return;
                             }
-                            styles_span.add_span(
-                                Interval::new(style.start, style.end),
-                                style.style,
-                            );
+                            if let Some(fg) = style.style.fg_color {
+                                styles_span.add_span(
+                                    Interval::new(style.start, style.end),
+                                    fg,
+                                );
+                            }
                         }
 
                         let styles = styles_span.build();

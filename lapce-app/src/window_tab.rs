@@ -11,6 +11,7 @@ use std::{
 use alacritty_terminal::vte::ansi::Handler;
 use anyhow::anyhow;
 use crossbeam_channel::Sender;
+use doc::config::EditorConfig;
 use floem::reactive::SignalTrack;
 use floem::{
     action::{open_file, remove_overlay, TimerToken},
@@ -215,6 +216,7 @@ pub struct CommonData {
     pub ui_line_height: Memo<f64>,
     pub dragging: RwSignal<Option<DragContent>>,
     pub config: ReadSignal<Arc<LapceConfig>>,
+    pub editor_config: ReadSignal<EditorConfig>,
     pub proxy_status: RwSignal<Option<ProxyStatus>>,
     pub mouse_hover_timer: RwSignal<TimerToken>,
     pub breakpoints: RwSignal<BTreeMap<PathBuf, BTreeMap<usize, LapceBreakpoint>>>,
@@ -254,6 +256,7 @@ pub struct WindowTabData {
     pub status_height: RwSignal<f64>,
     pub proxy: ProxyData,
     pub set_config: WriteSignal<Arc<LapceConfig>>,
+    pub set_editor_config: WriteSignal<EditorConfig>,
     pub update_in_progress: RwSignal<bool>,
     pub progresses: RwSignal<IndexMap<ProgressToken, WorkProgress>>,
     pub messages: RwSignal<Vec<(String, ShowMessageParams)>>,
@@ -403,7 +406,9 @@ impl WindowTabData {
             config.plugins.clone(),
             term_tx.clone(),
         );
+        let doc_editor_config = config.get_doc_editor_config();
         let (config, set_config) = cx.create_signal(Arc::new(config));
+        let (editor_config, set_editor_config) = cx.create_signal(doc_editor_config);
 
         let focus = SignalManager::new(cx.create_rw_signal(Focus::Workbench));
         let completion = cx.create_rw_signal(CompletionData::new(cx, config));
@@ -428,6 +433,7 @@ impl WindowTabData {
         });
 
         let common = Rc::new(CommonData {
+            editor_config,
             workspace: workspace.clone(),
             scope: cx,
             keypress,
@@ -609,6 +615,7 @@ impl WindowTabData {
         let alert_data = AlertBoxData::new(cx, common.clone());
 
         let window_tab_data = Self {
+            set_editor_config,
             scope: cx,
             window_tab_id: WindowTabId::next(),
             workspace,

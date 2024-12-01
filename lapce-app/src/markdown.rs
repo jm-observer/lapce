@@ -1,7 +1,9 @@
+use doc::language::LapceLanguage;
+use doc::syntax::Syntax;
 use floem::text::{
     Attrs, AttrsList, FamilyOwned, LineHeightValue, Style, TextLayout, Weight,
 };
-use lapce_core::{language::LapceLanguage, syntax::Syntax};
+use lapce_core::directory::Directory;
 use lapce_xi_rope::Rope;
 use lsp_types::MarkedString;
 use pulldown_cmark::{CodeBlockKind, CowStr, Event, Options, Parser, Tag};
@@ -279,27 +281,30 @@ pub fn highlight_as_code(
     start_offset: usize,
     config: &LapceConfig,
 ) {
-    let syntax = language.map(Syntax::from_language);
+    let queries_directory = Directory::queries_directory().unwrap();
+    let grammars_directory = Directory::grammars_directory().unwrap();
+    let syntax = language
+        .map(|x| Syntax::from_language(x, &grammars_directory, &queries_directory));
 
     let styles = syntax
         .map(|mut syntax| {
-            syntax.parse(0, Rope::from(text), None);
+            syntax.parse(
+                0,
+                Rope::from(text),
+                None,
+                &grammars_directory,
+                &queries_directory,
+            );
             syntax.styles
         })
         .unwrap_or(None);
 
     if let Some(styles) = styles {
-        for (range, style) in styles.iter() {
-            if let Some(color) = style
-                .fg_color
-                .as_ref()
-                .and_then(|fg| config.style_color(fg))
-            {
-                attr_list.add_span(
-                    start_offset + range.start..start_offset + range.end,
-                    default_attrs.color(color),
-                );
-            }
+        for (range, fg) in styles.iter() {
+            attr_list.add_span(
+                start_offset + range.start..start_offset + range.end,
+                default_attrs.color(config.style_color(fg).unwrap()),
+            );
         }
     }
 }

@@ -1,17 +1,8 @@
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
-use std::{
-    io::{BufReader, IsTerminal, Read, Write},
-    ops::Range,
-    path::PathBuf,
-    process::Stdio,
-    rc::Rc,
-    sync::{atomic::AtomicU64, Arc},
-};
-
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use crossbeam_channel::Sender;
+use doc::syntax::highlight::reset_highlight_configs;
+use doc::syntax::Syntax;
 use floem::unit::PxPctAuto::Auto;
 use floem::{
     action::show_context_menu,
@@ -52,7 +43,6 @@ use lapce_core::{
     command::{EditCommand, FocusCommand},
     directory::Directory,
     meta,
-    syntax::{highlight::reset_highlight_configs, Syntax},
 };
 use lapce_rpc::{
     core::{CoreMessage, CoreNotification},
@@ -63,6 +53,16 @@ use lsp_types::{CompletionItemKind, MessageType, ShowMessageParams};
 use notify::Watcher;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+use std::{
+    io::{BufReader, IsTerminal, Read, Write},
+    ops::Range,
+    path::PathBuf,
+    process::Stdio,
+    rc::Rc,
+    sync::{atomic::AtomicU64, Arc},
+};
 use tracing_subscriber::{filter::Targets, reload::Handle};
 
 use crate::panel::view::{
@@ -3928,12 +3928,17 @@ pub fn launch() {
                     "grammar or query got updated, reset highlight configs"
                 );
                 reset_highlight_configs();
+                let queries_directory = Directory::queries_directory().unwrap();
+                let grammars_directory = Directory::grammars_directory().unwrap();
+
                 for (_, window) in app_data.windows.get_untracked() {
                     for (_, tab) in window.window_tabs.get_untracked() {
                         for (_, doc) in tab.main_split.docs.get_untracked() {
                             doc.lines.update(|lines| {
                                 lines.set_syntax(Syntax::from_language(
                                     lines.syntax.language,
+                                    &grammars_directory,
+                                    &queries_directory,
                                 ));
                             });
                             doc.trigger_syntax_change(None);
