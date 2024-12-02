@@ -211,9 +211,10 @@ impl EditorTabChild {
                 let editor_data = editors.editor(editor_id);
                 let path = if let Some(editor_data) = editor_data {
                     let doc = editor_data.doc_signal().get();
+                    let buffer = doc.lines.with_untracked(|x| x.signal_buffer());
                     let (content, is_pristine, confirmed) = (
                         doc.content.get(),
-                        doc.buffer.with(|b| b.is_pristine()),
+                        buffer.with(|b| b.is_pristine()),
                         editor_data.confirmed,
                     );
                     match content {
@@ -271,9 +272,12 @@ impl EditorTabChild {
                         [diff_editor_data.left, diff_editor_data.right].map(|data| {
                             let (content, is_pristine) =
                                 data.doc_signal().with(|doc| {
+                                    let buffer = doc
+                                        .lines
+                                        .with_untracked(|x| x.signal_buffer());
                                     (
                                         doc.content.get(),
-                                        doc.buffer.with(|b| b.is_pristine()),
+                                        buffer.with(|b| b.is_pristine()),
                                     )
                                 });
                             match content {

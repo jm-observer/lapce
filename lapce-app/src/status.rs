@@ -327,8 +327,8 @@ pub fn status(
                     if let Some((line, column, character)) = editor
                         .doc_signal()
                         .get()
-                        .buffer
-                        .with(|buffer| cursor.get_line_col_char(buffer))
+                        .lines
+                        .with_untracked(|x| cursor.get_line_col_char(&x.buffer))
                     {
                         status = format!(
                             "Ln {}, Col {}, Char {}",
@@ -360,7 +360,9 @@ pub fn status(
             let line_ending_info = status_text(config, editor, move || {
                 if let Some(editor) = editor.get() {
                     let doc = editor.doc_signal().get();
-                    doc.buffer.with(|b| b.line_ending()).as_str()
+                    doc.lines
+                        .with_untracked(|x| x.buffer.line_ending())
+                        .as_str()
                 } else {
                     ""
                 }

@@ -1540,6 +1540,7 @@ pub fn cursor_caret(
     } else {
         info.rvline
     };
+    error!("offset={offset} block={block}, point={point:?} rvline={rvline:?} info={info:?} col={col} after_last_char={after_last_char}");
 
     let x0 = point.x;
     if block {
@@ -1554,7 +1555,6 @@ pub fn cursor_caret(
         let new_offset = ed.move_right(offset, Mode::Insert, 1);
         let (_, new_col) = ed.offset_to_line_col(new_offset);
 
-        error!("offset={offset} block={block}, point={point:?} rvline={rvline:?} info={info:?} col={col} after_last_char={after_last_char}");
         let width = if after_last_char {
             CHAR_WIDTH
         } else {

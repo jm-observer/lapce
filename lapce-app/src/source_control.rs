@@ -99,8 +99,8 @@ impl SourceControlData {
         let message = self
             .editor
             .doc()
-            .buffer
-            .with_untracked(|buffer| buffer.to_string());
+            .lines
+            .with_untracked(|x| x.buffer.to_string());
         let message = message.trim();
         if message.is_empty() {
             return;

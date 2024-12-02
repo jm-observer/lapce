@@ -272,7 +272,8 @@ impl PaletteData {
             // and kind of palette.
             cx.create_effect(move |last_input| {
                 // TODO(minor, perf): this could have perf issues if the user accidentally pasted a huge amount of text into the palette.
-                let new_input = doc.buffer.with(|buffer| buffer.to_string());
+                let buffer = doc.lines.with_untracked(|x| x.signal_buffer());
+                let new_input = buffer.get().to_string();
 
                 let status = status.get_untracked();
                 if status == PaletteStatus::Inactive {
@@ -548,7 +549,10 @@ impl PaletteData {
             }
         };
 
-        let buffer = doc.buffer.get_untracked();
+        let buffer = doc
+            .lines
+            .with_untracked(|x| x.signal_buffer())
+            .get_untracked();
         let last_line_number = buffer.last_line() + 1;
         let last_line_number_len = last_line_number.to_string().len();
         let items = buffer
@@ -1019,7 +1023,7 @@ impl PaletteData {
             let (doc, new_doc) =
                 self.main_split.get_doc(run_toml.clone(), None, false);
             if !new_doc {
-                let content = doc.buffer.with_untracked(|b| b.to_string());
+                let content = doc.lines.with_untracked(|x| x.buffer.to_string());
                 self.set_run_configs(content);
             } else {
                 let loaded = doc.loaded;
@@ -1031,7 +1035,8 @@ impl PaletteData {
 
                     let loaded = loaded.get();
                     if loaded {
-                        let content = doc.buffer.with_untracked(|b| b.to_string());
+                        let content =
+                            doc.lines.with_untracked(|x| x.buffer.to_string());
                         if content.is_empty() {
                             doc.reload(Rope::from(DEFAULT_RUN_TOML), false);
                         }
@@ -1388,8 +1393,8 @@ impl PaletteData {
                     };
                     let doc = editor.doc();
 
-                    doc.buffer.update(|buffer| {
-                        buffer.set_line_ending(*kind);
+                    doc.lines.update(|lines| {
+                        lines.set_line_ending(*kind);
                     });
                 }
                 PaletteItemContent::SCMReference { name } => {

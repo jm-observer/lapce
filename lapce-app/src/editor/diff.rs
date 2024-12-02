@@ -237,7 +237,8 @@ impl DiffEditorData {
             let left = left.clone();
             cx.create_memo(move |_| {
                 let doc = left.doc_signal().get();
-                (doc.content.get(), doc.buffer.with(|b| b.rev()))
+                let buffer = doc.lines.with_untracked(|x| x.signal_buffer());
+                (doc.content.get(), buffer.with(|b| b.rev()))
             })
         };
 
@@ -246,7 +247,8 @@ impl DiffEditorData {
             let right = right.clone();
             cx.create_memo(move |_| {
                 let doc = right.doc_signal().get();
-                (doc.content.get(), doc.buffer.with(|b| b.rev()))
+                let buffer = doc.lines.with_untracked(|x| x.signal_buffer());
+                (doc.content.get(), buffer.with(|b| b.rev()))
             })
         };
 
@@ -254,15 +256,15 @@ impl DiffEditorData {
             let (_, left_rev) = left_doc_rev.get();
             let (left_editor_view, left_doc) = (left.kind_rw(), left.doc());
             let (left_atomic_rev, left_rope) =
-                left_doc.buffer.with_untracked(|buffer| {
-                    (buffer.atomic_rev(), buffer.text().clone())
+                left_doc.lines.with_untracked(|buffer| {
+                    (buffer.buffer.atomic_rev(), buffer.buffer.text().clone())
                 });
 
             let (_, right_rev) = right_doc_rev.get();
             let (right_editor_view, right_doc) = (right.kind_rw(), right.doc());
             let (right_atomic_rev, right_rope) =
-                right_doc.buffer.with_untracked(|buffer| {
-                    (buffer.atomic_rev(), buffer.text().clone())
+                right_doc.lines.with_untracked(|buffer| {
+                    (buffer.buffer.atomic_rev(), buffer.buffer.text().clone())
                 });
 
             let send = {

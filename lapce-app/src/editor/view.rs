@@ -99,7 +99,8 @@ pub fn editor_style(
 
     s.set(
         IndentStyleProp,
-        doc.buffer.with_untracked(Buffer::indent_style),
+        doc.lines
+            .with_untracked(|x| Buffer::indent_style(&x.buffer)),
     )
     .set(CursorColor, config.color(LapceColor::EDITOR_CARET))
     .set(SelectionColor, config.color(LapceColor::EDITOR_SELECTION))
@@ -184,8 +185,8 @@ pub fn editor_view(
     });
 
     create_effect(move |last_rev| {
-        let buffer = doc.with(|doc| doc.buffer);
-        let rev = buffer.with(|buffer| buffer.rev());
+        let lines = doc.with(|doc| doc.lines);
+        let rev = lines.with_untracked(|x| x.signal_buffer_rev()).get();
         if last_rev == Some(rev) {
             return rev;
         }
@@ -209,9 +210,10 @@ pub fn editor_view(
             screen_lines.lines.len(),
             screen_lines.lines.first().copied(),
         );
+        let buffer_rev = doc.lines.with_untracked(|x| x.signal_buffer_rev());
         let rev = (
             doc.content.get(),
-            doc.buffer.with(|b| b.rev()),
+            buffer_rev.get(),
             doc.cache_rev.get(),
             rect,
             screen_lines_len,
@@ -767,7 +769,7 @@ impl EditorView {
         }
 
         let doc = self.editor.doc();
-        let total_len = doc.buffer.with_untracked(|buffer| buffer.last_line());
+        let total_len = doc.lines.with_untracked(|x| x.buffer.last_line());
         let changes = doc.head_changes().get_untracked();
         let total_height = viewport.height();
         let total_width = viewport.width();
@@ -929,7 +931,8 @@ impl EditorView {
                 // TODO(minor): is this correct with line wrapping?
                 // The vertical line should be drawn to the left of any non-whitespace characters
                 // in the enclosed section.
-                let min_text_x = doc.buffer.with_untracked(|buffer| {
+                let min_text_x = doc.lines.with_untracked(|x| {
+                    let buffer = &x.buffer;
                     ((start.line + 1)..=end.line)
                         .filter(|&line| !buffer.is_line_whitespace(line))
                         .map(|line| {
@@ -1446,7 +1449,8 @@ fn editor_gutter_breakpoint_view(
         //     .floor() as usize
         //     + i;
         let doc = doc.get_untracked();
-        let offset = doc.buffer.with_untracked(|b| b.offset_of_line(line));
+        let offset = doc.lines.with_untracked(|x| x.buffer.offset_of_line(line));
+        // let offset = doc.buffer.with_untracked(|b| b.offset_of_line(line));
         tracing::info!("click breakpoint line={line}");
         if let Some(path) = doc.content.get_untracked().path() {
             update_breakpoints(
@@ -1924,7 +1928,9 @@ fn editor_gutter(
             empty().style(move |s| s.width(icon_total_width() * 2.0 - 8.0)),
             label(move || {
                 let doc = doc.get();
-                doc.buffer.with(|b| b.last_line() + 1).to_string()
+                doc.lines
+                    .with_untracked(|x| x.buffer.last_line() + 1)
+                    .to_string()
             }),
             empty().style(move |s| s.width(gutter_padding_right.get())),
         ))
@@ -2450,8 +2456,8 @@ fn find_view(
                     move || {
                         let text = replace_doc
                             .get_untracked()
-                            .buffer
-                            .with_untracked(|b| b.to_string());
+                            .lines
+                            .with_untracked(|x| x.buffer.to_string());
                         editor.get_untracked().replace_next(&text);
                     },
                     move || false,
@@ -2465,8 +2471,8 @@ fn find_view(
                     move || {
                         let text = replace_doc
                             .get_untracked()
-                            .buffer
-                            .with_untracked(|b| b.to_string());
+                            .lines
+                            .with_untracked(|x| x.buffer.to_string());
                         editor.get_untracked().replace_all(&text);
                     },
                     move || false,

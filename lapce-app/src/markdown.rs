@@ -8,6 +8,7 @@ use lapce_xi_rope::Rope;
 use lsp_types::MarkedString;
 use pulldown_cmark::{CodeBlockKind, CowStr, Event, Options, Parser, Tag};
 use smallvec::SmallVec;
+use tracing::warn;
 
 use crate::config::{color::LapceColor, LapceConfig};
 
@@ -301,10 +302,14 @@ pub fn highlight_as_code(
 
     if let Some(styles) = styles {
         for (range, fg) in styles.iter() {
-            attr_list.add_span(
-                start_offset + range.start..start_offset + range.end,
-                default_attrs.color(config.style_color(fg).unwrap()),
-            );
+            if let Some(color) = config.style_color(fg) {
+                attr_list.add_span(
+                    start_offset + range.start..start_offset + range.end,
+                    default_attrs.color(color),
+                );
+            } else {
+                warn!("fg {} is not found color", fg);
+            }
         }
     }
 }

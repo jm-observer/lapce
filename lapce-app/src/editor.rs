@@ -373,7 +373,7 @@ impl EditorData {
         let unsaved = if is_pristine {
             None
         } else {
-            Some(doc.buffer.with_untracked(|b| b.to_string()))
+            Some(doc.lines.with_untracked(|b| b.buffer.to_string()))
         };
         EditorInfo {
             content: self.doc().content.get_untracked(),
@@ -1124,8 +1124,9 @@ impl EditorData {
                 self.update_inline_completion(InlineCompletionTriggerKind::Invoked);
             }
             FocusCommand::ShowHover => {
-                let start_offset = self.doc().buffer.with_untracked(|b| {
-                    b.prev_code_boundary(self.cursor().get_untracked().offset())
+                let start_offset = self.doc().lines.with_untracked(|b| {
+                    b.buffer
+                        .prev_code_boundary(self.cursor().get_untracked().offset())
                 });
                 self.update_hover(start_offset);
             }
@@ -1151,13 +1152,12 @@ impl EditorData {
     fn inline_find(&self, direction: InlineFindDirection, c: &str) {
         let offset = self.cursor().with_untracked(|c| c.offset());
         let doc = self.doc();
-        let (line_content, line_start_offset) =
-            doc.buffer.with_untracked(|buffer| {
-                let line = buffer.line_of_offset(offset);
-                let line_content = buffer.line_content(line);
-                let line_start_offset = buffer.offset_of_line(line);
-                (line_content.to_string(), line_start_offset)
-            });
+        let (line_content, line_start_offset) = doc.lines.with_untracked(|b| {
+            let line = b.buffer.line_of_offset(offset);
+            let line_content = b.buffer.line_content(line);
+            let line_start_offset = b.buffer.offset_of_line(line);
+            (line_content.to_string(), line_start_offset)
+        });
         let index = offset - line_start_offset;
         if let Some(new_index) = match direction {
             InlineFindDirection::Left => line_content[..index].rfind(c),
@@ -1166,11 +1166,11 @@ impl EditorData {
                     None
                 } else {
                     let index = index
-                        + doc.buffer.with_untracked(|buffer| {
-                            buffer.next_grapheme_offset(
+                        + doc.lines.with_untracked(|b| {
+                            b.buffer.next_grapheme_offset(
                                 offset,
                                 1,
-                                buffer.offset_line_end(offset, false),
+                                b.buffer.offset_line_end(offset, false),
                             )
                         })
                         - offset;
@@ -1217,7 +1217,7 @@ impl EditorData {
         let mut filter_text_buf = Vec::new();
         let mut items = Vec::new();
 
-        let buffer = self.doc().buffer;
+        let buffer = self.doc().lines.with_untracked(|b| b.signal_buffer());
 
         for line in lines {
             filter_text_buf.clear();
@@ -1270,10 +1270,10 @@ impl EditorData {
         };
 
         let offset = self.cursor().with_untracked(|c| c.offset());
-        let (start_position, position) = doc.buffer.with_untracked(|buffer| {
-            let start_offset = buffer.prev_code_boundary(offset);
-            let start_position = buffer.offset_to_position(start_offset);
-            let position = buffer.offset_to_position(offset);
+        let (start_position, position) = doc.lines.with_untracked(|b| {
+            let start_offset = b.buffer.prev_code_boundary(offset);
+            let start_position = b.buffer.offset_to_position(start_offset);
+            let position = b.buffer.offset_to_position(offset);
             (start_position, position)
         });
 
@@ -1409,10 +1409,10 @@ impl EditorData {
         };
 
         let offset = self.cursor().with_untracked(|c| c.offset());
-        let (_start_position, position) = doc.buffer.with_untracked(|buffer| {
-            let start_offset = buffer.prev_code_boundary(offset);
-            let start_position = buffer.offset_to_position(start_offset);
-            let position = buffer.offset_to_position(offset);
+        let (_start_position, position) = doc.lines.with_untracked(|b| {
+            let start_offset = b.buffer.prev_code_boundary(offset);
+            let start_position = b.buffer.offset_to_position(start_offset);
+            let position = b.buffer.offset_to_position(offset);
             (start_position, position)
         });
         let scope = window_tab_data.scope;
@@ -1481,16 +1481,14 @@ impl EditorData {
         };
 
         let offset = self.cursor().with_untracked(|c| c.offset());
-        let (_start_position, position, symbol) =
-            doc.buffer.with_untracked(|buffer| {
-                let start_offset = buffer.prev_code_boundary(offset);
-                let end_offset = buffer.next_code_boundary(offset);
-                let start_position = buffer.offset_to_position(start_offset);
-                let position = buffer.offset_to_position(offset);
-                let symbol =
-                    buffer.slice_to_cow(start_offset..end_offset).to_string();
-                (start_position, position, symbol)
-            });
+        let (_start_position, position, symbol) = doc.lines.with_untracked(|b| {
+            let start_offset = b.buffer.prev_code_boundary(offset);
+            let end_offset = b.buffer.next_code_boundary(offset);
+            let start_position = b.buffer.offset_to_position(start_offset);
+            let position = b.buffer.offset_to_position(offset);
+            let symbol = b.buffer.slice_to_cow(start_offset..end_offset).to_string();
+            (start_position, position, symbol)
+        });
         let scope = window_tab_data.scope;
         let update_implementation = create_ext_action(self.scope, {
             let window_tab_data = window_tab_data.clone();
@@ -1541,16 +1539,14 @@ impl EditorData {
         };
 
         let offset = self.cursor().with_untracked(|c| c.offset());
-        let (_start_position, position, symbol) =
-            doc.buffer.with_untracked(|buffer| {
-                let start_offset = buffer.prev_code_boundary(offset);
-                let end_offset = buffer.next_code_boundary(offset);
-                let start_position = buffer.offset_to_position(start_offset);
-                let position = buffer.offset_to_position(offset);
-                let symbol =
-                    buffer.slice_to_cow(start_offset..end_offset).to_string();
-                (start_position, position, symbol)
-            });
+        let (_start_position, position, symbol) = doc.lines.with_untracked(|b| {
+            let start_offset = b.buffer.prev_code_boundary(offset);
+            let end_offset = b.buffer.next_code_boundary(offset);
+            let start_position = b.buffer.offset_to_position(start_offset);
+            let position = b.buffer.offset_to_position(offset);
+            let symbol = b.buffer.slice_to_cow(start_offset..end_offset).to_string();
+            (start_position, position, symbol)
+        });
         let scope = window_tab_data.scope;
         let update_implementation = create_ext_action(self.scope, {
             let window_tab_data = window_tab_data.clone();
@@ -1688,20 +1684,23 @@ impl EditorData {
         };
 
         let offset = self.cursor().with_untracked(|c| c.offset());
-        let line = doc
-            .buffer
-            .with_untracked(|buffer| buffer.line_of_offset(offset));
-        let position = doc
-            .buffer
-            .with_untracked(|buffer| buffer.offset_to_position(offset));
+        let (line, position) = doc.lines.with_untracked(|b| {
+            (
+                b.buffer.line_of_offset(offset),
+                b.buffer.offset_to_position(offset),
+            )
+        });
+        // let position = doc
+        //     .buffer
+        //     .with_untracked(|buffer| buffer.offset_to_position(offset));
 
         let inline_completion = self.common.inline_completion;
         let doc = self.doc();
 
         // Update the inline completion's text if it's already active to avoid flickering
         let has_relevant = inline_completion.with_untracked(|completion| {
-            let c_line = doc.buffer.with_untracked(|buffer| {
-                buffer.line_of_offset(completion.start_offset)
+            let c_line = doc.lines.with_untracked(|b| {
+                b.buffer.line_of_offset(completion.start_offset)
             });
             completion.status != InlineCompletionStatus::Inactive
                 && line == c_line
@@ -1718,10 +1717,10 @@ impl EditorData {
         let send = create_ext_action(
             self.scope,
             move |items: Vec<lsp_types::InlineCompletionItem>| {
-                let items = doc.buffer.with_untracked(|buffer| {
+                let items = doc.lines.with_untracked(|b| {
                     items
                         .into_iter()
-                        .map(|item| InlineCompletionItem::from_lsp(buffer, item))
+                        .map(|item| InlineCompletionItem::from_lsp(&b.buffer, item))
                         .collect()
                 });
                 inline_completion.update(|c| {
@@ -1773,16 +1772,16 @@ impl EditorData {
         if let Some(item) = item {
             if item.item.data.is_some() {
                 let editor = self.clone();
-                let rev = doc.buffer.with_untracked(|buffer| buffer.rev());
+                let rev = doc.lines.with_untracked(|b| b.buffer.rev());
                 let path = doc.content.with_untracked(|c| c.path().cloned());
                 let offset = self.cursor().with_untracked(|c| c.offset());
-                let buffer = doc.buffer;
+                let buffer = doc.lines.with_untracked(|b| b.signal_buffer_rev());
                 let content = doc.content;
                 let send = create_ext_action(self.scope, move |item| {
                     if editor.cursor().with_untracked(|c| c.offset() != offset) {
                         return;
                     }
-                    if buffer.with_untracked(|b| b.rev()) != rev
+                    if buffer.get_untracked() != rev
                         || content.with_untracked(|content| {
                             content.path() != path.as_ref()
                         })
@@ -1847,7 +1846,8 @@ impl EditorData {
         };
 
         let offset = self.cursor().with_untracked(|c| c.offset());
-        let (start_offset, input, char) = doc.buffer.with_untracked(|buffer| {
+        let (start_offset, input, char) = doc.lines.with_untracked(|x| {
+            let buffer = &x.buffer;
             let start_offset = buffer.prev_code_boundary(offset);
             let end_offset = buffer.next_code_boundary(offset);
             let input = buffer.slice_to_cow(start_offset..end_offset).to_string();
@@ -1875,8 +1875,8 @@ impl EditorData {
                 completion.update_input(input.clone());
 
                 if !completion.input_items.contains_key("") {
-                    let start_pos = doc.buffer.with_untracked(|buffer| {
-                        buffer.offset_to_position(start_offset)
+                    let start_pos = doc.lines.with_untracked(|x| {
+                        x.buffer.offset_to_position(start_offset)
                     });
                     completion.request(
                         self.id(),
@@ -1889,8 +1889,8 @@ impl EditorData {
 
                 if !completion.input_items.contains_key(&input) {
                     let position = doc
-                        .buffer
-                        .with_untracked(|buffer| buffer.offset_to_position(offset));
+                        .lines
+                        .with_untracked(|x| x.buffer.offset_to_position(offset));
                     completion.request(
                         self.id(),
                         &self.common.proxy,
@@ -1918,8 +1918,8 @@ impl EditorData {
             completion.input_items.clear();
             completion.request_id += 1;
             let start_pos = doc
-                .buffer
-                .with_untracked(|buffer| buffer.offset_to_position(start_offset));
+                .lines
+                .with_untracked(|x| x.buffer.offset_to_position(start_offset));
             completion.request(
                 self.id(),
                 &self.common.proxy,
@@ -1930,8 +1930,8 @@ impl EditorData {
 
             if !input.is_empty() {
                 let position = doc
-                    .buffer
-                    .with_untracked(|buffer| buffer.offset_to_position(offset));
+                    .lines
+                    .with_untracked(|x| x.buffer.offset_to_position(offset));
                 completion.request(
                     self.id(),
                     &self.common.proxy,
@@ -1954,7 +1954,7 @@ impl EditorData {
     fn apply_completion_item(&self, item: &CompletionItem) -> anyhow::Result<()> {
         tracing::debug!("apply_completion_item {:?}", item);
         let doc = self.doc();
-        let buffer = doc.buffer.get_untracked();
+        let buffer = doc.lines.with_untracked(|x| x.buffer.clone());
         let cursor = self.cursor().get_untracked();
         // Get all the edits which would be applied in places other than right where the cursor is
         let additional_edit: Vec<_> = item
@@ -2067,10 +2067,10 @@ impl EditorData {
 
         let doc = self.doc();
         if snippet_tabs.is_empty() {
-            doc.buffer.update(|buffer| {
-                cursor.update_selection(buffer, selection);
-                buffer.set_cursor_before(old_cursor);
-                buffer.set_cursor_after(cursor.mode().clone());
+            doc.lines.update(|lines| {
+                cursor.update_selection(&lines.buffer, selection);
+                lines.buffer.set_cursor_before(old_cursor);
+                lines.buffer.set_cursor_after(cursor.mode().clone());
             });
             self.cursor().set(cursor);
             self.apply_deltas(&[(b_text, delta, inval_lines)]);
@@ -2083,9 +2083,9 @@ impl EditorData {
         selection.add_region(region);
         cursor.set_insert(selection);
 
-        doc.buffer.update(|buffer| {
-            buffer.set_cursor_before(old_cursor);
-            buffer.set_cursor_after(cursor.mode().clone());
+        doc.lines.update(|lines| {
+            lines.buffer.set_cursor_before(old_cursor);
+            lines.buffer.set_cursor_after(cursor.mode().clone());
         });
         self.cursor().set(cursor);
         self.apply_deltas(&[(b_text, delta, inval_lines)]);
@@ -2133,8 +2133,10 @@ impl EditorData {
             exec_after(
                 Duration::from_millis(config.editor.autosave_interval),
                 move |_| {
-                    let is_pristine =
-                        editor.doc().buffer.get_untracked().is_pristine();
+                    let is_pristine = editor
+                        .doc()
+                        .lines
+                        .with_untracked(|x| x.buffer.is_pristine());
                     let is_current_rec = editor.doc().rev() == rev;
                     if !is_pristine && is_current_rec {
                         editor.save(true, || {});
@@ -2155,8 +2157,9 @@ impl EditorData {
         let doc = self.doc();
 
         let rev_offset = if format_before_save {
-            doc.buffer.with_untracked(|x| {
-                x.text()
+            doc.lines.with_untracked(|x| {
+                x.buffer
+                    .text()
                     .slice_to_cow(0..cursor.offset())
                     .chars()
                     .filter(|c| !c.is_whitespace())
@@ -2176,9 +2179,9 @@ impl EditorData {
             old_selection.apply_delta(&delta, true, InsertDrift::Default);
 
         let old_cursor = cursor.mode().clone();
-        doc.buffer.update(|buffer| {
-            cursor.update_selection(buffer, selection);
-            let rope = buffer.text();
+        doc.lines.update(|lines| {
+            cursor.update_selection(&lines.buffer, selection);
+            let rope = lines.buffer.text();
             if format_before_save {
                 let offset = rope
                     .slice_to_cow(0..rope.len())
@@ -2190,8 +2193,8 @@ impl EditorData {
                     .unwrap_or_default();
                 cursor.set_offset(offset, false, false);
             }
-            buffer.set_cursor_before(old_cursor);
-            buffer.set_cursor_after(cursor.mode().clone());
+            lines.buffer.set_cursor_before(old_cursor);
+            lines.buffer.set_cursor_after(cursor.mode().clone());
         });
         self.cursor().set(cursor);
 
@@ -2199,14 +2202,14 @@ impl EditorData {
     }
 
     pub fn do_text_edit(&self, edits: &[TextEdit], format_before_save: bool) {
-        let (selection, edits) = self.doc().buffer.with_untracked(|buffer| {
-            let selection = self.cursor().get_untracked().edit_selection(buffer);
+        let (selection, edits) = self.doc().lines.with_untracked(|x| {
+            let selection = self.cursor().get_untracked().edit_selection(&x.buffer);
             let edits = edits
                 .iter()
                 .map(|edit| {
                     let selection = lapce_core::selection::Selection::region(
-                        buffer.offset_of_position(&edit.range.start),
-                        buffer.offset_of_position(&edit.range.end),
+                        x.buffer.offset_of_position(&edit.range.start),
+                        x.buffer.offset_of_position(&edit.range.end),
                     );
                     // tracing::debug!("{edit:?} {selection:?}");
                     (selection, edit.new_text.as_str())
@@ -2309,8 +2312,8 @@ impl EditorData {
     ) {
         let offset = self
             .doc()
-            .buffer
-            .with_untracked(|buffer| position.to_offset(buffer));
+            .lines
+            .with_untracked(|x| position.to_offset(&x.buffer));
         let config = self.common.config.get_untracked();
         self.cursor().set(if config.core.modal {
             Cursor::new(CursorMode::Normal(offset), None, None)
@@ -2350,7 +2353,8 @@ impl EditorData {
             c.insert(offset, (PluginId(0), im::Vector::new()));
         });
 
-        let (position, rev, diagnostics) = doc.buffer.with_untracked(|buffer| {
+        let (position, rev, diagnostics) = doc.lines.with_untracked(|buffer| {
+            let buffer = &buffer.buffer;
             let position = buffer.offset_to_position(offset);
             let rev = doc.rev();
 
@@ -2519,7 +2523,8 @@ impl EditorData {
 
     fn search_whole_word_forward(&self, mods: Modifiers) {
         let offset = self.cursor().with_untracked(|c| c.offset());
-        let (word, buffer) = self.doc().buffer.with_untracked(|buffer| {
+        let (word, buffer) = self.doc().lines.with_untracked(|buffer| {
+            let buffer = &buffer.buffer;
             let (start, end) = buffer.select_word(offset);
             (buffer.slice_to_cow(start..end).to_string(), buffer.clone())
         });
@@ -2541,8 +2546,8 @@ impl EditorData {
         let offset = self.cursor().with_untracked(|c| c.offset());
         let text = self
             .doc()
-            .buffer
-            .with_untracked(|buffer| buffer.text().clone());
+            .lines
+            .with_untracked(|buffer| buffer.buffer.text().clone());
         let next = self.common.find.next(&text, offset, false, true);
 
         if let Some((start, _end)) = next {
@@ -2558,8 +2563,8 @@ impl EditorData {
         let offset = self.cursor().with_untracked(|c| c.offset());
         let text = self
             .doc()
-            .buffer
-            .with_untracked(|buffer| buffer.text().clone());
+            .lines
+            .with_untracked(|buffer| buffer.buffer.text().clone());
         let next = self.common.find.next(&text, offset, true, true);
 
         if let Some((start, _end)) = next {
@@ -2573,7 +2578,10 @@ impl EditorData {
 
     fn replace_next(&self, text: &str) {
         let offset = self.cursor().with_untracked(|c| c.offset());
-        let buffer = self.doc().buffer.with_untracked(|buffer| buffer.clone());
+        let buffer = self
+            .doc()
+            .lines
+            .with_untracked(|buffer| buffer.buffer.clone());
         let next = self.common.find.next(buffer.text(), offset, false, true);
 
         if let Some((start, end)) = next {
@@ -2636,12 +2644,12 @@ impl EditorData {
         };
 
         let offset = self.cursor().with_untracked(|c| c.offset());
-        let (position, rev) = doc
-            .buffer
-            .with_untracked(|buffer| (buffer.offset_to_position(offset), doc.rev()));
+        let (position, rev) = doc.lines.with_untracked(|buffer| {
+            (buffer.buffer.offset_to_position(offset), doc.rev())
+        });
 
         let cursor = self.cursor();
-        let buffer = doc.buffer;
+        let buffer = doc.lines.with_untracked(|x| x.signal_buffer());
         let internal_command = self.common.internal_command;
         let local_path = path.clone();
         let send = create_ext_action(self.scope, move |result| {
@@ -2717,8 +2725,12 @@ impl EditorData {
                 mode: _,
             } => lapce_core::selection::SelRegion::new(
                 *start.min(end),
-                doc.buffer.with_untracked(|buffer| {
-                    buffer.next_grapheme_offset(*start.max(end), 1, buffer.len())
+                doc.lines.with_untracked(|buffer| {
+                    buffer.buffer.next_grapheme_offset(
+                        *start.max(end),
+                        1,
+                        buffer.buffer.len(),
+                    )
                 }),
                 None,
             ),
@@ -2728,13 +2740,16 @@ impl EditorData {
         });
 
         if region.is_caret() {
-            doc.buffer.with_untracked(|buffer| {
-                let (start, end) = buffer.select_word(region.start);
-                buffer.slice_to_cow(start..end).to_string()
+            doc.lines.with_untracked(|buffer| {
+                let (start, end) = buffer.buffer.select_word(region.start);
+                buffer.buffer.slice_to_cow(start..end).to_string()
             })
         } else {
-            doc.buffer.with_untracked(|buffer| {
-                buffer.slice_to_cow(region.min()..region.max()).to_string()
+            doc.lines.with_untracked(|buffer| {
+                buffer
+                    .buffer
+                    .slice_to_cow(region.min()..region.max())
+                    .to_string()
             })
         }
     }
@@ -2952,10 +2967,9 @@ impl EditorData {
                 self.common.hover.active.set(false);
             } else {
                 let current_offset = self.common.hover.offset.get_untracked();
-                let start_offset = self
-                    .doc()
-                    .buffer
-                    .with_untracked(|buffer| buffer.next_code_boundary(offset));
+                let start_offset = self.doc().lines.with_untracked(|buffer| {
+                    buffer.buffer.next_code_boundary(offset)
+                });
                 if current_offset != start_offset {
                     self.common.hover.active.set(false);
                 }
@@ -2964,10 +2978,9 @@ impl EditorData {
         let hover_delay = self.common.config.get_untracked().editor.hover_delay;
         if hover_delay > 0 {
             if is_inside {
-                let end_offset = self
-                    .doc()
-                    .buffer
-                    .with_untracked(|buffer| buffer.next_code_boundary(offset));
+                let end_offset = self.doc().lines.with_untracked(|buffer| {
+                    buffer.buffer.next_code_boundary(offset)
+                });
 
                 let editor = self.clone();
                 let mouse_hover_timer = self.common.mouse_hover_timer;
@@ -2999,9 +3012,10 @@ impl EditorData {
         let (offset, _) =
             self.editor.offset_of_point(&mode, pointer_event.pos, false);
         let doc = self.doc();
-        let pointer_inside_selection = doc.buffer.with_untracked(|buffer| {
-            self.cursor()
-                .with_untracked(|c| c.edit_selection(buffer).contains(offset))
+        let pointer_inside_selection = doc.lines.with_untracked(|buffer| {
+            self.cursor().with_untracked(|c| {
+                c.edit_selection(&buffer.buffer).contains(offset)
+            })
         });
         if !pointer_inside_selection {
             // move cursor to pointer position if outside current selection
@@ -3128,8 +3142,8 @@ impl EditorData {
             .content
             .with_untracked(|content| content.path().cloned());
         let position = doc
-            .buffer
-            .with_untracked(|buffer| buffer.offset_to_position(offset));
+            .lines
+            .with_untracked(|buffer| buffer.buffer.offset_to_position(offset));
         let path = match path {
             Some(path) => path,
             None => return,
@@ -3506,11 +3520,7 @@ impl KeyPressFocus for EditorData {
             // normal editor receive char
             if self.get_mode() == Mode::Insert {
                 let mut cursor = self.cursor().get_untracked();
-                let deltas = self.doc().do_insert(
-                    &mut cursor,
-                    c,
-                    &self.common.config.get_untracked(),
-                );
+                let deltas = self.doc().do_insert(&mut cursor, c);
                 self.cursor().set(cursor);
 
                 if !c

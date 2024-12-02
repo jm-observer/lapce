@@ -56,7 +56,9 @@ pub fn keymap_view(editors: Editors, common: Rc<CommonData>) -> impl View {
 
     let key_map_items = move || {
         let doc = doc.get();
-        let pattern = doc.buffer.with(|b| b.to_string().to_lowercase());
+        let pattern = doc
+            .lines
+            .with_untracked(|x| x.buffer.to_string().to_lowercase());
         let keypress = keypress.get();
         let items = keypress.commands_with_keymap.iter().filter_map(|keymap| {
             let cmd = keypress.commands.get(&keymap.command).cloned()?;

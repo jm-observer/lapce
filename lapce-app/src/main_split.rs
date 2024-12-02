@@ -492,7 +492,10 @@ impl MainSplitData {
         });
 
         {
-            let buffer = find_editor.doc().buffer;
+            let buffer = find_editor
+                .doc()
+                .lines
+                .with_untracked(|x| x.signal_buffer());
             let find = common.find.clone();
             cx.create_effect(move |_| {
                 let content = buffer.with(|buffer| buffer.to_string());
@@ -920,7 +923,9 @@ impl MainSplitData {
                                     };
 
                                 same_path
-                                    || doc.buffer.with_untracked(|b| b.is_pristine())
+                                    || doc
+                                        .lines
+                                        .with_untracked(|x| x.buffer.is_pristine())
                             } else {
                                 false
                             }
@@ -2354,7 +2359,8 @@ impl MainSplitData {
                 let offset = cursor.with_untracked(|c| c.offset());
                 let (path, position) = (
                     doc.content.get_untracked().path().cloned(),
-                    doc.buffer.with_untracked(|b| b.offset_to_position(offset)),
+                    doc.lines
+                        .with_untracked(|b| b.buffer.offset_to_position(offset)),
                 );
                 path.map(|path| (path, offset, position))
             });
@@ -2484,8 +2490,8 @@ impl MainSplitData {
         let pattern_len = self
             .find_editor
             .doc()
-            .buffer
-            .with_untracked(|buffer| buffer.len());
+            .lines
+            .with_untracked(|x| x.buffer.len());
         self.find_editor
             .cursor()
             .update(|cursor| cursor.set_insert(Selection::region(0, pattern_len)));
@@ -2520,7 +2526,7 @@ impl MainSplitData {
             doc.buffer_id,
             doc.content.get_untracked(),
             doc.rev(),
-            doc.buffer.with_untracked(|b| b.to_string()),
+            doc.lines.with_untracked(|x| x.buffer.to_string()),
         );
         match doc_content {
             DocContent::Scratch { .. } => {
@@ -2547,8 +2553,8 @@ impl MainSplitData {
                                 path: path.clone(),
                                 read_only: false,
                             });
-                            doc.buffer.update(|buffer| {
-                                buffer.set_pristine();
+                            doc.lines.update(|lines| {
+                                lines.buffer.set_pristine();
                             });
                             doc.set_syntax(syntax);
                             doc.trigger_syntax_change(None);
@@ -2583,7 +2589,7 @@ impl MainSplitData {
             doc.buffer_id,
             doc.content.get_untracked(),
             doc.rev(),
-            doc.buffer.with_untracked(|b| b.to_string()),
+            doc.lines.with_untracked(|x| x.buffer.to_string()),
         );
         match doc_content {
             DocContent::Scratch { .. } => {
@@ -2602,8 +2608,8 @@ impl MainSplitData {
                                 path: path.clone(),
                                 read_only: false,
                             });
-                            doc.buffer.update(|buffer| {
-                                buffer.set_pristine();
+                            doc.lines.update(|lines| {
+                                lines.buffer.set_pristine();
                             });
                             // doc.set_syntax(syntax);
                             doc.trigger_syntax_change(None);

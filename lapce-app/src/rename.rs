@@ -127,8 +127,8 @@ impl RenameData {
         let new_name = self
             .editor
             .doc()
-            .buffer
-            .with_untracked(|buffer| buffer.to_string());
+            .lines
+            .with_untracked(|x| x.buffer.to_string());
         let new_name = new_name.trim();
         if !new_name.is_empty() {
             let path = self.path.get_untracked();

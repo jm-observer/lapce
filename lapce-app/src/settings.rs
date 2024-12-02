@@ -342,7 +342,9 @@ pub fn settings_view(
     let filtered_items_signal = settings_data.filtered_items;
     create_effect(move |_| {
         let doc = doc.get();
-        let pattern = doc.buffer.with(|b| b.to_string().to_lowercase());
+        let pattern = doc
+            .lines
+            .with_untracked(|x| x.buffer.to_string().to_lowercase());
         let plugin_items = settings_data.plugin_items.get();
         let mut items = items.get();
         if pattern.is_empty() {
@@ -584,7 +586,9 @@ fn settings_item_view(
                 let item_value = item.value.clone();
                 create_effect(move |last| {
                     let doc = doc.get_untracked();
-                    let rev = doc.buffer.with(|b| b.rev());
+                    let buffer_rev =
+                        doc.lines.with_untracked(|x| x.signal_buffer_rev());
+                    let rev = buffer_rev.get();
                     if last.is_none() {
                         return rev;
                     }
@@ -593,14 +597,14 @@ fn settings_item_view(
                     }
                     let kind = kind.clone();
                     let field = field.clone();
-                    let buffer = doc.buffer;
                     let item_value = item_value.clone();
                     let token =
                         exec_after(Duration::from_millis(500), move |token| {
                             if let Some(timer) = timer.try_get_untracked() {
                                 if timer == token {
-                                    let value =
-                                        buffer.with_untracked(|b| b.to_string());
+                                    let value = doc
+                                        .lines
+                                        .with_untracked(|x| x.buffer.to_string());
                                     let value = match &item_value {
                                         SettingsValue::Float(_) => {
                                             value.parse::<f64>().ok().and_then(|v| {
@@ -849,7 +853,8 @@ fn color_section_list(
                     create_effect(move |_| {
                         let doc = doc.get_untracked();
                         let config = config.get();
-                        let current = doc.buffer.with_untracked(|b| b.to_string());
+                        let current =
+                            doc.lines.with_untracked(|x| x.buffer.to_string());
 
                         let value = match kind.as_str() {
                             "base" => config.color_theme.base.get(&key),
@@ -873,7 +878,9 @@ fn color_section_list(
                     create_effect(move |last| {
                         let doc = doc.get_untracked();
 
-                        let rev = doc.buffer.with(|b| b.rev());
+                        let buffer_rev =
+                            doc.lines.with_untracked(|x| x.signal_buffer_rev());
+                        let rev = buffer_rev.get();
                         if last.is_none() {
                             return rev;
                         }
@@ -882,13 +889,13 @@ fn color_section_list(
                         }
                         let kind = kind.clone();
                         let field = field.clone();
-                        let buffer = doc.buffer;
                         let token =
                             exec_after(Duration::from_millis(500), move |token| {
                                 if let Some(timer) = timer.try_get_untracked() {
                                     if timer == token {
-                                        let value =
-                                            buffer.with_untracked(|b| b.to_string());
+                                        let value = doc.lines.with_untracked(|x| {
+                                            x.buffer.to_string()
+                                        });
 
                                         let config = config.get_untracked();
                                         let default = match kind.as_str() {
@@ -985,7 +992,8 @@ fn color_section_list(
                             .style(move |s| {
                                 let doc = doc.get_untracked();
                                 let config = config.get();
-                                let buffer = doc.buffer;
+                                let buffer =
+                                    doc.lines.with_untracked(|x| x.signal_buffer());
                                 let content = buffer.with(|b| b.to_string());
 
                                 let same = match kind.as_str() {
@@ -1075,7 +1083,11 @@ pub fn theme_color_settings_view(
 
     let cx = Scope::current();
     let search_editor = editors.make_local(cx, common.clone());
-    let buffer = search_editor.doc_signal().get_untracked().buffer;
+    let buffer = search_editor
+        .doc_signal()
+        .get_untracked()
+        .lines
+        .with_untracked(|x| x.signal_buffer());
 
     scroll(
         stack((
@@ -1099,7 +1111,7 @@ pub fn theme_color_settings_view(
                 "base",
                 "Base Colors",
                 move || {
-                    let filter = buffer.get().text().to_string();
+                    let filter = buffer.get().to_string();
                     config.with(|c| {
                         c.color_theme
                             .base

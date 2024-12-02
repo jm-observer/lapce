@@ -155,7 +155,8 @@ fn text_input_full<T: KeyPressFocus + 'static>(
         create_effect(move |_| {
             let offset = cursor.with(|c| c.offset());
             let (content, offset, preedit_range) = {
-                let content = doc.buffer.with(|b| b.to_string());
+                let buffer = doc.lines.with_untracked(|x| x.signal_buffer());
+                let content = buffer.get().to_string();
                 if let Some(preedit) = preedit.preedit.get().as_ref() {
                     let mut new_content = String::new();
                     new_content.push_str(&content[..offset]);
@@ -667,8 +668,8 @@ impl View for TextInput {
                     let offset = self.hit_index(cx, pointer.pos);
                     let (start, end) = self
                         .doc()
-                        .buffer
-                        .with_untracked(|buffer| buffer.select_word(offset));
+                        .lines
+                        .with_untracked(|x| x.buffer.select_word(offset));
                     self.cursor().update(|cursor| {
                         cursor.set_insert(Selection::region(start, end));
                     });

@@ -1039,6 +1039,8 @@ impl LapceConfig {
             enable_inline_completion: self.editor.enable_inline_completion,
             completion_lens_font_size: self.editor.completion_lens_font_size,
             only_render_error_styling: self.editor.only_render_error_styling,
+            auto_closing_matching_pairs: self.editor.auto_closing_matching_pairs,
+            auto_surround: self.editor.auto_surround,
             diagnostic_error: self.color(LapceColor::LAPCE_ERROR),
             diagnostic_warn: self.color(LapceColor::LAPCE_WARN),
             inlay_hint_fg: self.color(LapceColor::INLAY_HINT_FOREGROUND),

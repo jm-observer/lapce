@@ -180,7 +180,6 @@ pub struct Doc {
     pub cache_rev: RwSignal<u64>,
     /// Whether the buffer's content has been loaded/initialized into the buffer.
     pub loaded: RwSignal<bool>,
-    pub buffer: RwSignal<Buffer>,
     pub kind: RwSignal<EditorViewKind>,
     // pub syntax: RwSignal<Syntax>,
     // semantic_styles: RwSignal<Option<Spans<Style>>>,
@@ -245,7 +244,7 @@ impl Doc {
         // let lines = cx.create_rw_signal(Lines::new(cx));
         let viewport = Rect::ZERO;
         let editor_style = EditorStyle::default();
-        let buffer = cx.create_rw_signal(Buffer::new(""));
+        let buffer = Buffer::new("");
         let kind = cx.create_rw_signal(EditorViewKind::Normal);
         Doc {
             editor_id,
@@ -255,7 +254,6 @@ impl Doc {
             // editor_style,
             scope: cx,
             buffer_id: BufferId::next(),
-            buffer,
             cache_rev: cx.create_rw_signal(0),
             content: cx.create_rw_signal(DocContent::File {
                 path,
@@ -323,7 +321,7 @@ impl Doc {
         let queries_directory = Directory::queries_directory().unwrap();
         let grammars_directory = Directory::grammars_directory().unwrap();
         let syntax = Syntax::plaintext(&grammars_directory, &queries_directory);
-        let buffer = cx.create_rw_signal(Buffer::new(""));
+        let buffer = Buffer::new("");
         let kind = cx.create_rw_signal(EditorViewKind::Normal);
         Self {
             editor_id,
@@ -331,7 +329,6 @@ impl Doc {
             kind,
             scope: cx,
             buffer_id: BufferId::next(),
-            buffer,
             cache_rev: cx.create_rw_signal(0),
             content: cx.create_rw_signal(content),
             histories: cx.create_rw_signal(im::HashMap::new()),
@@ -393,7 +390,7 @@ impl Doc {
             diagnostics: cx.create_rw_signal(im::Vector::new()),
             diagnostics_span: cx.create_rw_signal(SpansBuilder::new(0).build()),
         };
-        let buffer = cx.create_rw_signal(Buffer::new(""));
+        let buffer = Buffer::new("");
         let kind = cx.create_rw_signal(EditorViewKind::Normal);
         Self {
             editor_id,
@@ -401,7 +398,6 @@ impl Doc {
             kind,
             scope: cx,
             buffer_id: BufferId::next(),
-            buffer,
             // syntax: cx.create_rw_signal(syntax),
             // line_styles: Rc::new(RefCell::new(HashMap::new())),
             // semantic_styles: cx.create_rw_signal(None),
@@ -511,7 +507,7 @@ impl Doc {
                 language,
                 &grammars_directory,
                 &queries_directory,
-            ))
+            ));
         });
     }
 
@@ -527,12 +523,8 @@ impl Doc {
     //// Initialize the content with some text, this marks the document as loaded.
     pub fn init_content(&self, content: Rope) {
         batch(|| {
-            let syntax = self.syntax();
-            self.buffer.update(|buffer| {
-                buffer.init_content(content);
-                buffer.detect_indent(|| {
-                    IndentStyle::from_str(syntax.language.indent_unit())
-                });
+            self.lines.update(|buffer| {
+                buffer.init_buffer(content);
             });
             self.loaded.set(true);
             tracing::error!("init_content");
@@ -566,8 +558,8 @@ impl Doc {
         // self.code_actions.clear();
         // self.inlay_hints = None;
         let delta = self
-            .buffer
-            .try_update(|buffer| buffer.reload(content, set_pristine))
+            .lines
+            .try_update(|buffer| buffer.reload_buffer(content, set_pristine))
             .unwrap();
         self.apply_deltas(&[delta]);
     }
@@ -582,34 +574,14 @@ impl Doc {
         &self,
         cursor: &mut Cursor,
         s: &str,
-        config: &LapceConfig,
     ) -> Vec<(Rope, RopeDelta, InvalLines)> {
         if self.content.with_untracked(|c| c.read_only()) {
             return Vec::new();
         }
-
-        let old_cursor = cursor.mode().clone();
-        let syntax = self.syntax();
         let deltas = self
-            .buffer
-            .try_update(|buffer| {
-                Action::insert(
-                    cursor,
-                    buffer,
-                    s,
-                    &|buffer, c, offset| {
-                        syntax_prev_unmatched(buffer, &syntax, c, offset)
-                    },
-                    config.editor.auto_closing_matching_pairs,
-                    config.editor.auto_surround,
-                )
-            })
+            .lines
+            .try_update(|lines| lines.do_insert_buffer(cursor, s))
             .unwrap();
-        // Keep track of the change in the cursor mode for undo/redo
-        self.buffer.update(|buffer| {
-            buffer.set_cursor_before(old_cursor);
-            buffer.set_cursor_after(cursor.mode().clone());
-        });
         self.apply_deltas(&deltas);
         deltas
     }
@@ -624,8 +596,8 @@ impl Doc {
         }
 
         let (text, delta, inval_lines) = self
-            .buffer
-            .try_update(|buffer| buffer.edit(edits, edit_type))
+            .lines
+            .try_update(|buffer| buffer.edit_buffer(edits, edit_type))
             .unwrap();
         self.apply_deltas(&[(text.clone(), delta.clone(), inval_lines.clone())]);
         Some((text, delta, inval_lines))
@@ -644,35 +616,13 @@ impl Doc {
         {
             return Vec::new();
         }
-
-        let mut clipboard = SystemClipboard::new();
-        let old_cursor = cursor.mode().clone();
-        let syntax = self.syntax();
         let deltas = self
-            .buffer
-            .try_update(|buffer| {
-                Action::do_edit(
-                    cursor,
-                    buffer,
-                    cmd,
-                    &mut clipboard,
-                    register,
-                    EditConf {
-                        comment_token: syntax.language.comment_token(),
-                        modal,
-                        smart_tab,
-                        keep_indent: true,
-                        auto_indent: true,
-                    },
-                )
+            .lines
+            .try_update(|lines| {
+                lines.do_edit_buffer(cursor, cmd, modal, register, smart_tab)
             })
             .unwrap();
-
         if !deltas.is_empty() {
-            self.buffer.update(|buffer| {
-                buffer.set_cursor_before(old_cursor);
-                buffer.set_cursor_after(cursor.mode().clone());
-            });
             self.apply_deltas(&deltas);
         }
 
@@ -684,7 +634,7 @@ impl Doc {
         if let DocContent::File { path, .. } = self.content.get_untracked() {
             batch(|| {
                 for (i, (_, delta, inval)) in deltas.iter().enumerate() {
-                    self.apply_deltas_for_lines(delta);
+                    // self.apply_deltas_for_lines(delta);
                     self.update_find_result(delta);
                     self.update_breakpoints(delta, &path, &inval.old_text);
                     self.common.proxy.update(
@@ -708,19 +658,19 @@ impl Doc {
     }
 
     pub fn is_pristine(&self) -> bool {
-        self.buffer.with_untracked(|b| b.is_pristine())
+        self.lines.with_untracked(|b| b.buffer.is_pristine())
     }
 
     /// Get the buffer's current revision. This is used to track whether the buffer has changed.
     pub fn rev(&self) -> u64 {
-        self.buffer.with_untracked(|b| b.rev())
+        self.lines.with_untracked(|b| b.buffer.rev())
     }
 
     /// Get the buffer's line-ending.
     /// Note: this may not be the same as what the actual line endings in the file are, rather this
     /// is what the line-ending is set to (and what it will be saved as).
     pub fn line_ending(&self) -> LineEnding {
-        self.buffer.with_untracked(|b| b.line_ending())
+        self.lines.with_untracked(|b| b.buffer.line_ending())
     }
 
     fn on_update(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
@@ -728,7 +678,7 @@ impl Doc {
             tracing::debug!("on_update cancle because doc is local");
             batch(|| {
                 self.clear_text_cache();
-                self.lines.update(|x| x.on_update_buffer());
+                // self.lines.update(|x| x.on_update_buffer());
             });
             return;
         }
@@ -744,7 +694,7 @@ impl Doc {
             self.get_code_lens();
             self.get_document_symbol();
             self.get_folding_range();
-            self.lines.update(|x| x.on_update_buffer());
+            // self.lines.update(|x| x.on_update_buffer());
         });
     }
 
@@ -752,39 +702,39 @@ impl Doc {
     //     self.lines.update(|x| x.do_bracket_colorization());
     // }
 
-    pub fn do_text_edit(&self, edits: &[TextEdit]) {
-        let edits = self.buffer.with_untracked(|buffer| {
-            let edits = edits
-                .iter()
-                .map(|edit| {
-                    let selection = lapce_core::selection::Selection::region(
-                        buffer.offset_of_position(&edit.range.start),
-                        buffer.offset_of_position(&edit.range.end),
-                    );
-                    (selection, edit.new_text.as_str())
-                })
-                .collect::<Vec<_>>();
-            edits
-        });
-        self.do_raw_edit(&edits, EditType::Completion);
-    }
+    // pub fn do_text_edit(&self, edits: &[TextEdit]) {
+    //     let edits = self.buffer.with_untracked(|buffer| {
+    //         let edits = edits
+    //             .iter()
+    //             .map(|edit| {
+    //                 let selection = lapce_core::selection::Selection::region(
+    //                     buffer.offset_of_position(&edit.range.start),
+    //                     buffer.offset_of_position(&edit.range.end),
+    //                 );
+    //                 (selection, edit.new_text.as_str())
+    //             })
+    //             .collect::<Vec<_>>();
+    //         edits
+    //     });
+    //     self.do_raw_edit(&edits, EditType::Completion);
+    // }
 
-    /// Update the styles after an edit, so the highlights are at the correct positions.
-    /// This does not do a reparse of the document itself.
-    fn apply_deltas_for_lines(&self, delta: &RopeDelta) {
-        self.lines.update(|x| x.apply_delta(delta));
-    }
+    // /// Update the styles after an edit, so the highlights are at the correct positions.
+    // /// This does not do a reparse of the document itself.
+    // fn apply_deltas_for_lines(&self, delta: &RopeDelta) {
+    //     self.lines.update(|x| x.apply_delta(delta));
+    // }
 
     pub fn trigger_syntax_change(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
-        let (rev, text) =
-            self.buffer.with_untracked(|b| (b.rev(), b.text().clone()));
+        let (rev, text) = self
+            .lines
+            .with_untracked(|b| (b.buffer.rev(), b.buffer.text().clone()));
 
         let doc = self.clone();
         let send = create_ext_action(self.scope, move |syntax| {
-            if doc.buffer.with_untracked(|b| b.rev()) == rev {
-                doc.lines.update(|x| {
-                    x.set_syntax(syntax);
-                });
+            if let Some(true) =
+                doc.lines.try_update(|x| x.set_syntax_with_rev(syntax, rev))
+            {
                 // doc.do_bracket_colorization();
                 doc.clear_sticky_headers_cache();
                 doc.clear_text_cache();
@@ -861,17 +811,17 @@ impl Doc {
                 return;
             };
 
-        let (atomic_rev, rev, len) = self
-            .buffer
-            .with_untracked(|b| (b.atomic_rev(), b.rev(), b.len()));
+        let (atomic_rev, rev, len) = self.lines.with_untracked(|b| {
+            (b.buffer.atomic_rev(), b.buffer.rev(), b.buffer.len())
+        });
 
         let doc = self.clone();
         let send = create_ext_action(self.scope, move |(styles, result_id)| {
             if let Some(styles) = styles {
                 // error!("{:?}", styles);
-                if doc.buffer.with_untracked(|b| b.rev()) == rev {
-                    doc.lines
-                        .update(|x| x.semantic_styles = Some((result_id, styles)));
+                if let Some(true) = doc.lines.try_update(|x| {
+                    x.update_semantic_styles((result_id, styles), rev)
+                }) {
                     doc.clear_style_cache();
                 }
             }
@@ -1007,8 +957,8 @@ impl Doc {
                                 .or_insert_with(|| {
                                     (
                                         plugin_id,
-                                        doc.buffer.with_untracked(|b| {
-                                            b.offset_of_line(
+                                        doc.lines.with_untracked(|b| {
+                                            b.buffer.offset_of_line(
                                                 codelens.range.start.line as usize,
                                             )
                                         }),
@@ -1082,15 +1032,19 @@ impl Doc {
             };
 
         let (buffer, rev, len) = self
-            .buffer
-            .with_untracked(|b| (b.clone(), b.rev(), b.len()));
+            .lines
+            .with_untracked(|b| (b.buffer.clone(), b.buffer.rev(), b.buffer.len()));
 
         let doc = self.clone();
         let send = create_ext_action(self.scope, move |hints| {
-            if doc.buffer.with_untracked(|b| b.rev()) == rev {
-                doc.lines.update(|x| {
+            if let Some(true) = doc.lines.try_update(|x| {
+                if x.buffer.rev() == rev {
                     x.set_inlay_hints(hints);
-                });
+                    true
+                } else {
+                    false
+                }
+            }) {
                 doc.clear_text_cache();
             }
         });
@@ -1200,7 +1154,8 @@ impl Doc {
             self.common.breakpoints.update(|breakpoints| {
                 if let Some(path_breakpoints) = breakpoints.get_mut(path) {
                     let mut transformer = Transformer::new(delta);
-                    self.buffer.with_untracked(|buffer| {
+                    self.lines.with_untracked(|buffer| {
+                        let buffer = &buffer.buffer;
                         *path_breakpoints = path_breakpoints
                             .clone()
                             .into_values()
@@ -1297,7 +1252,7 @@ impl Doc {
             find_result.progress.set(FindProgress::Ready);
         });
 
-        let text = self.buffer.with_untracked(|b| b.text().clone());
+        let text = self.lines.with_untracked(|b| b.buffer.text().clone());
         let case_matching = self.common.find.case_matching.get_untracked();
         let whole_words = self.common.find.whole_words.get_untracked();
         rayon::spawn(move || {
@@ -1321,7 +1276,8 @@ impl Doc {
         if let Some(lines) = self.sticky_headers.borrow().get(&line) {
             return lines.clone();
         }
-        let lines = self.buffer.with_untracked(|buffer| {
+        let lines = self.lines.with_untracked(|buffer| {
+            let buffer = &buffer.buffer;
             let offset = buffer.offset_of_line(line + 1);
             self.syntax().sticky_headers(offset).map(|offsets| {
                 offsets
@@ -1399,8 +1355,8 @@ impl Doc {
         let rev = self.rev();
         let left_rope = history;
         let (atomic_rev, right_rope) = self
-            .buffer
-            .with_untracked(|b| (b.atomic_rev(), b.text().clone()));
+            .lines
+            .with_untracked(|b| (b.buffer.atomic_rev(), b.buffer.text().clone()));
 
         let send = {
             let atomic_rev = atomic_rev.clone();
@@ -1431,14 +1387,19 @@ impl Doc {
         let content = self.content.get_untracked();
         if let DocContent::File { path, .. } = content {
             let rev = self.rev();
-            let buffer = self.buffer;
+            // let buffer = self.lines.with_untracked(|x| x.signal_buffer());
+            let lines = self.lines;
+
             let send = create_ext_action(self.scope, move |result| {
                 if let Ok(ProxyResponse::SaveResponse {}) = result {
-                    let current_rev = buffer.with_untracked(|buffer| buffer.rev());
-                    if current_rev == rev {
-                        buffer.update(|buffer| {
-                            buffer.set_pristine();
-                        });
+                    if let Some(true) = lines.try_update(|x| {
+                        if x.buffer.rev() == rev {
+                            x.buffer.set_pristine();
+                            true
+                        } else {
+                            false
+                        }
+                    }) {
                         after_action();
                     }
                 }
@@ -1493,15 +1454,17 @@ impl Doc {
             // for the current language.
             // Try a language unaware search for enclosing brackets in case it is the latter.
             .unwrap_or_else(|| {
-                self.buffer.with_untracked(|buffer| {
-                    WordCursor::new(buffer.text(), offset).find_enclosing_pair()
+                self.lines.with_untracked(|buffer| {
+                    WordCursor::new(buffer.buffer.text(), offset)
+                        .find_enclosing_pair()
                 })
             })
     }
 }
 impl Doc {
     pub fn text(&self) -> Rope {
-        self.buffer.with_untracked(|buffer| buffer.text().clone())
+        self.lines
+            .with_untracked(|buffer| buffer.buffer.text().clone())
     }
 
     // pub fn lines(&self) -> DocLinesManager {
@@ -1611,17 +1574,17 @@ impl Doc {
         editor_data.receive_char(c);
     }
 
-    pub fn edit(
-        &self,
-        iter: &mut dyn Iterator<Item = (Selection, &str)>,
-        edit_type: EditType,
-    ) {
-        let delta = self
-            .buffer
-            .try_update(|buffer| buffer.edit(iter, edit_type))
-            .unwrap();
-        self.apply_deltas(&[delta]);
-    }
+    // pub fn edit(
+    //     &self,
+    //     iter: &mut dyn Iterator<Item = (Selection, &str)>,
+    //     edit_type: EditType,
+    // ) {
+    //     let delta = self
+    //         .lines
+    //         .try_update(|buffer| buffer.edit_buffer(iter, edit_type))
+    //         .unwrap();
+    //     self.apply_deltas(&[delta]);
+    // }
 
     pub fn editor_id(&self) -> EditorId {
         self.editor_id
@@ -1647,11 +1610,10 @@ impl CommonAction for Doc {
         register: &mut Register,
     ) {
         let deltas = self
-            .buffer
-            .try_update(move |buffer| {
-                Action::execute_motion_mode(
+            .lines
+            .try_update(move |lines| {
+                lines.execute_motion_mode(
                     cursor,
-                    buffer,
                     motion_mode,
                     range,
                     is_vertical,

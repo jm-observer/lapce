@@ -119,7 +119,11 @@ impl GlobalSearchData {
 
         {
             let global_search = global_search.clone();
-            let buffer = global_search.editor.doc().buffer;
+            let buffer = global_search
+                .editor
+                .doc()
+                .lines
+                .with_untracked(|x| x.signal_buffer());
             cx.create_effect(move |_| {
                 let pattern = buffer.with(|buffer| buffer.to_string());
                 if pattern.is_empty() {

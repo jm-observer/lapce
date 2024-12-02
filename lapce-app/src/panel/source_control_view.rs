@@ -53,8 +53,8 @@ pub fn source_control_panel(
         focus == Focus::Panel(PanelKind::SourceControl)
     };
     let is_empty = create_memo(move |_| {
-        let doc = doc.get();
-        doc.buffer.with(|b| b.len() == 0)
+        let doc = doc.get().lines.with_untracked(|x| x.signal_buffer());
+        doc.with(|b| b.len() == 0)
     });
     let debug_breakline = create_memo(move |_| None);
 
