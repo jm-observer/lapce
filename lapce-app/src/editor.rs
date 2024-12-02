@@ -2936,7 +2936,7 @@ impl EditorData {
     }
 
     pub fn pointer_move(&self, pointer_event: &PointerMoveEvent) {
-        let mode = self.cursor().with_untracked(|c| c.get_mode());
+        let mode = self.cursor().with_untracked(|c| c.mode());
         let (offset, is_inside) =
             self.editor.offset_of_point(mode, pointer_event.pos, false);
         if self.active().get_untracked()
@@ -2995,7 +2995,7 @@ impl EditorData {
     }
 
     fn right_click(&self, pointer_event: &PointerInputEvent) {
-        let mode = self.cursor().with_untracked(|c| c.get_mode());
+        let mode = self.cursor().with_untracked(|c| c.mode());
         let (offset, _) =
             self.editor.offset_of_point(mode, pointer_event.pos, false);
         let doc = self.doc();
@@ -3363,7 +3363,7 @@ impl KeyPressFocus for EditorData {
         {
             Mode::Insert
         } else {
-            self.cursor().with_untracked(|c| c.get_mode())
+            self.cursor().with_untracked(|c| c.mode().simply_mode())
         }
     }
 

@@ -2736,7 +2736,7 @@ impl WindowTabData {
                 self.main_split
                     .active_editor
                     .get()
-                    .map(|editor| editor.cursor().with(|c| c.get_mode()))
+                    .map(|editor| editor.cursor().with(|c| c.mode().simply_mode()))
             } else {
                 None
             };

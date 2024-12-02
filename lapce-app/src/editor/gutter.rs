@@ -140,7 +140,8 @@ impl View for EditorGutterView {
 
         let kind_is_normal =
             self.editor.kind().with_untracked(|kind| kind.is_normal());
-        let (offset, mode) = cursor.with_untracked(|c| (c.offset(), c.get_mode()));
+        let (offset, is_insert) =
+            cursor.with_untracked(|c| (c.offset(), c.is_insert()));
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
         // let _last_line = self.editor.editor.last_line();
@@ -163,7 +164,7 @@ impl View for EditorGutterView {
             AttrsList::new(attrs.color(config.color(LapceColor::EDITOR_FOREGROUND)));
         let show_relative = config.core.modal
             && config.editor.modal_mode_relative_line_numbers
-            && mode != Mode::Insert
+            && !is_insert
             && kind_is_normal;
 
         let current_number = current_visual_line.line_number(false, None);

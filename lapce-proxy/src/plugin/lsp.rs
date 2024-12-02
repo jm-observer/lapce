@@ -248,18 +248,19 @@ impl LspClient {
             loop {
                 match read_message(&mut reader) {
                     Ok(message_str) => {
-                        if !message_str.contains("$/progress") {
-                            // if message_str
-                            //     .contains("textDocument/publishDiagnostics")
-                            // {
-                            //     tracing::debug!("read from lsp: {}", message_str);
-                            //     } else {
-                            let len = message_str.len().min(150);
-                            tracing::debug!(
-                                "read from lsp: {}",
-                                &message_str[0..len]
-                            );
-                            // }
+                        if !message_str.contains("$/progress")
+                            && !message_str
+                                .contains("window/workDoneProgress/create")
+                        {
+                            if !message_str.contains("method") {
+                                tracing::debug!("read from lsp: {}", message_str);
+                            } else {
+                                let len = message_str.len().min(150);
+                                tracing::debug!(
+                                    "read from lsp: {}",
+                                    &message_str[0..len]
+                                );
+                            }
                         }
                         if let Some(resp) = handle_plugin_server_message(
                             &local_server_rpc,

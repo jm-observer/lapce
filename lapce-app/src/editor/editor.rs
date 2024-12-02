@@ -63,7 +63,7 @@ use floem_editor_core::command::{EditCommand, MultiSelectionCommand};
 use floem_editor_core::mode::{MotionMode, VisualMode};
 use floem_editor_core::selection::SelRegion;
 use floem_editor_core::word::{get_char_property, CharClassification, WordCursor};
-use tracing::warn;
+use tracing::{error, warn};
 
 pub(crate) const CHAR_WIDTH: f64 = 7.5;
 
@@ -426,7 +426,7 @@ impl Editor {
     }
 
     pub fn single_click(&self, pointer_event: &PointerInputEvent) {
-        let mode = self.cursor.with_untracked(|c| c.get_mode());
+        let mode = self.cursor.with_untracked(|c| c.mode());
         let (new_offset, _) = self.offset_of_point(mode, pointer_event.pos, true);
         self.cursor.update(|cursor| {
             cursor.set_offset(
@@ -438,7 +438,7 @@ impl Editor {
     }
 
     pub fn double_click(&self, pointer_event: &PointerInputEvent) {
-        let mode = self.cursor.with_untracked(|c| c.get_mode());
+        let mode = self.cursor.with_untracked(|c| c.mode());
         let (mouse_offset, _) = self.offset_of_point(mode, pointer_event.pos, false);
         let (start, end) = self.select_word(mouse_offset);
 
@@ -453,7 +453,7 @@ impl Editor {
     }
 
     pub fn triple_click(&self, pointer_event: &PointerInputEvent) {
-        let mode = self.cursor.with_untracked(|c| c.get_mode());
+        let mode = self.cursor.with_untracked(|c| c.mode());
         let (mouse_offset, _) = self.offset_of_point(mode, pointer_event.pos, false);
         let lines = self.doc().lines.lines_of_origin_offset(mouse_offset);
         // let vline = self
@@ -471,7 +471,7 @@ impl Editor {
     }
 
     pub fn pointer_move(&self, pointer_event: &PointerMoveEvent) {
-        let mode = self.cursor.with_untracked(|c| c.get_mode());
+        let mode = self.cursor.with_untracked(|c| c.mode());
         let (offset, _is_inside) =
             self.offset_of_point(mode, pointer_event.pos, false);
         if self.active.get_untracked()
@@ -488,7 +488,7 @@ impl Editor {
     }
 
     fn right_click(&self, pointer_event: &PointerInputEvent) {
-        let mode = self.cursor.with_untracked(|c| c.get_mode());
+        let mode = self.cursor.with_untracked(|c| c.mode());
         let (offset, _) = self.offset_of_point(mode, pointer_event.pos, false);
         let doc = self.doc();
         let pointer_inside_selection = self
@@ -960,12 +960,15 @@ impl Editor {
     /// Points outside of horizontal bounds will return the last column on the line.
     pub fn offset_of_point(
         &self,
-        mode: Mode,
+        mode: CursorMode,
         point: Point,
         tracing: bool,
     ) -> (usize, bool) {
-        let ((line, col), is_inside) = self.line_col_of_point(mode, point, tracing);
-
+        let ((line, col), is_inside) =
+            self.line_col_of_point(mode.clone(), point, tracing);
+        if tracing {
+            warn!("offset_of_point line_col_of_point mode={mode:?} point={point:?} line={line} col={col} is_inside={is_inside}");
+        }
         (self.offset_of_line_col(line, col), is_inside)
     }
 
@@ -988,7 +991,7 @@ impl Editor {
     /// Points outside of horizontal bounds will return the last column on the line.
     pub fn line_col_of_point(
         &self,
-        _mode: Mode,
+        _mode: CursorMode,
         point: Point,
         _tracing: bool,
     ) -> ((usize, usize), bool) {
@@ -1549,6 +1552,8 @@ pub fn cursor_caret(
             .x;
         let new_offset = ed.move_right(offset, Mode::Insert, 1);
         let (_, new_col) = ed.offset_to_line_col(new_offset);
+
+        error!("offset={offset} block={block}, point={point:?} rvline={rvline:?} info={info:?} col={col} after_last_char={after_last_char}");
         let width = if after_last_char {
             CHAR_WIDTH
         } else {
@@ -1569,6 +1574,7 @@ pub fn cursor_caret(
             rvline,
         }
     } else {
+        error!("false block");
         LineRegion {
             x: x0 - 1.0,
             width: 2.0,
@@ -2001,7 +2007,6 @@ fn paint_cursor_caret(
             let LineRegion { x, width, rvline } =
                 cursor_caret(ed, end, is_block, cursor.affinity);
 
-            warn!("end={end} is_block={is_block}, x={x} width={width} rvline={rvline:?} cursor={:?}", cursor);
             if let Some(info) = screen_lines.info(rvline) {
                 if !style.paint_caret(ed.id(), rvline.line) {
                     continue;
