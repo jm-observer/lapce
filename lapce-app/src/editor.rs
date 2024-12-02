@@ -454,7 +454,7 @@ impl EditorData {
         let mut register = self.common.register.get_untracked();
 
         let yank_data =
-            if let lapce_core::cursor::CursorMode::Visual { .. } = &cursor.mode {
+            if let lapce_core::cursor::CursorMode::Visual { .. } = &cursor.mode() {
                 Some(cursor.yank(&text))
             } else {
                 None
@@ -538,7 +538,7 @@ impl EditorData {
         // This is currently special-cased in Lapce because floem editor does not have 'find'
         match cmd {
             MultiSelectionCommand::SelectAllCurrent => {
-                if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
+                if let CursorMode::Insert(mut selection) = cursor.mode().clone() {
                     if !selection.is_empty() {
                         let find = doc.find();
 
@@ -569,7 +569,7 @@ impl EditorData {
                 }
             }
             MultiSelectionCommand::SelectNextCurrent => {
-                if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
+                if let CursorMode::Insert(mut selection) = cursor.mode().clone() {
                     if !selection.is_empty() {
                         let mut had_caret = false;
                         for region in selection.regions_mut() {
@@ -622,7 +622,7 @@ impl EditorData {
                 }
             }
             MultiSelectionCommand::SelectSkipCurrent => {
-                if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
+                if let CursorMode::Insert(mut selection) = cursor.mode().clone() {
                     if !selection.is_empty() {
                         let r = selection.last_inserted().unwrap();
                         if r.is_caret() {
@@ -2046,7 +2046,7 @@ impl EditorData {
         let snippet = Snippet::from_str(snippet)?;
         let text = snippet.text();
         let mut cursor = self.cursor().get_untracked();
-        let old_cursor = cursor.mode.clone();
+        let old_cursor = cursor.mode().clone();
         let (b_text, delta, inval_lines) = self
             .doc()
             .do_raw_edit(
@@ -2070,7 +2070,7 @@ impl EditorData {
             doc.buffer.update(|buffer| {
                 cursor.update_selection(buffer, selection);
                 buffer.set_cursor_before(old_cursor);
-                buffer.set_cursor_after(cursor.mode.clone());
+                buffer.set_cursor_after(cursor.mode().clone());
             });
             self.cursor().set(cursor);
             self.apply_deltas(&[(b_text, delta, inval_lines)]);
@@ -2085,7 +2085,7 @@ impl EditorData {
 
         doc.buffer.update(|buffer| {
             buffer.set_cursor_before(old_cursor);
-            buffer.set_cursor_after(cursor.mode.clone());
+            buffer.set_cursor_after(cursor.mode().clone());
         });
         self.cursor().set(cursor);
         self.apply_deltas(&[(b_text, delta, inval_lines)]);
@@ -2175,7 +2175,7 @@ impl EditorData {
         let selection =
             old_selection.apply_delta(&delta, true, InsertDrift::Default);
 
-        let old_cursor = cursor.mode.clone();
+        let old_cursor = cursor.mode().clone();
         doc.buffer.update(|buffer| {
             cursor.update_selection(buffer, selection);
             let rope = buffer.text();
@@ -2191,7 +2191,7 @@ impl EditorData {
                 cursor.set_offset(offset, false, false);
             }
             buffer.set_cursor_before(old_cursor);
-            buffer.set_cursor_after(cursor.mode.clone());
+            buffer.set_cursor_after(cursor.mode().clone());
         });
         self.cursor().set(cursor);
 
@@ -2707,7 +2707,7 @@ impl EditorData {
 
     pub fn word_at_cursor(&self) -> String {
         let doc = self.doc();
-        let region = self.cursor().with_untracked(|c| match &c.mode {
+        let region = self.cursor().with_untracked(|c| match &c.mode() {
             lapce_core::cursor::CursorMode::Normal(offset) => {
                 lapce_core::selection::SelRegion::caret(*offset)
             }
@@ -2936,9 +2936,9 @@ impl EditorData {
     }
 
     pub fn pointer_move(&self, pointer_event: &PointerMoveEvent) {
-        let mode = self.cursor().with_untracked(|c| c.mode());
+        let mode = self.cursor().with_untracked(|c| c.mode().clone());
         let (offset, is_inside) =
-            self.editor.offset_of_point(mode, pointer_event.pos, false);
+            self.editor.offset_of_point(&mode, pointer_event.pos, false);
         if self.active().get_untracked()
             && self.cursor().with_untracked(|c| c.offset()) != offset
         {
@@ -2995,9 +2995,9 @@ impl EditorData {
     }
 
     fn right_click(&self, pointer_event: &PointerInputEvent) {
-        let mode = self.cursor().with_untracked(|c| c.mode());
+        let mode = self.cursor().with_untracked(|c| c.mode().clone());
         let (offset, _) =
-            self.editor.offset_of_point(mode, pointer_event.pos, false);
+            self.editor.offset_of_point(&mode, pointer_event.pos, false);
         let doc = self.doc();
         let pointer_inside_selection = doc.buffer.with_untracked(|buffer| {
             self.cursor()

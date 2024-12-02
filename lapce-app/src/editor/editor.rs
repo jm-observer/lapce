@@ -426,8 +426,8 @@ impl Editor {
     }
 
     pub fn single_click(&self, pointer_event: &PointerInputEvent) {
-        let mode = self.cursor.with_untracked(|c| c.mode());
-        let (new_offset, _) = self.offset_of_point(mode, pointer_event.pos, true);
+        let mode = self.cursor.with_untracked(|c| c.mode().clone());
+        let (new_offset, _) = self.offset_of_point(&mode, pointer_event.pos, true);
         self.cursor.update(|cursor| {
             cursor.set_offset(
                 new_offset,
@@ -438,8 +438,9 @@ impl Editor {
     }
 
     pub fn double_click(&self, pointer_event: &PointerInputEvent) {
-        let mode = self.cursor.with_untracked(|c| c.mode());
-        let (mouse_offset, _) = self.offset_of_point(mode, pointer_event.pos, false);
+        let mode = self.cursor.with_untracked(|c| c.mode().clone());
+        let (mouse_offset, _) =
+            self.offset_of_point(&mode, pointer_event.pos, false);
         let (start, end) = self.select_word(mouse_offset);
 
         self.cursor.update(|cursor| {
@@ -453,8 +454,9 @@ impl Editor {
     }
 
     pub fn triple_click(&self, pointer_event: &PointerInputEvent) {
-        let mode = self.cursor.with_untracked(|c| c.mode());
-        let (mouse_offset, _) = self.offset_of_point(mode, pointer_event.pos, false);
+        let mode = self.cursor.with_untracked(|c| c.mode().clone());
+        let (mouse_offset, _) =
+            self.offset_of_point(&mode, pointer_event.pos, false);
         let lines = self.doc().lines.lines_of_origin_offset(mouse_offset);
         // let vline = self
         //     .visual_line_of_offset(mouse_offset, CursorAffinity::Backward)
@@ -471,9 +473,9 @@ impl Editor {
     }
 
     pub fn pointer_move(&self, pointer_event: &PointerMoveEvent) {
-        let mode = self.cursor.with_untracked(|c| c.mode());
+        let mode = self.cursor.with_untracked(|c| c.mode().clone());
         let (offset, _is_inside) =
-            self.offset_of_point(mode, pointer_event.pos, false);
+            self.offset_of_point(&mode, pointer_event.pos, false);
         if self.active.get_untracked()
             && self.cursor.with_untracked(|c| c.offset()) != offset
         {
@@ -488,8 +490,8 @@ impl Editor {
     }
 
     fn right_click(&self, pointer_event: &PointerInputEvent) {
-        let mode = self.cursor.with_untracked(|c| c.mode());
-        let (offset, _) = self.offset_of_point(mode, pointer_event.pos, false);
+        let mode = self.cursor.with_untracked(|c| c.mode().clone());
+        let (offset, _) = self.offset_of_point(&mode, pointer_event.pos, false);
         let doc = self.doc();
         let pointer_inside_selection = self
             .cursor
@@ -960,12 +962,11 @@ impl Editor {
     /// Points outside of horizontal bounds will return the last column on the line.
     pub fn offset_of_point(
         &self,
-        mode: CursorMode,
+        mode: &CursorMode,
         point: Point,
         tracing: bool,
     ) -> (usize, bool) {
-        let ((line, col), is_inside) =
-            self.line_col_of_point(mode.clone(), point, tracing);
+        let ((line, col), is_inside) = self.line_col_of_point(mode, point, tracing);
         if tracing {
             warn!("offset_of_point line_col_of_point mode={mode:?} point={point:?} line={line} col={col} is_inside={is_inside}");
         }
@@ -991,7 +992,7 @@ impl Editor {
     /// Points outside of horizontal bounds will return the last column on the line.
     pub fn line_col_of_point(
         &self,
-        _mode: CursorMode,
+        _mode: &CursorMode,
         point: Point,
         _tracing: bool,
     ) -> ((usize, usize), bool) {
@@ -1645,7 +1646,7 @@ pub fn paint_selection(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines
 
     let selection_color = ed.doc().lines.with_untracked(|es| es.selection_color());
 
-    cursor.with_untracked(|cursor| match cursor.mode {
+    cursor.with_untracked(|cursor| match cursor.mode() {
         CursorMode::Normal(_) => {}
         CursorMode::Visual {
             start,
@@ -1653,14 +1654,14 @@ pub fn paint_selection(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines
             mode: VisualMode::Normal,
         } => {
             let start_offset = start.min(end);
-            let end_offset = ed.move_right(start.max(end), Mode::Insert, 1);
+            let end_offset = ed.move_right(*start.max(end), Mode::Insert, 1);
 
             paint_normal_selection(
                 cx,
                 ed,
                 selection_color,
                 screen_lines,
-                start_offset,
+                *start_offset,
                 end_offset,
                 cursor.affinity,
             );
@@ -1675,8 +1676,8 @@ pub fn paint_selection(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines
                 ed,
                 selection_color,
                 screen_lines,
-                start.min(end),
-                start.max(end),
+                *start.min(end),
+                *start.max(end),
                 cursor.affinity,
             );
         }
@@ -1690,8 +1691,8 @@ pub fn paint_selection(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines
                 ed,
                 selection_color,
                 screen_lines,
-                start.min(end),
-                start.max(end),
+                *start.min(end),
+                *start.max(end),
                 cursor.affinity,
                 cursor.horiz,
             );
@@ -1784,9 +1785,9 @@ fn paint_cursor(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines) {
         ed.doc().lines.with_untracked(|es| es.current_line_color());
 
     cursor.with_untracked(|cursor| {
-        let highlight_current_line = match cursor.mode {
+        let highlight_current_line = match cursor.mode() {
             // TODO: check if shis should be 0 or 1
-            CursorMode::Normal(size) => size == 0,
+            CursorMode::Normal(size) => *size == 0,
             CursorMode::Insert(ref sel) => sel.is_caret(),
             CursorMode::Visual { .. } => false,
         };
@@ -2000,7 +2001,7 @@ fn paint_cursor_caret(
         let style = ed.doc();
         // let cursor_offset = cursor.offset();
         for (_, end) in cursor.regions_iter() {
-            let is_block = match cursor.mode {
+            let is_block = match cursor.mode() {
                 CursorMode::Normal(_) | CursorMode::Visual { .. } => true,
                 CursorMode::Insert(_) => false,
             };

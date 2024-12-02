@@ -470,7 +470,7 @@ impl EditorView {
         }
 
         cursor.with_untracked(|cursor| {
-            let highlight_current_line = match cursor.mode {
+            let highlight_current_line = match cursor.mode() {
                 CursorMode::Normal(_) | CursorMode::Insert(_) => true,
                 CursorMode::Visual { .. } => false,
             };
@@ -998,7 +998,7 @@ impl EditorView {
         {
             let e_data = &self.editor;
             let ed = &e_data.editor;
-            let offset = ed.cursor.with_untracked(|cursor| cursor.mode.offset());
+            let offset = ed.cursor.with_untracked(|cursor| cursor.mode().offset());
 
             let bracket_offsets = e_data
                 .doc_signal()

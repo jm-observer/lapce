@@ -717,7 +717,7 @@ impl View for TextInput {
 
             let cursor = self.cursor().get_untracked();
 
-            if let CursorMode::Insert(selection) = &cursor.mode {
+            if let CursorMode::Insert(selection) = &cursor.mode() {
                 for region in selection.regions() {
                     if !region.is_caret() {
                         let min = text_layout.hit_position(region.min()).point.x;

@@ -588,7 +588,7 @@ impl Doc {
             return Vec::new();
         }
 
-        let old_cursor = cursor.mode.clone();
+        let old_cursor = cursor.mode().clone();
         let syntax = self.syntax();
         let deltas = self
             .buffer
@@ -608,7 +608,7 @@ impl Doc {
         // Keep track of the change in the cursor mode for undo/redo
         self.buffer.update(|buffer| {
             buffer.set_cursor_before(old_cursor);
-            buffer.set_cursor_after(cursor.mode.clone());
+            buffer.set_cursor_after(cursor.mode().clone());
         });
         self.apply_deltas(&deltas);
         deltas
@@ -646,7 +646,7 @@ impl Doc {
         }
 
         let mut clipboard = SystemClipboard::new();
-        let old_cursor = cursor.mode.clone();
+        let old_cursor = cursor.mode().clone();
         let syntax = self.syntax();
         let deltas = self
             .buffer
@@ -671,7 +671,7 @@ impl Doc {
         if !deltas.is_empty() {
             self.buffer.update(|buffer| {
                 buffer.set_cursor_before(old_cursor);
-                buffer.set_cursor_after(cursor.mode.clone());
+                buffer.set_cursor_after(cursor.mode().clone());
             });
             self.apply_deltas(&deltas);
         }
