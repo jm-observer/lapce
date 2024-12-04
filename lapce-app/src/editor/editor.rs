@@ -427,7 +427,7 @@ impl Editor {
 
     pub fn single_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.mode().clone());
-        let (new_offset, _) = self.offset_of_point(&mode, pointer_event.pos, true);
+        let (new_offset, _) = self.offset_of_point(&mode, pointer_event.pos);
         self.cursor.update(|cursor| {
             cursor.set_offset(
                 new_offset,
@@ -439,8 +439,7 @@ impl Editor {
 
     pub fn double_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.mode().clone());
-        let (mouse_offset, _) =
-            self.offset_of_point(&mode, pointer_event.pos, false);
+        let (mouse_offset, _) = self.offset_of_point(&mode, pointer_event.pos);
         let (start, end) = self.select_word(mouse_offset);
 
         self.cursor.update(|cursor| {
@@ -455,8 +454,7 @@ impl Editor {
 
     pub fn triple_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.mode().clone());
-        let (mouse_offset, _) =
-            self.offset_of_point(&mode, pointer_event.pos, false);
+        let (mouse_offset, _) = self.offset_of_point(&mode, pointer_event.pos);
         let lines = self.doc().lines.lines_of_origin_offset(mouse_offset);
         // let vline = self
         //     .visual_line_of_offset(mouse_offset, CursorAffinity::Backward)
@@ -474,8 +472,7 @@ impl Editor {
 
     pub fn pointer_move(&self, pointer_event: &PointerMoveEvent) {
         let mode = self.cursor.with_untracked(|c| c.mode().clone());
-        let (offset, _is_inside) =
-            self.offset_of_point(&mode, pointer_event.pos, false);
+        let (offset, _is_inside) = self.offset_of_point(&mode, pointer_event.pos);
         if self.active.get_untracked()
             && self.cursor.with_untracked(|c| c.offset()) != offset
         {
@@ -491,7 +488,7 @@ impl Editor {
 
     fn right_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.mode().clone());
-        let (offset, _) = self.offset_of_point(&mode, pointer_event.pos, false);
+        let (offset, _) = self.offset_of_point(&mode, pointer_event.pos);
         let doc = self.doc();
         let pointer_inside_selection = self
             .cursor
@@ -799,12 +796,14 @@ impl Editor {
             x.visual_line_of_origin_line_offset(origin_line, offset, affinity)
         })
     }
+
+    /// return visual_line, offset_of_visual, offset_of_folded, last_char
     /// 该原始偏移字符所在的视觉行，以及在视觉行的偏移，是否是最后的字符
     pub fn visual_line_of_offset_v2(
         &self,
         offset: usize,
         affinity: CursorAffinity,
-    ) -> (VisualLine, usize, bool) {
+    ) -> (VisualLine, usize, usize, bool) {
         self.doc()
             .lines
             .with_untracked(|x| x.visual_line_of_offset(offset, affinity))
@@ -960,17 +959,16 @@ impl Editor {
     /// The boolean indicates whether the point is inside the text or not
     /// Points outside of vertical bounds will return the last line.
     /// Points outside of horizontal bounds will return the last column on the line.
-    pub fn offset_of_point(
-        &self,
-        mode: &CursorMode,
-        point: Point,
-        tracing: bool,
-    ) -> (usize, bool) {
-        let ((line, col), is_inside) = self.line_col_of_point(mode, point, tracing);
-        if tracing {
-            warn!("offset_of_point line_col_of_point mode={mode:?} point={point:?} line={line} col={col} is_inside={is_inside}");
-        }
-        (self.offset_of_line_col(line, col), is_inside)
+    pub fn offset_of_point(&self, mode: &CursorMode, point: Point) -> (usize, bool) {
+        self.doc
+            .get_untracked()
+            .lines
+            .with_untracked(|x| x.buffer_offset_of_point(mode, point))
+        // let ((line, col), is_inside) = self.line_col_of_point(mode, point, tracing);
+        // if tracing {
+        //     warn!("offset_of_point line_col_of_point mode={mode:?} point={point:?} line={line} col={col} is_inside={is_inside}");
+        // }
+        // (self.offset_of_line_col(line, col), is_inside)
     }
 
     /// 获取该坐标所在的视觉行和行偏离
@@ -1019,13 +1017,6 @@ impl Editor {
                 }
             })
         };
-        // let info = info.unwrap_or_else(||{
-        //     self.screen_lines
-        //         .with_untracked(|sl| {
-        //
-        //         })
-        //         .map(|info| info.vline_info)
-        // });
 
         let rvline = info.rvline;
         let line = rvline.line;
@@ -1039,36 +1030,6 @@ impl Editor {
         let (line, col, _) = text_layout
             .phantom_text
             .cursor_position_of_final_col(hit_point.index);
-        // Ensure that the column doesn't end up out of bounds, so things like clicking on the far
-        // right end will just go to the end of the line.
-        // let max_col = self.line_end_col(line, mode != Mode::Normal);
-        // let max_col = text_layout.text.line().text().len();
-        // if line == 9 {
-        //     tracing::info!("col={col} max_col={max_col} {hit_point:?} {} {} visual_line={}", self.rope_text().line_content(line), text_layout.text.line().text(), text_layout.phantom_text.visual_line)
-        // }
-        // let mut col = col.min(max_col);
-
-        // TODO: we need to handle affinity. Clicking at end of a wrapped line should give it a
-        // backwards affinity, while being at the start of the next line should be a forwards aff
-
-        // TODO: this is a hack to get around text layouts not including spaces at the end of
-        // wrapped lines, but we want to be able to click on them
-        // if !hit_point.is_inside {
-        //     // TODO(minor): this is probably wrong in some manners
-        //     col = info.last_col(self.text_prov(), true);
-        // }
-
-        // let tab_width = self.style().tab_width(self.id(), line);
-        // if self.style().atomic_soft_tabs(self.id(), line) && tab_width > 1 {
-        //     col = snap_to_soft_tab_line_col(
-        //         &self.text(),
-        //         line,
-        //         col,
-        //         SnapDirection::Nearest,
-        //         tab_width,
-        //     );
-        //     tracing::info!("snap_to_soft_tab_line_col col={col}");
-        // }
 
         ((line, col), hit_point.is_inside)
     }
@@ -1503,6 +1464,7 @@ pub fn cursor_caret(
     block: bool,
     affinity: CursorAffinity,
 ) -> LineRegion {
+
     let (info, col, after_last_char) = ed.visual_line_of_offset(offset, affinity);
 
     let doc = ed.doc();
@@ -1540,7 +1502,7 @@ pub fn cursor_caret(
     } else {
         info.rvline
     };
-    error!("offset={offset} block={block}, point={point:?} rvline={rvline:?} info={info:?} col={col} after_last_char={after_last_char}");
+    // error!("offset={offset} block={block}, point={point:?} rvline={rvline:?} info={info:?} col={col} after_last_char={after_last_char}");
 
     let x0 = point.x;
     if block {
@@ -2001,10 +1963,7 @@ fn paint_cursor_caret(
         let style = ed.doc();
         // let cursor_offset = cursor.offset();
         for (_, end) in cursor.regions_iter() {
-            let is_block = match cursor.mode() {
-                CursorMode::Normal(_) | CursorMode::Visual { .. } => true,
-                CursorMode::Insert(_) => false,
-            };
+            let is_block = cursor.is_block();
             let LineRegion { x, width, rvline } =
                 cursor_caret(ed, end, is_block, cursor.affinity);
 

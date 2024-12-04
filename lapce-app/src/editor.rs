@@ -2953,7 +2953,7 @@ impl EditorData {
     pub fn pointer_move(&self, pointer_event: &PointerMoveEvent) {
         let mode = self.cursor().with_untracked(|c| c.mode().clone());
         let (offset, is_inside) =
-            self.editor.offset_of_point(&mode, pointer_event.pos, false);
+            self.editor.offset_of_point(&mode, pointer_event.pos);
         if self.active().get_untracked()
             && self.cursor().with_untracked(|c| c.offset()) != offset
         {
@@ -3009,8 +3009,7 @@ impl EditorData {
 
     fn right_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor().with_untracked(|c| c.mode().clone());
-        let (offset, _) =
-            self.editor.offset_of_point(&mode, pointer_event.pos, false);
+        let (offset, _) = self.editor.offset_of_point(&mode, pointer_event.pos);
         let doc = self.doc();
         let pointer_inside_selection = doc.lines.with_untracked(|buffer| {
             self.cursor().with_untracked(|c| {

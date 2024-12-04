@@ -149,9 +149,10 @@ impl View for EditorGutterView {
         //     .buffer
         //     .with_untracked(|buffer| buffer.line_of_offset(offset));
 
-        let (current_visual_line, _line_offset, _) = doc.lines.with_untracked(|x| {
-            x.visual_line_of_offset(offset, CursorAffinity::Forward)
-        });
+        let (current_visual_line, _line_offset, _, _) =
+            doc.lines.with_untracked(|x| {
+                x.visual_line_of_offset(offset, CursorAffinity::Forward)
+            });
 
         let family: Vec<FamilyOwned> =
             FamilyOwned::parse_list(&config.editor.font_family).collect();

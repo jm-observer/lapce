@@ -15,6 +15,8 @@ use crate::editor::editor::{CommonAction, Editor};
 use floem::views::editor::text::Styling;
 use floem::views::editor::visual_line::RVLine;
 use floem_editor_core::word::WordCursor;
+use tracing::{error, warn};
+
 /// Move a selection region by a given movement.
 /// Much of the time, this will just be a matter of moving the cursor, but
 /// some movements may depend on the current selection.
@@ -222,10 +224,9 @@ fn correct_crlf(text: &RopeTextVal, offset: usize) -> usize {
 
 fn atomic_soft_tab_width_for_offset(ed: &Editor, offset: usize) -> Option<usize> {
     let line = ed
-        .visual_line_of_offset(offset, CursorAffinity::Forward)
+        .visual_line_of_offset_v2(offset, CursorAffinity::Forward)
         .0
-        .rvline
-        .line;
+        .origin_line;
     let style = ed.doc();
     if style.atomic_soft_tabs(ed.id(), line) {
         Some(style.tab_width(ed.id(), line))
@@ -265,37 +266,35 @@ fn move_left(
 /// Move the offset to the right by `count` amount.
 /// If `soft_tab_width` is `Some` (and greater than 1) then the offset will snap to the soft tab.
 fn move_right(
-    _view: &Editor,
-    _offset: usize,
-    _affinity: &mut CursorAffinity,
-    _mode: Mode,
-    _count: usize,
+    view: &Editor,
+    offset: usize,
+    affinity: &mut CursorAffinity,
+    mode: Mode,
+    count: usize,
 ) -> usize {
-    todo!()
-    // let rope_text = view.rope_text();
-    // let mut new_offset = rope_text.move_right(offset, mode, count);
-    //
-    // if let Some(soft_tab_width) = atomic_soft_tab_width_for_offset(view, offset) {
-    //     if soft_tab_width > 1 {
-    //         new_offset = snap_to_soft_tab(
-    //             rope_text.text(),
-    //             new_offset,
-    //             SnapDirection::Right,
-    //             soft_tab_width,
-    //         );
-    //     }
-    // }
+    error!("_offset={offset} _affinity={affinity:?} _mode={mode:?} _count={count}");
+    let rope_text = view.rope_text();
+    let mut new_offset = rope_text.move_right(offset, mode, count);
 
-    // let (rvline, _, col) = view.visual_line_of_offset(offset, *affinity);
-    // let info = view.rvline_info(rvline);
-    //
-    // *affinity = if col == info.last_col(view.text_prov(), false) {
-    //     CursorAffinity::Forward
-    // } else {
-    //     CursorAffinity::Backward
-    // };
+    if let Some(soft_tab_width) = atomic_soft_tab_width_for_offset(view, offset) {
+        if soft_tab_width > 1 {
+            new_offset = snap_to_soft_tab(
+                rope_text.text(),
+                new_offset,
+                SnapDirection::Right,
+                soft_tab_width,
+            );
+        }
+    }
 
-    // new_offset
+    let (_, _, _, last_char) = view.visual_line_of_offset_v2(new_offset, *affinity);
+    *affinity = if last_char {
+        CursorAffinity::Forward
+    } else {
+        CursorAffinity::Backward
+    };
+
+    new_offset
 }
 #[allow(dead_code)]
 fn find_prev_rvline(_view: &Editor, start: RVLine, count: usize) -> Option<RVLine> {
@@ -331,50 +330,31 @@ fn find_prev_rvline(_view: &Editor, start: RVLine, count: usize) -> Option<RVLin
 /// Move the offset up by `count` amount.
 /// `count` may be zero, because moving up in a selection just jumps to the start of the selection.
 fn move_up(
-    _view: &Editor,
-    _offset: usize,
-    _affinity: &mut CursorAffinity,
-    _horiz: Option<ColPosition>,
+    view: &Editor,
+    offset: usize,
+    affinity: &mut CursorAffinity,
+    horiz: Option<ColPosition>,
     _mode: Mode,
     _count: usize,
 ) -> (usize, ColPosition) {
-    todo!()
-    // let (rvline, ..) = view.visual_line_of_offset(offset, *affinity);
-    // let folded_line = view.folded_line_of_offset(offset, *affinity);
-    // if rvline.line == 0 && rvline.line_index == 0 {
-    //     // Zeroth line
-    //     let horiz = horiz
-    //         .unwrap_or_else(|| ColPosition::Col(view.line_point_of_offset(offset, *affinity).x));
-    //
-    //     *affinity = CursorAffinity::Backward;
-    //
-    //     return (0, horiz);
-    // }
-    //
-    // let Some(rvline) = find_prev_rvline(view, rvline, count) else {
-    //     // Zeroth line
-    //     let horiz = horiz
-    //         .unwrap_or_else(|| ColPosition::Col(view.line_point_of_offset(offset, *affinity).x));
-    //
-    //     *affinity = CursorAffinity::Backward;
-    //
-    //     return (0, horiz);
-    // };
-    //
-    // let horiz =
-    //     horiz.unwrap_or_else(|| ColPosition::Col(view.line_point_of_offset(offset, *affinity).x));
-    // let (line, col) = view.rvline_horiz_col(rvline, &horiz, mode != Mode::Normal);
-    //
-    // // TODO: this should maybe be doing `new_offset == info.interval.start`?
-    // *affinity = if col == 0 {
-    //     CursorAffinity::Forward
-    // } else {
-    //     CursorAffinity::Backward
-    // };
-    //
-    // let new_offset = view.offset_of_line_col(line, col);
-    //
-    // (new_offset, horiz)
+    let (visual_line, line_offset, ..) =
+        view.visual_line_of_offset_v2(offset, *affinity);
+    let (visual_line, line_offset, ..) =
+        view.previous_visual_line(visual_line.line_index, line_offset, *affinity);
+
+    let horiz = horiz.unwrap_or_else(|| {
+        ColPosition::Col(view.line_point_of_offset(offset, *affinity).x)
+    });
+    let offset_of_buffer =
+        view.rvline_horiz_col(&horiz, _mode != Mode::Normal, &visual_line);
+
+    // TODO: this should maybe be doing `new_offset == info.interval.start`?
+    *affinity = if line_offset == 0 {
+        CursorAffinity::Forward
+    } else {
+        CursorAffinity::Backward
+    };
+    (offset_of_buffer, horiz)
 }
 
 #[allow(dead_code)]
@@ -445,40 +425,30 @@ fn move_down_last_rvline(
 /// Move the offset down by `count` amount.
 /// `count` may be zero, because moving down in a selection just jumps to the end of the selection.
 fn move_down(
-    _view: &Editor,
-    _offset: usize,
-    _affinity: &mut CursorAffinity,
-    _horiz: Option<ColPosition>,
+    view: &Editor,
+    offset: usize,
+    affinity: &mut CursorAffinity,
+    horiz: Option<ColPosition>,
     _mode: Mode,
     _count: usize,
 ) -> (usize, ColPosition) {
-    todo!()
-    // let (rvline, ..) = view.visual_line_of_offset(offset, *affinity);
-    //
-    // let Some(info) = find_next_rvline_info(view, offset, rvline, count) else {
-    //     // There was no next entry, this typically means that we would go past the end if we went
-    //     // further
-    //     return move_down_last_rvline(view, offset, affinity, horiz, mode);
-    // };
-    //
-    // // TODO(minor): is this the right affinity?
-    // let horiz =
-    //     horiz.unwrap_or_else(|| ColPosition::Col(view.line_point_of_offset(offset, *affinity).x));
-    //
-    // let (line, col) = view.rvline_horiz_col(info.rvline, &horiz, mode != Mode::Normal);
-    //
-    // let new_offset = view.offset_of_line_col(line, col);
-    //
-    // *affinity = if new_offset == info.interval.start {
-    //     // The column was zero so we shift it to be at the line itself.
-    //     // This lets us move down to an empty - for example - next line and appear at the
-    //     // start of that line without coinciding with the offset at the end of the previous line.
-    //     CursorAffinity::Forward
-    // } else {
-    //     CursorAffinity::Backward
-    // };
-    //
-    // (new_offset, horiz)
+    let (visual_line, line_offset, ..) =
+        view.visual_line_of_offset_v2(offset, *affinity);
+    let (visual_line, line_offset, ..) =
+        view.next_visual_line(visual_line.line_index, line_offset, *affinity);
+    let horiz = horiz.unwrap_or_else(|| {
+        ColPosition::Col(view.line_point_of_offset(offset, *affinity).x)
+    });
+    let offset_of_buffer =
+        view.rvline_horiz_col(&horiz, _mode != Mode::Normal, &visual_line);
+    *affinity = if line_offset == 0 {
+        CursorAffinity::Forward
+    } else {
+        CursorAffinity::Backward
+    };
+    warn!("offset_of_buffer={offset_of_buffer} horiz={horiz:?}");
+
+    (offset_of_buffer, horiz)
 }
 
 fn document_end(
