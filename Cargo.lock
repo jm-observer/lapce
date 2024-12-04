@@ -1306,12 +1306,11 @@ dependencies = [
 [[package]]
 name = "custom-utils"
 version = "0.10.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f09a96c3e5008c6904e832b52048af090c7d65e2e93ac3c228669225a84d25e"
 dependencies = [
  "ansi_term",
  "anyhow",
  "flexi_logger",
+ "home",
  "lazy_static",
  "log",
 ]
@@ -1750,12 +1749,11 @@ dependencies = [
 
 [[package]]
 name = "flexi_logger"
-version = "0.28.5"
+version = "0.29.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cca927478b3747ba47f98af6ba0ac0daea4f12d12f55e9104071b3dc00276310"
+checksum = "d26948e37cfcb1f2c2cd38e0602d3a8ab6b9472c0c6eff4516fc8def9a3124d7"
 dependencies = [
  "chrono",
- "glob",
  "log",
  "notify-debouncer-mini",
  "nu-ansi-term 0.50.1",
@@ -2286,12 +2284,6 @@ dependencies = [
  "log",
  "xml-rs",
 ]
-
-[[package]]
-name = "glob"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 
 [[package]]
 name = "globset"
@@ -3054,6 +3046,7 @@ dependencies = [
  "config",
  "criterion",
  "crossbeam-channel",
+ "custom-utils",
  "dmg",
  "doc",
  "flate2",
@@ -3070,6 +3063,7 @@ dependencies = [
  "lapce-proxy",
  "lapce-rpc",
  "lapce-xi-rope",
+ "log",
  "lsp-types",
  "notify 5.2.0",
  "nucleo",
@@ -3092,15 +3086,11 @@ dependencies = [
  "tar",
  "tempfile",
  "thiserror",
- "toml 0.8.19",
+ "toml 0.5.11",
  "toml_edit 0.20.7",
- "tracing 0.2.0",
- "tracing-appender",
- "tracing-log",
- "tracing-subscriber",
  "unicode-width",
  "url",
- "windows-sys 0.59.0",
+ "windows-sys 0.45.0",
  "zip",
  "zstd",
 ]
@@ -3121,6 +3111,7 @@ dependencies = [
  "lapce-rpc",
  "lapce-xi-rope",
  "libloading",
+ "log",
  "lsp-types",
  "once_cell",
  "regex",
@@ -3129,7 +3120,6 @@ dependencies = [
  "strum",
  "strum_macros",
  "thiserror",
- "tracing 0.2.0",
  "tree-sitter",
 ]
 
@@ -3159,6 +3149,7 @@ dependencies = [
  "lapce-xi-rope",
  "libc",
  "locale_config",
+ "log",
  "lsp-types",
  "notify 5.2.0",
  "parking_lot",
@@ -3169,9 +3160,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tar",
- "toml 0.8.19",
- "tracing 0.2.0",
- "tracing-log",
+ "toml 0.5.11",
  "trash",
  "url",
  "walkdir",
@@ -3191,11 +3180,11 @@ dependencies = [
  "human-sort",
  "indexmap",
  "lapce-xi-rope",
+ "log",
  "lsp-types",
  "parking_lot",
  "serde",
  "serde_json",
- "tracing 0.2.0",
  "url",
 ]
 

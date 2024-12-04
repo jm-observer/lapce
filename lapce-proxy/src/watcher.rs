@@ -146,7 +146,7 @@ impl FileWatcher {
 
         if !state.watchees.iter().any(|w2| w.path == w2.path) {
             if let Err(err) = self.inner.watch(&w.path, mode) {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
 
@@ -168,7 +168,7 @@ impl FileWatcher {
             let removed = state.watchees.remove(idx);
             if !state.watchees.iter().any(|w| w.path == removed.path) {
                 if let Err(err) = self.inner.unwatch(&removed.path) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             //TODO: Ideally we would be tracking what paths we're watching with
@@ -194,7 +194,7 @@ impl FileWatcher {
 
                 for (path, mode) in to_add {
                     if let Err(err) = self.inner.watch(&path, mode) {
-                        tracing::error!("{:?}", err);
+                        log::error!("{:?}", err);
                     }
                 }
             }

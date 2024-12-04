@@ -503,7 +503,7 @@ impl ResponseHandler {
             ResponseHandler::Callback(f) => f((id, result)),
             ResponseHandler::Chan(tx) => {
                 if let Err(err) = tx.send((id, result)) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
         }
@@ -564,7 +564,7 @@ impl ProxyRpcHandler {
         self.pending.lock().insert(id, rh);
 
         if let Err(err) = self.tx.send(ProxyRpc::Request(id, request)) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
         id
     }
@@ -601,12 +601,12 @@ impl ProxyRpcHandler {
 
     pub fn notification(&self, notification: ProxyNotification) {
         if let Err(err) = self.tx.send(ProxyRpc::Notification(notification)) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
     pub fn lsp_cancel(&self, id: u64) {
-        tracing::info!("lsp_cancel {}", id);
+        log::info!("lsp_cancel {}", id);
         self.notification(ProxyNotification::LspCancel { id: id as i32 });
     }
 
@@ -645,7 +645,7 @@ impl ProxyRpcHandler {
     pub fn shutdown(&self) {
         self.notification(ProxyNotification::Shutdown {});
         if let Err(err) = self.tx.send(ProxyRpc::Shutdown) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 

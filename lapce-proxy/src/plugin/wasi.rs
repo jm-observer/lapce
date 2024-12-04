@@ -130,7 +130,7 @@ impl PluginServerHandler for Plugin {
         from: String,
     ) {
         if let Err(err) = self.host.handle_notification(method, params, from) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -240,7 +240,7 @@ impl Plugin {
                     }
                 }
                 Err(err) => {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             },
         );
@@ -269,7 +269,7 @@ pub fn load_all_volts(
         })
         .collect();
     if let Err(err) = plugin_rpc.unactivated_volts(volts, id) {
-        tracing::error!("{:?}", err);
+        log::error!("{:?}", err);
     }
 }
 
@@ -302,7 +302,7 @@ pub fn find_all_volts(extra_plugin_paths: &[PathBuf]) -> Vec<VoltMetadata> {
         .filter_map(|path| match load_volt(&path) {
             Ok(metadata) => Some(metadata),
             Err(e) => {
-                tracing::error!("Failed to load plugin: {:?}", e);
+                log::error!("Failed to load plugin: {:?}", e);
                 None
             }
         })
@@ -312,7 +312,7 @@ pub fn find_all_volts(extra_plugin_paths: &[PathBuf]) -> Vec<VoltMetadata> {
         let mut metadata = match load_volt(plugin_path) {
             Ok(metadata) => metadata,
             Err(e) => {
-                tracing::error!("Failed to load extra plugin: {:?}", e);
+                log::error!("Failed to load extra plugin: {:?}", e);
                 continue;
             }
         };
@@ -516,7 +516,7 @@ pub fn start_volt(
                 if let Ok(msg) = serde_json::to_string(&resp) {
                     if let Err(err) = writeln!(local_stdin.write().unwrap(), "{msg}")
                     {
-                        tracing::error!("{:?}", err);
+                        log::error!("{:?}", err);
                     }
                 }
             }
@@ -525,7 +525,11 @@ pub fn start_volt(
     let plugin_meta = meta.clone();
     linker.func_wrap("lapce", "host_handle_stderr", move || {
         if let Ok(msg) = wasi_read_string(&stderr) {
-            tracing_log::log::log!(target: &format!("lapce_proxy::plugin::wasi::{}::{}", plugin_meta.author, plugin_meta.name), tracing_log::log::Level::Debug, "{msg}");
+            log::error!(
+                "lapce_proxy::plugin::wasi::{}::{} {msg}",
+                plugin_meta.author,
+                plugin_meta.name
+            );
         }
     })?;
     linker.module(&mut store, "", &module)?;
@@ -551,11 +555,11 @@ pub fn start_volt(
                 }
                 if let Ok(msg) = serde_json::to_string(&msg) {
                     if let Err(err) = writeln!(stdin.write().unwrap(), "{msg}") {
-                        tracing::error!("{:?}", err);
+                        log::error!("{:?}", err);
                     }
                 }
                 if let Err(err) = handle_rpc.call(&mut store, ()) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
         }

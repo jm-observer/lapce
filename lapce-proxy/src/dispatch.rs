@@ -34,13 +34,13 @@ use lapce_rpc::{
     RequestId, RpcError,
 };
 use lapce_xi_rope::Rope;
+use log::debug;
 use lsp_types::{
     notification::{Cancel, Notification},
     CancelParams, MessageType, NumberOrString, Position, Range, ShowMessageParams,
     TextDocumentItem, Url,
 };
 use parking_lot::Mutex;
-use tracing::debug;
 
 use crate::terminal::Terminals;
 use crate::{
@@ -88,7 +88,7 @@ impl ProxyHandler for Dispatcher {
                                 );
                             }
                             Err(err) => {
-                                tracing::event!(tracing::Level::ERROR, "Failed to re-read file after change notification: {err}");
+                                log::error!("Failed to re-read file after change notification: {err}");
                             }
                         }
                     }
@@ -118,7 +118,7 @@ impl ProxyHandler for Dispatcher {
             }
             UpdatePluginConfigs { configs } => {
                 if let Err(err) = self.catalog_rpc.update_plugin_configs(configs) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             NewTerminal {
@@ -193,7 +193,7 @@ impl ProxyHandler for Dispatcher {
                 breakpoints,
             } => {
                 if let Err(err) = self.catalog_rpc.dap_start(config, breakpoints) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             DapProcessId {
@@ -204,42 +204,42 @@ impl ProxyHandler for Dispatcher {
                 if let Err(err) =
                     self.catalog_rpc.dap_process_id(dap_id, process_id, term_id)
                 {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             DapContinue { dap_id, thread_id } => {
                 if let Err(err) = self.catalog_rpc.dap_continue(dap_id, thread_id) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             DapPause { dap_id, thread_id } => {
                 if let Err(err) = self.catalog_rpc.dap_pause(dap_id, thread_id) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             DapStepOver { dap_id, thread_id } => {
                 if let Err(err) = self.catalog_rpc.dap_step_over(dap_id, thread_id) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             DapStepInto { dap_id, thread_id } => {
                 if let Err(err) = self.catalog_rpc.dap_step_into(dap_id, thread_id) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             DapStepOut { dap_id, thread_id } => {
                 if let Err(err) = self.catalog_rpc.dap_step_out(dap_id, thread_id) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             DapStop { dap_id } => {
                 if let Err(err) = self.catalog_rpc.dap_stop(dap_id) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             DapDisconnect { dap_id } => {
                 if let Err(err) = self.catalog_rpc.dap_disconnect(dap_id) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             DapRestart {
@@ -247,7 +247,7 @@ impl ProxyHandler for Dispatcher {
                 breakpoints,
             } => {
                 if let Err(err) = self.catalog_rpc.dap_restart(config, breakpoints) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             DapSetBreakpoints {
@@ -259,7 +259,7 @@ impl ProxyHandler for Dispatcher {
                     self.catalog_rpc
                         .dap_set_breakpoints(dap_id, path, breakpoints)
                 {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             GitCommit { message, diffs } => {
@@ -330,7 +330,7 @@ impl ProxyHandler for Dispatcher {
 
     fn handle_request(&mut self, id: RequestId, rpc: ProxyRequest) {
         use ProxyRequest::*;
-        tracing::debug!("dispatcher handle_request {:?}", rpc);
+        log::debug!("dispatcher handle_request {:?}", rpc);
         match rpc {
             NewBuffer { buffer_id, path } => {
                 let buffer = Buffer::new(buffer_id, path.clone());
@@ -1219,10 +1219,7 @@ impl ProxyHandler for Dispatcher {
                     .into_iter()
                     .filter_map(|location| {
                         let Ok(path) = location.uri.to_file_path() else {
-                            tracing::error!(
-                                "get file path fail: {:?}",
-                                location.uri
-                            );
+                            log::error!("get file path fail: {:?}", location.uri);
                             return None;
                         };
                         let buffer = self.get_buffer_or_insert(path.clone());
@@ -1241,12 +1238,12 @@ impl ProxyHandler for Dispatcher {
             InstallVolt { volt } => {
                 let catalog_rpc = self.catalog_rpc.clone();
                 if let Err(err) = catalog_rpc.install_volt(id, volt) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             ReloadVolt { volt } => {
                 if let Err(err) = self.catalog_rpc.reload_volt(id, volt) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             RemoveVolt { volt } => {
@@ -1257,7 +1254,7 @@ impl ProxyHandler for Dispatcher {
             }
             EnableVolt { volt } => {
                 if let Err(err) = self.catalog_rpc.enable_volt(id, volt) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             Completion {
@@ -1443,7 +1440,7 @@ impl FileWatchNotifier {
             if explorer_change {
                 // only send the value if we need to update file explorer as well
                 if let Err(err) = sender.send(explorer_change) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             return;
@@ -1452,7 +1449,7 @@ impl FileWatchNotifier {
         if explorer_change {
             // only send the value if we need to update file explorer as well
             if let Err(err) = sender.send(explorer_change) {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
 
@@ -1866,7 +1863,7 @@ fn search_in_path(
                 }),
             ) {
                 {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             if !line_matches.is_empty() {

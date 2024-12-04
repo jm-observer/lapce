@@ -131,7 +131,7 @@ impl WindowData {
         });
         //
         for w in info.tabs.workspaces {
-            tracing::info!("WindowData {:?}", w);
+            log::info!("WindowData {:?}", w);
             w.watch_project_setting(&watcher);
 
             let window_tab =
@@ -212,7 +212,7 @@ impl WindowData {
             WindowCommand::SetWorkspace { workspace } => {
                 let db: Arc<LapceDb> = use_context().unwrap();
                 if let Err(err) = db.update_recent_workspace(&workspace) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
 
                 let active = self.active.get_untracked();
@@ -222,12 +222,12 @@ impl WindowData {
                         if let Err(err) =
                             db.insert_window_tab(window_tabs[active].1.clone())
                         {
-                            tracing::error!("{:?}", err);
+                            log::error!("{:?}", err);
                         }
                     }
                 });
                 //
-                tracing::info!("SetWorkspace {:?}", workspace);
+                log::info!("SetWorkspace {:?}", workspace);
                 let workspace = Arc::new(workspace);
                 let window_tab = Rc::new(WindowTabData::new(
                     self.scope,
@@ -258,9 +258,9 @@ impl WindowData {
             WindowCommand::NewWorkspaceTab { workspace, end } => {
                 let db: Arc<LapceDb> = use_context().unwrap();
                 if let Err(err) = db.update_recent_workspace(&workspace) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
-                tracing::info!("NewWorkspaceTab {:?}", workspace);
+                log::info!("NewWorkspaceTab {:?}", workspace);
                 workspace.watch_project_setting(&self.watcher);
                 let window_tab = Rc::new(WindowTabData::new(
                     self.scope,
@@ -302,7 +302,7 @@ impl WindowData {
                         old_window_tab.proxy.shutdown();
                         let db: Arc<LapceDb> = use_context().unwrap();
                         if let Err(err) = db.save_window_tab(old_window_tab) {
-                            tracing::error!("{:?}", err);
+                            log::error!("{:?}", err);
                         }
                     }
                 });

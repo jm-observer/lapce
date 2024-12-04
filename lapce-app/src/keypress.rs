@@ -15,6 +15,7 @@ use floem::{
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::mode::{Mode, Modes};
+use log::trace;
 
 pub use self::press::KeyPress;
 use self::{
@@ -29,7 +30,7 @@ use crate::{
         condition::{CheckCondition, Condition},
         keymap::KeymapMatch,
     },
-    tracing::*,
+    log::*,
 };
 
 const DEFAULT_KEYMAPS_COMMON: &str =
@@ -335,7 +336,7 @@ impl KeyPressData {
         let mods = keypress.mods;
         match &keymatch {
             KeymapMatch::Full(command) => {
-                tracing::debug!("handle_keymatch {:?}", command);
+                log::debug!("handle_keymatch {:?}", command);
                 self.pending_keypress
                     .update(|(pending_keypress, last_time)| {
                         last_time.take();
@@ -573,7 +574,7 @@ impl KeyPressData {
         let mut loader = KeyMapLoader::new();
 
         if let Err(err) = loader.load_from_str(DEFAULT_KEYMAPS_COMMON, is_modal) {
-            trace!(TraceLevel::ERROR, "Failed to load common defaults: {err}");
+            trace!("Failed to load common defaults: {err}");
         }
 
         let os_keymaps = if std::env::consts::OS == "macos" {
@@ -583,13 +584,13 @@ impl KeyPressData {
         };
 
         if let Err(err) = loader.load_from_str(os_keymaps, is_modal) {
-            trace!(TraceLevel::ERROR, "Failed to load OS defaults: {err}");
+            trace!("Failed to load OS defaults: {err}");
         }
 
         if let Some(path) = Self::file() {
             if let Ok(content) = std::fs::read_to_string(&path) {
                 if let Err(err) = loader.load_from_str(&content, is_modal) {
-                    trace!(TraceLevel::WARN, "Failed to load from {path:?}: {err}");
+                    trace!("Failed to load from {path:?}: {err}");
                 }
             }
         }

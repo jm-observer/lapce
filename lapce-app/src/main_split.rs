@@ -30,13 +30,13 @@ use lapce_rpc::{
     proxy::ProxyResponse,
 };
 use lapce_xi_rope::{spans::SpansBuilder, Rope};
+use log::{warn, Level};
 use lsp_types::{
     CodeAction, CodeActionOrCommand, DiagnosticSeverity, DocumentChangeOperation,
     DocumentChanges, OneOf, Position, TextEdit, Url, WorkspaceEdit,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tracing::{event, Level};
 
 use crate::common::Tabs;
 use crate::panel::call_hierarchy_view::CallHierarchyData;
@@ -250,7 +250,7 @@ impl Editors {
         let id = editor.id();
         self.0.update(|editors| {
             if editors.insert(id, editor).is_some() {
-                event!(Level::WARN, "Inserted EditorId that already exists");
+                warn!("Inserted EditorId that already exists");
             }
         });
 
@@ -709,7 +709,7 @@ impl MainSplitData {
         location: EditorLocation,
         edits: Option<Vec<TextEdit>>,
     ) {
-        tracing::debug!("go_to_location {:?}", location);
+        log::debug!("go_to_location {:?}", location);
         if self.common.focus.get_untracked() != Focus::Workbench {
             self.common.focus.set(Focus::Workbench);
         }
@@ -2125,7 +2125,7 @@ impl MainSplitData {
                                             if let Some(path) = file.path.pop() {
                                                 path
                                             } else {
-                                                tracing::error!("No path");
+                                                log::error!("No path");
                                                 return;
                                             },
                                             move || {
@@ -2444,7 +2444,7 @@ impl MainSplitData {
     }
 
     pub fn open_file_changed(&self, path: &Path, content: &FileChanged) {
-        tracing::debug!("open_file_changed {:?}", path);
+        log::debug!("open_file_changed {:?}", path);
         match content {
             FileChanged::Change(content) => {
                 let doc = self.docs.with_untracked(|docs| docs.get(path).cloned());
@@ -2534,11 +2534,7 @@ impl MainSplitData {
                     let path = path.clone();
                     create_ext_action(self.scope, move |result| {
                         if let Err(err) = result {
-                            event!(
-                                Level::WARN,
-                                "Failed to save as a file: {:?}",
-                                err
-                            );
+                            warn!("Failed to save as a file: {:?}", err);
                         } else {
                             let queries_directory =
                                 Directory::queries_directory().unwrap();
@@ -2597,11 +2593,7 @@ impl MainSplitData {
                     let path = path.clone();
                     create_ext_action(self.scope, move |result| {
                         if let Err(err) = result {
-                            event!(
-                                Level::WARN,
-                                "Failed to save as a file: {:?}",
-                                err
-                            );
+                            warn!("Failed to save as a file: {:?}", err);
                         } else {
                             // let syntax = Syntax::init(&path);
                             doc.content.set(DocContent::File {
@@ -2692,7 +2684,7 @@ impl MainSplitData {
                     if let Some(path) = file.path.pop() {
                         path
                     } else {
-                        tracing::error!("No path");
+                        log::error!("No path");
                         return;
                     },
                     move || {},
@@ -2710,7 +2702,7 @@ impl MainSplitData {
                     if let Some(path) = file.path.pop() {
                         path
                     } else {
-                        tracing::error!("No path");
+                        log::error!("No path");
                         return;
                     },
                     move || {},

@@ -82,44 +82,18 @@ floem = { git = "https://github.com/lapce/floem", rev = "4510c4b", features = ["
 floem-editor-core = { git = "https://github.com/lapce/floem", rev = "4510c4b", features = ["serde"] }
 # floem-editor-core = { path = "../floem/editor-core/", features = ["serde"] }
 
-
+log = "0.4.22"
+custom-utils = "0.10.16"
 
 [patch.crates-io]
 # Temporarily patch lsp-types with a version that adds message-type debug
 lsp-types = { git = "https://github.com/lapce/lsp-types", rev = "feaa1e2ec80975c9dadd400a238ceacf071058e6" }
 regalloc2 = { rev = "5d79e12d0a93b10fc181f4da409b4671dd365228", git = "https://github.com/bytecodealliance/regalloc2" }
-
+custom-utils = {path="../custom-utils"}
 [patch."https://github.com/lapce/floem"]
 # Temporarily patch lsp-types with a version that adds message-type debug
 floem = { path="../floem" }
 floem-editor-core = {  path="../floem/editor-core"  }
-
-#[patch."https://github.com/tokio-rs/tracing"]
-#tracing = {path = "../tracing/tracing"}
-#tracing-log = {path = "../tracing/tracing-log"}
-#tracing-subscriber = {path = "../tracing/tracing-subscriber"}
-#tracing-appender = {path = "../tracing/tracing-appender"}
-
-
-[workspace.dependencies.tracing]
-git     = "https://github.com/jm-observer/tracing"
-#rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
-package = "tracing"
-
-[workspace.dependencies.tracing-log]
-git     = "https://github.com/jm-observer/tracing"
-#rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
-package = "tracing-log"
-
-[workspace.dependencies.tracing-subscriber]
-git     = "https://github.com/jm-observer/tracing"
-#rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
-package = "tracing-subscriber"
-
-[workspace.dependencies.tracing-appender]
-git     = "https://github.com/jm-observer/tracing"
-#rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
-package = "tracing-appender"
 
 #[workspace.dependencies.alacritty_terminal]
 #git = "https://github.com/alacritty/alacritty"

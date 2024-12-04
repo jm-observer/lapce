@@ -48,7 +48,7 @@ impl CodeLensData {
                 }
             }
             _ => {
-                tracing::debug!("todo {:}", command);
+                log::debug!("todo {:}", command);
             }
         }
     }
@@ -62,7 +62,7 @@ impl CodeLensData {
             let Ok(mut cargo_args) =
                 serde_json::from_value::<RustArgs>(args.clone())
             else {
-                tracing::error!("serde error");
+                log::error!("serde error");
                 return None;
             };
 
@@ -115,7 +115,7 @@ impl CodeLensData {
                 config_source: ConfigSource::RustCodeLens,
             })
         } else {
-            tracing::error!("no args");
+            log::error!("no args");
             None
         }
     }

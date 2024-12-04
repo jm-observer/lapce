@@ -392,7 +392,7 @@ impl PluginData {
                         volts_total.set(new.total);
                     }
                     Err(err) => {
-                        tracing::error!("{:?}", err);
+                        log::error!("{:?}", err);
                         core_rpc.notification(CoreNotification::ShowMessage {
                             title: "Request Available Plugins".to_string(),
                             message: lsp_types::ShowMessageParams {
@@ -438,7 +438,7 @@ impl PluginData {
 
                 if let Some(path) = cache_file_path.as_ref() {
                     if let Err(err) = std::fs::write(path, &buf) {
-                        tracing::error!("{:?}", err);
+                        log::error!("{:?}", err);
                     }
                 }
 

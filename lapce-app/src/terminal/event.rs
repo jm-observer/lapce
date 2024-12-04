@@ -53,7 +53,7 @@ pub fn terminal_update_process(
                             if let Err(err) = term_notification_tx
                                 .send(TermNotification::RequestPaint)
                             {
-                                tracing::error!("{:?}", err);
+                                log::error!("{:?}", err);
                             }
                         }
                     } else {
@@ -61,7 +61,7 @@ pub fn terminal_update_process(
                         if let Err(err) =
                             term_notification_tx.send(TermNotification::RequestPaint)
                         {
-                            tracing::error!("{:?}", err);
+                            log::error!("{:?}", err);
                         }
                     }
                 }

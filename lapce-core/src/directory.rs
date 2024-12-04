@@ -38,7 +38,7 @@ impl Directory {
                 let dir = dir.data_local_dir();
                 if !dir.exists() {
                     if let Err(err) = std::fs::create_dir_all(dir) {
-                        tracing::error!("{:?}", err);
+                        log::error!("{:?}", err);
                     }
                 }
                 Some(dir.to_path_buf())
@@ -54,7 +54,7 @@ impl Directory {
             let dir = dir.join("logs");
             if !dir.exists() {
                 if let Err(err) = std::fs::create_dir(&dir) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             Some(dir)
@@ -69,7 +69,7 @@ impl Directory {
             let dir = dir.join("cache");
             if !dir.exists() {
                 if let Err(err) = std::fs::create_dir(&dir) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             Some(dir)
@@ -86,7 +86,7 @@ impl Directory {
             let dir = dir.join("proxy");
             if !dir.exists() {
                 if let Err(err) = std::fs::create_dir(&dir) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             Some(dir)
@@ -101,7 +101,7 @@ impl Directory {
             let dir = dir.join("themes");
             if !dir.exists() {
                 if let Err(err) = std::fs::create_dir(&dir) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             Some(dir)
@@ -117,7 +117,7 @@ impl Directory {
             let dir = dir.join("plugins");
             if !dir.exists() {
                 if let Err(err) = std::fs::create_dir(&dir) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             Some(dir)
@@ -133,7 +133,7 @@ impl Directory {
                 let dir = dir.config_dir();
                 if !dir.exists() {
                     if let Err(err) = std::fs::create_dir_all(dir) {
-                        tracing::error!("{:?}", err);
+                        log::error!("{:?}", err);
                     }
                 }
                 Some(dir.to_path_buf())
@@ -151,7 +151,7 @@ impl Directory {
             let dir = dir.join("updates");
             if !dir.exists() {
                 if let Err(err) = std::fs::create_dir(&dir) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             Some(dir)
@@ -165,7 +165,7 @@ impl Directory {
             let dir = dir.join("queries");
             if !dir.exists() {
                 if let Err(err) = std::fs::create_dir(&dir) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
 
@@ -180,7 +180,7 @@ impl Directory {
             let dir = dir.join("grammars");
             if !dir.exists() {
                 if let Err(err) = std::fs::create_dir(&dir) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
 

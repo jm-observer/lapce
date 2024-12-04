@@ -45,12 +45,12 @@ use lapce_rpc::{
     terminal::TermId,
     RpcError,
 };
+use log::{debug, error, info, trace, warn, Level};
 use lsp_types::{
     CodeActionOrCommand, CodeLens, Diagnostic, MessageType, ProgressParams,
     ProgressToken, ShowMessageParams,
 };
 use serde_json::Value;
-use tracing::{debug, error, event, info, warn, Level};
 
 use crate::debug::DapData;
 use crate::id::TerminalTabId;
@@ -77,6 +77,7 @@ use crate::{
     inline_completion::InlineCompletionData,
     keypress::{condition::Condition, EventRef, KeyPressData, KeyPressFocus},
     listener::Listener,
+    log::*,
     lsp::path_from_url,
     main_split::{MainSplitData, SplitData, SplitDirection, SplitMoveDirection},
     palette::{kind::PaletteKind, PaletteData, PaletteStatus, DEFAULT_RUN_TOML},
@@ -95,7 +96,6 @@ use crate::{
         event::{terminal_update_process, TermEvent, TermNotification},
         panel::TerminalPanelData,
     },
-    tracing::*,
     window::WindowCommonData,
     workspace::{LapceWorkspace, LapceWorkspaceType, WorkspaceInfo},
 };
@@ -124,7 +124,7 @@ impl<T: Clone + 'static> SignalManager<T> {
 
     pub fn set(&self, signal: T) {
         if self.1 {
-            tracing::info!("set");
+            log::info!("set");
             // panic!("ad");
         }
         self.0.set(signal);
@@ -144,7 +144,7 @@ impl<T: Clone + 'static> SignalManager<T> {
 
     pub fn update(&self, f: impl FnOnce(&mut T)) {
         if self.1 {
-            tracing::info!("set");
+            log::info!("set");
             // panic!("ad");
         }
         self.0.update(f)
@@ -152,7 +152,7 @@ impl<T: Clone + 'static> SignalManager<T> {
 
     pub fn try_update<O>(&self, f: impl FnOnce(&mut T) -> O) -> Option<O> {
         if self.1 {
-            tracing::info!("set");
+            log::info!("set");
             // panic!("ad");
         }
         self.0.try_update(f)
@@ -750,7 +750,7 @@ impl WindowTabData {
                     if let Some(meta) = plugin_metas.remove(&name) {
                         self.common.proxy.reload_volt(meta);
                     } else {
-                        tracing::error!("not found volt metadata of {}", name);
+                        log::error!("not found volt metadata of {}", name);
                     }
                 }
             }
@@ -815,7 +815,7 @@ impl WindowTabData {
                                 path: Some(if let Some(path) = file.path.pop() {
                                     path
                                 } else {
-                                    tracing::error!("No path");
+                                    log::error!("No path");
                                     return;
                                 }),
                                 last_open: std::time::SystemTime::now()
@@ -850,7 +850,7 @@ impl WindowTabData {
                                 path: if let Some(path) = file.path.pop() {
                                     path
                                 } else {
-                                    tracing::error!("No path");
+                                    log::error!("No path");
                                     return;
                                 },
                             })
@@ -2048,13 +2048,10 @@ impl WindowTabData {
                 if !uri.is_empty() {
                     match open::that(&uri) {
                         Ok(_) => {
-                            trace!(TraceLevel::TRACE, "opened web uri: {uri:?}");
+                            trace!("opened web uri: {uri:?}");
                         }
                         Err(e) => {
-                            trace!(
-                                TraceLevel::ERROR,
-                                "failed to open web uri: {uri:?}, error: {e}"
-                            );
+                            trace!("failed to open web uri: {uri:?}, error: {e}");
                         }
                     }
                 }
@@ -2102,15 +2099,13 @@ impl WindowTabData {
                     .spawn()
                 {
                     Ok(v) => v,
-                    Err(e) => {
-                        return event!(Level::ERROR, "Failed to spawn process: {e}")
-                    }
+                    Err(e) => return error!("Failed to spawn process: {e}"),
                 };
 
                 match cmd.wait() {
-                    Ok(v) => event!(Level::TRACE, "Process exited with status {v}"),
+                    Ok(v) => trace!("Process exited with status {v}"),
                     Err(e) => {
-                        event!(Level::ERROR, "Proces exited with an error: {e}")
+                        error!("Proces exited with an error: {e}")
                     }
                 };
             }
@@ -2400,7 +2395,7 @@ impl WindowTabData {
                 target,
             } => {
                 use lapce_rpc::core::LogLevel;
-                use tracing_log::log::{log, Level};
+                use log::{log, Level};
 
                 let target = target.clone().unwrap_or(String::from("unknown"));
 
@@ -2424,22 +2419,21 @@ impl WindowTabData {
             }
             CoreNotification::LogMessage { message, target } => {
                 use lsp_types::MessageType;
-                use tracing_log::log::{log, Level};
                 match message.typ {
                     MessageType::ERROR => {
-                        log!(target: target, Level::Error, "{}", message.message)
+                        error!("{} {}", target, message.message)
                     }
                     MessageType::WARNING => {
-                        log!(target: target, Level::Warn, "{}", message.message)
+                        warn!("{} {}", target, message.message)
                     }
                     MessageType::INFO => {
-                        log!(target: target, Level::Info, "{}", message.message)
+                        info!("{} {}", target, message.message)
                     }
                     MessageType::DEBUG => {
-                        log!(target: target, Level::Debug, "{}", message.message)
+                        debug!("{} {}", target, message.message)
                     }
                     MessageType::LOG => {
-                        log!(target: target, Level::Debug, "{}", message.message)
+                        trace!("{} {}", target, message.message)
                     }
                     _ => {}
                 }
@@ -2457,7 +2451,7 @@ impl WindowTabData {
         }
         let focus = self.common.focus.get_untracked();
         let keypress = self.common.keypress.get_untracked();
-        tracing::debug!("key_down {:?}", focus);
+        log::debug!("key_down {:?}", focus);
         let handle = match focus {
             Focus::Workbench => self.main_split.key_down(event, &keypress),
             Focus::Palette => Some(keypress.key_down(event, &self.palette)),
@@ -2929,7 +2923,7 @@ impl WindowTabData {
             .get_untracked()
             .ok_or(anyhow!("run_debug is none(terminal_id={terminal_id:?})"))?;
 
-        tracing::info!("restart_run_program_in_terminal {run_debug:?}");
+        log::info!("restart_run_program_in_terminal {run_debug:?}");
         if !run_debug.stopped {
             self.terminal.manual_stop_run_debug(terminal_id);
         }
@@ -3153,7 +3147,7 @@ impl WindowTabData {
                     }
                 }
                 Err(err) => {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
                 Ok(_) => {}
             },

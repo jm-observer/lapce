@@ -446,7 +446,7 @@ fn drag_line(
     .on_event_stop(EventListener::PointerMove, move |event| {
         if let Event::PointerMove(pointer_event) = event {
             if drag_start.get_untracked().is_some() {
-                // tracing::info!("pos.y = {}", pointer_event.pos.y);
+                // log::info!("pos.y = {}", pointer_event.pos.y);
                 match position {
                     PanelContainerPosition::Left => {
                         let current_panel_size = panel_size.get_untracked();
@@ -462,7 +462,7 @@ fn drag_line(
                         let current_panel_size = panel_size.get_untracked();
                         let new_size =
                             current_panel_size.bottom - pointer_event.pos.y;
-                        // tracing::info!(
+                        // log::info!(
                         //     "new_size={} pointer_event.pos.y={}",
                         //     new_size,
                         //     pointer_event.pos.y

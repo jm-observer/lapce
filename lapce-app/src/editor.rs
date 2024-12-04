@@ -46,6 +46,7 @@ use lapce_core::{
 };
 use lapce_rpc::{buffer::BufferId, plugin::PluginId, proxy::ProxyResponse};
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
+use log::warn;
 use lsp_types::{
     CodeActionResponse, CompletionItem, CompletionTextEdit, GotoDefinitionResponse,
     HoverContents, InlayHintLabel, InlineCompletionTriggerKind, Location,
@@ -53,7 +54,6 @@ use lsp_types::{
 };
 use nucleo::Utf32Str;
 use serde::{Deserialize, Serialize};
-use tracing::warn;
 use view::StickyHeaderInfo;
 
 use self::location::{EditorLocation, EditorPosition};
@@ -71,6 +71,7 @@ use crate::{
     id::{DiffEditorId, EditorTabId},
     inline_completion::{InlineCompletionItem, InlineCompletionStatus},
     keypress::{condition::Condition, KeyPressFocus},
+    log::*,
     lsp::path_from_url,
     main_split::{Editors, MainSplitData, SplitDirection, SplitMoveDirection},
     markdown::{
@@ -82,7 +83,6 @@ use crate::{
         kind::PanelKind,
     },
     snippet::Snippet,
-    tracing::*,
     window_tab::{CommonData, Focus, WindowTabData},
 };
 
@@ -439,7 +439,7 @@ impl EditorData {
     }
 
     fn run_edit_command(&self, cmd: &EditCommand) -> CommandExecuted {
-        tracing::debug!("{:?}", cmd);
+        log::debug!("{:?}", cmd);
         let doc = self.doc();
         let text = self.editor.rope_text();
         let is_local = doc.content.with_untracked(|content| content.is_local());
@@ -1617,7 +1617,7 @@ impl EditorData {
         };
 
         if let Err(err) = item.apply(self, start_offset) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
         self.check_auto_save();
     }
@@ -1789,7 +1789,7 @@ impl EditorData {
                         return;
                     }
                     if let Err(err) = editor.apply_completion_item(&item) {
-                        tracing::error!("{:?}", err);
+                        log::error!("{:?}", err);
                     }
                 });
                 self.common.proxy.completion_resolve(
@@ -1809,7 +1809,7 @@ impl EditorData {
                     },
                 );
             } else if let Err(err) = self.apply_completion_item(&item.item) {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
     }
@@ -1952,7 +1952,7 @@ impl EditorData {
     }
 
     fn apply_completion_item(&self, item: &CompletionItem) -> anyhow::Result<()> {
-        tracing::debug!("apply_completion_item {:?}", item);
+        log::debug!("apply_completion_item {:?}", item);
         let doc = self.doc();
         let buffer = doc.lines.with_untracked(|x| x.buffer.clone());
         let cursor = self.cursor().get_untracked();
@@ -2152,7 +2152,7 @@ impl EditorData {
         edits: &[(impl AsRef<Selection>, &str)],
         format_before_save: bool,
     ) {
-        // tracing::debug!("{:?} {}", old_selection, format_before_save);
+        // log::debug!("{:?} {}", old_selection, format_before_save);
         let mut cursor = self.cursor().get_untracked();
         let doc = self.doc();
 
@@ -2211,7 +2211,7 @@ impl EditorData {
                         x.buffer.offset_of_position(&edit.range.start),
                         x.buffer.offset_of_position(&edit.range.end),
                     );
-                    // tracing::debug!("{edit:?} {selection:?}");
+                    // log::debug!("{edit:?} {selection:?}");
                     (selection, edit.new_text.as_str())
                 })
                 .collect::<Vec<_>>();
@@ -2466,7 +2466,7 @@ impl EditorData {
                 {
                     let current_rev = editor.doc().rev();
                     if current_rev == rev {
-                        // tracing::debug!("{:?}", edits);
+                        // log::debug!("{:?}", edits);
                         editor.do_text_edit(&edits, true);
                     }
                 }
@@ -2478,7 +2478,7 @@ impl EditorData {
             std::thread::spawn(move || {
                 proxy.get_document_formatting(path, move |(_, result)| {
                     if let Err(err) = tx.send(result) {
-                        tracing::error!("{:?}", err);
+                        log::error!("{:?}", err);
                     }
                 });
                 let result = rx.recv_timeout(std::time::Duration::from_secs(1));
@@ -2512,7 +2512,7 @@ impl EditorData {
             std::thread::spawn(move || {
                 proxy.get_document_formatting(path, move |(_, result)| {
                     if let Err(err) = tx.send(result) {
-                        tracing::error!("{:?}", err);
+                        log::error!("{:?}", err);
                     }
                 });
                 let result = rx.recv_timeout(std::time::Duration::from_secs(1));

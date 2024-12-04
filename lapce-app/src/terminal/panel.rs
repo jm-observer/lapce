@@ -13,9 +13,9 @@ use lapce_rpc::{
     proxy::ProxyResponse,
     terminal::{TermId, TerminalProfile},
 };
+use log::{debug, error};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error};
 
 use super::{data::TerminalData, tab::TerminalTabData};
 use crate::terminal::event::TermEvent;
@@ -540,7 +540,7 @@ impl TerminalPanelData {
                     }
                     Err(err) => {
                         // todo show message window
-                        tracing::error!("deser fail {:?}", err);
+                        log::error!("deser fail {:?}", err);
                     }
                 }
             }
@@ -887,7 +887,7 @@ fn update_executable(
             if let Ok(map) = serde_json::from_str::<RustArtifact>(&x) {
                 return map.artifact();
             } else {
-                tracing::debug!("{}", x);
+                log::debug!("{}", x);
             }
             None
         }) {

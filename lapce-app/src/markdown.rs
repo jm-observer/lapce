@@ -5,10 +5,10 @@ use floem::text::{
 };
 use lapce_core::directory::Directory;
 use lapce_xi_rope::Rope;
+use log::warn;
 use lsp_types::MarkedString;
 use pulldown_cmark::{CodeBlockKind, CowStr, Event, Options, Parser, Tag};
 use smallvec::SmallVec;
-use tracing::warn;
 
 use crate::config::{color::LapceColor, LapceConfig};
 
@@ -70,7 +70,7 @@ pub fn parse_markdown(
             Event::End(end_tag) => {
                 if let Some((start_offset, tag)) = tag_stack.pop() {
                     if end_tag != tag.to_end() {
-                        tracing::warn!("Mismatched markdown tag");
+                        log::warn!("Mismatched markdown tag");
                         continue;
                     }
 
@@ -137,7 +137,7 @@ pub fn parse_markdown(
                         }
                     }
                 } else {
-                    tracing::warn!("Unbalanced markdown tag")
+                    log::warn!("Unbalanced markdown tag")
                 }
             }
             Event::Text(text) => {

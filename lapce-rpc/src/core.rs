@@ -214,7 +214,7 @@ impl CoreRpcHandler {
         let tx = { self.pending.lock().remove(&id) };
         if let Some(tx) = tx {
             if let Err(err) = tx.send(response) {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
     }
@@ -227,7 +227,7 @@ impl CoreRpcHandler {
             pending.insert(id, tx);
         }
         if let Err(err) = self.tx.send(CoreRpc::Request(id, request)) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
         rx.recv().unwrap_or_else(|_| {
             Err(RpcError {
@@ -239,14 +239,14 @@ impl CoreRpcHandler {
 
     pub fn shutdown(&self) {
         if let Err(err) = self.tx.send(CoreRpc::Shutdown) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
     pub fn notification(&self, notification: CoreNotification) {
         if let Err(err) = self.tx.send(CoreRpc::Notification(Box::new(notification)))
         {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 

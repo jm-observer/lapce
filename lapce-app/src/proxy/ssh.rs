@@ -1,7 +1,7 @@
 use std::{path::Path, process::Command};
 
 use anyhow::Result;
-use tracing::debug;
+use log::debug;
 
 use super::remote::Remote;
 use crate::{proxy::new_command, workspace::SshHost};

@@ -71,12 +71,12 @@ use lapce_xi_rope::{
     spans::{Spans, SpansBuilder},
     Interval, Rope, RopeDelta, Transformer,
 };
+use log::error;
 use lsp_types::{
     CodeActionOrCommand, CodeLens, Diagnostic, DocumentSymbolResponse, TextEdit,
 };
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
-use tracing::error;
 
 use crate::editor::editor::{CommonAction, CursorInfo, Editor};
 use crate::{
@@ -527,7 +527,7 @@ impl Doc {
                 buffer.init_buffer(content);
             });
             self.loaded.set(true);
-            tracing::error!("init_content");
+            log::error!("init_content");
             self.on_update(None);
             self.retrieve_head();
         });
@@ -675,7 +675,7 @@ impl Doc {
 
     fn on_update(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
         if self.content.get_untracked().is_local() {
-            tracing::debug!("on_update cancle because doc is local");
+            log::debug!("on_update cancle because doc is local");
             batch(|| {
                 self.clear_text_cache();
                 // self.lines.update(|x| x.on_update_buffer());
@@ -896,7 +896,7 @@ impl Doc {
         //     path,
         //     id,
         //     move |(_, _result)| {
-        //         tracing::warn!("todo");
+        //         log::warn!("todo");
         // if let Ok(ProxyResponse::GetSemanticTokens { styles }) = result {
         //     if styles.styles.is_empty() {
         //         send(None);
@@ -1655,9 +1655,9 @@ impl DocStyling {
     //     // todo it always empty??
     //     if let Some(bracket_styles) = self.doc.parser.borrow().bracket_pos.get(&line)
     //     {
-    //         tracing::error!("bracket_styles.len={}", bracket_styles.len());
+    //         log::error!("bracket_styles.len={}", bracket_styles.len());
     //         for bracket_style in bracket_styles.iter() {
-    //             // tracing::info!("{line} {:?}", bracket_style);
+    //             // log::info!("{line} {:?}", bracket_style);
     //             if let Some(fg_color) = bracket_style.style.fg_color.as_ref() {
     //                 if let Some(fg_color) = config.style_color(fg_color) {
     //                     let (Some(start), Some(end)) = (
@@ -1666,7 +1666,7 @@ impl DocStyling {
     //                     ) else {
     //                         continue;
     //                     };
-    //                     tracing::info!("{line} {:?} {start} {end}", bracket_style);
+    //                     log::info!("{line} {:?} {start} {end}", bracket_style);
     //                     attrs_list.add_span(start..end, attrs.color(fg_color));
     //                 }
     //             }
@@ -1756,7 +1756,7 @@ impl Styling for Doc {
         // if let Some(bracket_styles) =
         //     self.lines.with_untracked(|x| x.line_styles(line))
         // {
-        //     tracing::error!("bracket_styles.len={}", bracket_styles.len());
+        //     log::error!("bracket_styles.len={}", bracket_styles.len());
         //     styles.append(
         //         &mut bracket_styles
         //             .iter()
@@ -1951,7 +1951,7 @@ fn should_blink(
 //     let start_hit = text_layout.hit_position(start);
 //     let end_hit = text_layout.hit_position(end);
 //
-//     // tracing::info!("start={start_hit:?} end={end_hit:?}");
+//     // log::info!("start={start_hit:?} end={end_hit:?}");
 //     text_layout
 //         .layout_runs()
 //         .enumerate()

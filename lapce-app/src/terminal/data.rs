@@ -341,7 +341,7 @@ impl TerminalData {
         common: Rc<CommonData>,
         launch_error: RwSignal<Option<String>>,
     ) -> (Arc<RwLock<RawTerminal>>, u64) {
-        tracing::debug!("term_id={term_id:?} new_raw_terminal");
+        log::debug!("term_id={term_id:?} new_raw_terminal");
         let raw_id = TermId::next().to_raw();
         let raw = Arc::new(RwLock::new(RawTerminal::new(
             term_id,
@@ -396,7 +396,7 @@ impl TerminalData {
             if let Err(err) =
                 common.term_tx.send((term_id, TermEvent::NewTerminal(raw)))
             {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
             common.proxy.new_terminal(term_id, raw_id, profile);
         }

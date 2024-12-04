@@ -2,7 +2,7 @@
 use crate::window_tab::WindowTabData;
 use floem::reactive::SignalGet;
 use itertools::Itertools;
-use tracing::{debug, error, info, warn};
+use log::{debug, error, info, warn};
 
 pub fn log(window: &WindowTabData) {
     print_screen_lines(window);

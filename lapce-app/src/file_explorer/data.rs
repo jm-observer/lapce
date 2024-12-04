@@ -215,7 +215,7 @@ impl FileExplorerData {
                                 let matcher = glob.compile_matcher();
                                 items.retain(|i| !matcher.is_match(&i.path));
                             }
-                            Err(e) => tracing::error!(
+                            Err(e) => log::error!(
                                 target:"files_exclude",
                                 "Failed to compile glob: {}",
                                 e
@@ -514,7 +514,7 @@ impl FileExplorerData {
             let base_path = base_path.clone();
             data.read_dir_cb(base_path_b, move |was_read| {
                 if !was_read {
-                    tracing::warn!(
+                    log::warn!(
                         "Failed to read directory, avoiding creating node in: {:?}",
                         base_path
                     );
@@ -538,7 +538,7 @@ impl FileExplorerData {
             let base_path = base_path.clone();
             data.read_dir_cb(base_path_b, move |was_read| {
                 if !was_read {
-                    tracing::warn!(
+                    log::warn!(
                         "Failed to read directory, avoiding creating node in: {:?}",
                         base_path
                     );
@@ -570,7 +570,7 @@ impl FileExplorerData {
                 }
 
                 if let Err(err) = open::that(path) {
-                    tracing::error!(
+                    log::error!(
                         "Failed to reveal file in system file explorer: {}",
                         err
                     );
@@ -609,7 +609,7 @@ impl FileExplorerData {
             menu = menu.entry(MenuItem::new(trash_text).action(move || {
                 proxy.trash_path(path.clone(), |(_, res)| {
                     if let Err(err) = res {
-                        tracing::warn!("Failed to trash path: {:?}", err);
+                        log::warn!("Failed to trash path: {:?}", err);
                     }
                 })
             }));

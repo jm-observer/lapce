@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use tracing::{event, Level};
+use log::{error, Level};
 use url::Url;
 
 // Rust-analyzer returns paths in the form of "file:///<drive>:/...", which gets parsed into URL
@@ -27,52 +27,46 @@ pub fn path_from_url(url: &Url) -> PathBuf {
     };
 
     if let Some(path) = path.strip_prefix('/') {
-        event!(Level::DEBUG, "Found `/` prefix");
-        if let Some((maybe_drive_letter, path_second_part)) =
+        // event!(Level::DEBUG, "Found `/` prefix");
+        if let Some((maybe_drive_letter, _path_second_part)) =
             path.split_once(['/', '\\'])
         {
-            event!(Level::DEBUG, maybe_drive_letter);
-            event!(Level::DEBUG, path_second_part);
+            // event!(Level::DEBUG, maybe_drive_letter);
+            // event!(Level::DEBUG, path_second_part);
 
             let b = maybe_drive_letter.as_bytes();
 
             if !b.is_empty() && !b[0].is_ascii_alphabetic() {
-                event!(Level::ERROR, "First byte is not ascii alphabetic: {b:?}");
+                error!("First byte is not ascii alphabetic: {b:?}");
             }
 
             match maybe_drive_letter.len() {
                 2 => match maybe_drive_letter.chars().nth(1) {
                     Some(':') => {
-                        event!(Level::DEBUG, "Returning path `{:?}`", path);
+                        // event!(Level::DEBUG, "Returning path `{:?}`", path);
                         return PathBuf::from(path);
                     }
                     v => {
-                        event!(
-                            Level::ERROR,
-                            "Unhandled 'maybe_drive_letter' chars: {v:?}"
-                        );
+                        error!("Unhandled 'maybe_drive_letter' chars: {v:?}");
                     }
                 },
                 4 => {
                     if maybe_drive_letter.contains("%3A") {
                         let path = path.replace("%3A", ":");
-                        event!(Level::DEBUG, "Returning path `{:?}`", path);
+                        // event!(Level::DEBUG, "Returning path `{:?}`", path);
                         return PathBuf::from(path);
                     } else {
-                        event!(Level::ERROR, "Unhandled 'maybe_drive_letter' pattern: {maybe_drive_letter:?}");
+                        error!("Unhandled 'maybe_drive_letter' pattern: {maybe_drive_letter:?}");
                     }
                 }
                 v => {
-                    event!(
-                        Level::ERROR,
-                        "Unhandled 'maybe_drive_letter' length: {v}"
-                    );
+                    error!("Unhandled 'maybe_drive_letter' length: {v}");
                 }
             }
         }
     }
 
-    event!(Level::DEBUG, "Returning unmodified path `{:?}`", path);
+    // event!(Level::DEBUG, "Returning unmodified path `{:?}`", path);
     PathBuf::from(path.into_owned())
 }
 

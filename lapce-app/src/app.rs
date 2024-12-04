@@ -49,6 +49,8 @@ use lapce_rpc::{
     file::PathObject,
     RpcMessage,
 };
+use log::trace;
+use log::LevelFilter::Info;
 use lsp_types::{CompletionItemKind, MessageType, ShowMessageParams};
 use notify::Watcher;
 use parking_lot::RwLock;
@@ -63,7 +65,6 @@ use std::{
     rc::Rc,
     sync::{atomic::AtomicU64, Arc},
 };
-use tracing_subscriber::{filter::Targets, reload::Handle};
 
 use crate::panel::view::{
     new_bottom_panel_container_view, new_left_panel_container_view,
@@ -93,6 +94,7 @@ use crate::{
     keymap::keymap_view,
     keypress::keymap::KeyMap,
     listener::Listener,
+    log::*,
     main_split::{
         SplitContent, SplitData, SplitDirection, SplitMoveDirection, TabCloseKind,
     },
@@ -107,7 +109,6 @@ use crate::{
     status::status,
     text_input::TextInputBuilder,
     title::{title, window_controls_view},
-    tracing::*,
     update::ReleaseInfo,
     window::{TabsInfo, WindowData, WindowInfo},
     window_tab::{Focus, WindowTabData},
@@ -169,7 +170,7 @@ pub struct AppData {
     /// The latest release information
     pub latest_release: RwSignal<Arc<Option<ReleaseInfo>>>,
     pub watcher: Arc<RwLock<notify::RecommendedWatcher>>,
-    pub tracing_handle: Handle<Targets>,
+    // pub tracing_handle: Handle<Targets>,
     pub config: RwSignal<Arc<LapceConfig>>,
     /// Paths to extra plugins to load
     pub plugin_paths: Arc<Vec<PathBuf>>,
@@ -263,7 +264,7 @@ impl AppData {
             AppCommand::SaveApp => {
                 let db: Arc<LapceDb> = use_context().unwrap();
                 if let Err(err) = db.save_app(self) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             AppCommand::WindowClosed(window_id) => {
@@ -273,7 +274,7 @@ impl AppData {
                 let db: Arc<LapceDb> = use_context().unwrap();
                 if self.windows.with_untracked(|w| w.len()) == 1 {
                     if let Err(err) = db.insert_app(self.clone()) {
-                        tracing::error!("{:?}", err);
+                        log::error!("{:?}", err);
                     }
                 }
                 let window_data = self
@@ -284,7 +285,7 @@ impl AppData {
                     window_data.scope.dispose();
                 }
                 if let Err(err) = db.save_app(self) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             AppCommand::CloseWindow(window_id) => {
@@ -393,7 +394,7 @@ impl AppData {
                     }
                 }
                 Err(err) => {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
         }
@@ -3042,12 +3043,12 @@ fn hover(window_tab_data: Rc<WindowTabData>) -> impl View {
     .style(move |s| {
         let active = window_tab_data.common.hover.active.get();
         if !active {
-            tracing::debug!("deactivate hover");
+            log::debug!("deactivate hover");
             s.hide()
         } else {
             let config = config.get();
             if let Some(origin) = window_tab_data.hover_origin() {
-                tracing::debug!("activate hover {:?}", origin);
+                log::debug!("activate hover {:?}", origin);
                 s.absolute()
                     .margin_left(origin.x as f32)
                     .margin_top(origin.y as f32)
@@ -3743,8 +3744,10 @@ pub fn launch() {
         logging::panic_hook();
     }
 
-    let (reload_handle, _guard) = logging::logging();
-    trace!(TraceLevel::INFO, "Starting up Lapce..");
+    let _ = custom_utils::logger::logger_feature("lapce", "warn,wgpu_core=error,wgpu_hal=error,naga=error,cranelift_codegen=info,hyper=info,reqwest=info,wasmtime=info,floem=info,alacritty_terminal=info,lapce_app::keypress::loader=info", log::LevelFilter::Info)
+        .build();
+
+    trace!("Starting up Lapce..");
 
     #[cfg(feature = "vendored-fonts")]
     {
@@ -3773,7 +3776,7 @@ pub fn launch() {
 
     let stdin = std::io::stdin();
     if !stdin.is_terminal() {
-        trace!(TraceLevel::INFO, "Loading custom environment from shell");
+        trace!("Loading custom environment from shell");
         load_shell_env();
     }
 
@@ -3827,12 +3830,12 @@ pub fn launch() {
         match get_socket() {
             Ok(socket) => {
                 if let Err(e) = try_open_in_existing_process(socket, &cli.paths) {
-                    trace!(TraceLevel::ERROR, "failed to open path(s): {e}");
+                    trace!("failed to open path(s): {e}");
                 };
                 return;
             }
             Err(err) => {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
     }
@@ -3841,7 +3844,7 @@ pub fn launch() {
     crate::update::cleanup();
 
     if let Err(err) = lapce_proxy::register_lapce_path() {
-        tracing::error!("{:?}", err);
+        log::error!("{:?}", err);
     }
     let db = match LapceDb::new() {
         Ok(db) => Arc::new(db),
@@ -3849,7 +3852,7 @@ pub fn launch() {
             #[cfg(windows)]
             logging::error_modal("Error", &format!("Failed to create LapceDb: {e}"));
 
-            trace!(TraceLevel::ERROR, "Failed to create LapceDb: {e}");
+            trace!("Failed to create LapceDb: {e}");
             std::process::exit(1);
         }
     };
@@ -3866,22 +3869,22 @@ pub fn launch() {
     let mut watcher = notify::recommended_watcher(ConfigWatcher::new(tx)).unwrap();
     if let Some(path) = LapceConfig::settings_file() {
         if let Err(err) = watcher.watch(&path, notify::RecursiveMode::Recursive) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
     if let Some(path) = Directory::themes_directory() {
         if let Err(err) = watcher.watch(&path, notify::RecursiveMode::Recursive) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
     if let Some(path) = LapceConfig::keymaps_file() {
         if let Err(err) = watcher.watch(&path, notify::RecursiveMode::Recursive) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
     if let Some(path) = Directory::plugins_directory() {
         if let Err(err) = watcher.watch(&path, notify::RecursiveMode::Recursive) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -3900,7 +3903,7 @@ pub fn launch() {
         watcher: Arc::new(RwLock::new(watcher)),
         latest_release,
         app_command,
-        tracing_handle: reload_handle,
+        // tracing_handle: reload_handle,
         config,
         plugin_paths,
     };
@@ -3912,7 +3915,7 @@ pub fn launch() {
         let notification = create_signal_from_channel(rx);
         create_effect(move |_| {
             if notification.get().is_some() {
-                tracing::debug!("notification reload_config");
+                log::debug!("notification reload_config");
                 app_data.reload_config();
             }
         });
@@ -3923,10 +3926,7 @@ pub fn launch() {
         let app_data = app_data.clone();
         let send = create_ext_action(cx, move |updated| {
             if updated {
-                trace!(
-                    TraceLevel::INFO,
-                    "grammar or query got updated, reset highlight configs"
-                );
+                trace!("grammar or query got updated, reset highlight configs");
                 reset_highlight_configs();
                 let queries_directory = Directory::queries_directory().unwrap();
                 let grammars_directory = Directory::grammars_directory().unwrap();
@@ -3956,29 +3956,20 @@ pub fn launch() {
                         let mut updated = false;
                         match fetch_grammars(&release) {
                             Err(e) => {
-                                trace!(
-                                    TraceLevel::ERROR,
-                                    "failed to fetch grammars: {e}"
-                                );
+                                trace!("failed to fetch grammars: {e}");
                             }
                             Ok(u) => updated |= u,
                         }
                         match fetch_queries(&release) {
                             Err(e) => {
-                                trace!(
-                                    TraceLevel::ERROR,
-                                    "failed to fetch grammars: {e}"
-                                );
+                                trace!("failed to fetch grammars: {e}");
                             }
                             Ok(u) => updated |= u,
                         }
                         updated
                     }
                     Err(e) => {
-                        trace!(
-                            TraceLevel::ERROR,
-                            "failed to obtain release info: {e}"
-                        );
+                        trace!("failed to obtain release info: {e}");
                         false
                     }
                 };
@@ -4002,7 +3993,7 @@ pub fn launch() {
             .spawn(move || loop {
                 if let Ok(release) = crate::update::get_latest_release() {
                     if let Err(err) = tx.send(release) {
-                        tracing::error!("{:?}", err);
+                        log::error!("{:?}", err);
                     }
                 }
                 std::thread::sleep(std::time::Duration::from_secs(60 * 60));
@@ -4025,7 +4016,7 @@ pub fn launch() {
             .name("ListenLocalSocket".to_owned())
             .spawn(move || {
                 if let Err(err) = listen_local_socket(tx) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             })
             .unwrap();
@@ -4042,7 +4033,7 @@ pub fn launch() {
         floem::AppEvent::WillTerminate => {
             app_data.app_terminated.set(true);
             if let Err(err) = db.insert_app(app_data.clone()) {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
         floem::AppEvent::Reopen {
@@ -4060,17 +4051,14 @@ pub fn launch() {
 pub fn load_shell_env() {
     use std::process::Command;
 
-    use tracing::warn;
+    use log::warn;
 
     #[cfg(not(windows))]
     let shell = match std::env::var("SHELL") {
         Ok(s) => s,
         Err(error) => {
             // Shell variable is not set, so we can't determine the correct shell executable.
-            trace!(
-                TraceLevel::ERROR,
-                "Failed to obtain shell environment: {error}"
-            );
+            trace!("Failed to obtain shell environment: {error}");
             return;
         }
     };
@@ -4096,10 +4084,7 @@ pub fn load_shell_env() {
         Ok(output) => String::from_utf8(output.stdout).unwrap_or_default(),
 
         Err(error) => {
-            trace!(
-                TraceLevel::ERROR,
-                "Failed to obtain shell environment: {error}"
-            );
+            trace!("Failed to obtain shell environment: {error}");
             return;
         }
     };
@@ -4158,7 +4143,7 @@ fn listen_local_socket(tx: Sender<CoreNotification>) -> Result<()> {
         .ok_or_else(|| anyhow!("can't get local socket folder"))?;
     if local_socket.exists() {
         if let Err(err) = std::fs::remove_file(&local_socket) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
     let socket =
@@ -4175,15 +4160,15 @@ fn listen_local_socket(tx: Sender<CoreNotification>) -> Result<()> {
                 if let Some(RpcMessage::Notification(msg)) = msg {
                     tx.send(msg)?;
                 } else {
-                    trace!(TraceLevel::ERROR, "Unhandled message: {msg:?}");
+                    trace!("Unhandled message: {msg:?}");
                 }
 
                 let stream_ref = reader.get_mut();
                 if let Err(err) = stream_ref.write_all(b"received") {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
                 if let Err(err) = stream_ref.flush() {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
         });

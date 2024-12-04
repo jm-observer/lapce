@@ -33,7 +33,7 @@ impl EventListener for EventProxy {
                     .term_notification_tx
                     .send(TermNotification::RequestPaint)
                 {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             alacritty_terminal::event::Event::Title(s) => {
@@ -43,7 +43,7 @@ impl EventListener for EventProxy {
                         title: s,
                     })
                 {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             _ => (),

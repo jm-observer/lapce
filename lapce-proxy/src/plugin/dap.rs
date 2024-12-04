@@ -29,9 +29,9 @@ use lapce_rpc::{
     terminal::TermId,
     RpcError,
 };
+use log::error;
 use parking_lot::Mutex;
 use serde_json::Value;
-use tracing::error;
 
 use super::{
     psp::{ResponseHandler, RpcCallback},
@@ -113,14 +113,14 @@ impl DapClient {
         thread::spawn(move || -> Result<()> {
             for msg in io_rx {
                 if let Ok(msg) = serde_json::to_string(&msg) {
-                    tracing::debug!("write to dap server: {}", msg);
+                    log::debug!("write to dap server: {}", msg);
                     let msg =
                         format!("Content-Length: {}\r\n\r\n{}", msg.len(), msg);
                     writer.write_all(msg.as_bytes())?;
                     writer.flush()?;
                 }
                 // if msg.is_disconnect() {
-                //     tracing::debug!("thread(write to dap) exited");
+                //     log::debug!("thread(write to dap) exited");
                 //     break;
                 // }
             }
@@ -134,15 +134,15 @@ impl DapClient {
                 loop {
                     match crate::plugin::lsp::read_message(&mut reader) {
                         Ok(message_str) => {
-                            tracing::info!("read from dap server: {message_str}");
+                            log::info!("read from dap server: {message_str}");
                             // terminated
                             if dap_rpc.handle_server_message(&message_str) {
-                                tracing::info!("dap stdout terminated");
+                                log::info!("dap stdout terminated");
                                 break;
                             }
                         }
                         Err(_err) => {
-                            tracing::error!("read from dap fail?: {_err:?}");
+                            log::error!("read from dap fail?: {_err:?}");
                             // if let Err(err) = io_tx
                             //     .send(DapPayload::Event(DapEvent::Initialized(None)))
                             // {
@@ -155,7 +155,7 @@ impl DapClient {
                             );
 
                             dap_rpc.disconnected();
-                            tracing::debug!("thread(read from dap) exited");
+                            log::debug!("thread(read from dap) exited");
                             return;
                         }
                     };
@@ -171,7 +171,7 @@ impl DapClient {
         args: &[String],
         cwd: Option<&PathBuf>,
     ) -> Result<Child> {
-        tracing::info!("{} {:?} {:?}", server, args, cwd);
+        log::info!("{} {:?} {:?}", server, args, cwd);
         let mut process = Command::new(server);
         if let Some(cwd) = cwd {
             process.current_dir(cwd);
@@ -629,13 +629,13 @@ impl DapRpcHandler {
         match serde_json::from_str::<DapPayload>(message_str) {
             Ok(payload) => match payload {
                 DapPayload::Request(req) => {
-                    // tracing::info!("read Request from dap server: {req:?}");
+                    // log::info!("read Request from dap server: {req:?}");
                     if let Err(err) = self.rpc_tx.send(DapRpc::HostRequest(req)) {
                         error!("{:?}", err);
                     }
                 }
                 DapPayload::Event(event) => {
-                    // tracing::info!("read Event from dap server: {event:?}");
+                    // log::info!("read Event from dap server: {event:?}");
                     if let DapEvent::Terminated(..) = &event {
                         terminated = true;
                     }
@@ -644,7 +644,7 @@ impl DapRpcHandler {
                     }
                 }
                 DapPayload::Response(resp) => {
-                    // tracing::info!("read Response from dap server: {resp:?}");
+                    // log::info!("read Response from dap server: {resp:?}");
                     self.handle_server_response(resp);
                 }
             },

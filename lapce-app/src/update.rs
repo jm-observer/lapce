@@ -219,7 +219,7 @@ pub fn cleanup() {
         if let Some(dst_parent) = process_path.parent() {
             if let Err(err) = std::fs::remove_file(dst_parent.join("lapce.exe.bak"))
             {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
     }

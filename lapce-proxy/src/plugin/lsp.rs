@@ -115,7 +115,7 @@ impl PluginServerHandler for LspClient {
         from: String,
     ) {
         if let Err(err) = self.host.handle_notification(method, params, from) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -194,7 +194,7 @@ impl LspClient {
                     .arg(&path)
                     .output()
                 {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
                 path.to_str().ok_or_else(|| anyhow!(""))?.to_string()
             }
@@ -226,14 +226,14 @@ impl LspClient {
                     break;
                 }
                 if let Ok(msg) = serde_json::to_string(&msg) {
-                    tracing::debug!("write to lsp: {}", msg);
+                    log::debug!("write to lsp: {}", msg);
                     let msg =
                         format!("Content-Length: {}\r\n\r\n{}", msg.len(), msg);
                     if let Err(err) = writer.write(msg.as_bytes()) {
-                        tracing::error!("{:?}", err);
+                        log::error!("{:?}", err);
                     }
                     if let Err(err) = writer.flush() {
-                        tracing::error!("{:?}", err);
+                        log::error!("{:?}", err);
                     }
                 }
             }
@@ -253,10 +253,10 @@ impl LspClient {
                                 .contains("window/workDoneProgress/create")
                         {
                             if !message_str.contains("method") {
-                                tracing::debug!("read from lsp: {}", message_str);
+                                log::debug!("read from lsp: {}", message_str);
                             } else {
                                 let len = message_str.len().min(150);
-                                tracing::debug!(
+                                log::debug!(
                                     "read from lsp: {}",
                                     &message_str[0..len]
                                 );
@@ -268,7 +268,7 @@ impl LspClient {
                             &name,
                         ) {
                             if let Err(err) = io_tx.send(resp) {
-                                tracing::error!("{:?}", err);
+                                log::error!("{:?}", err);
                             }
                         }
                     }
@@ -378,7 +378,7 @@ impl LspClient {
             .workspace
             .clone()
             .map(|p| Url::from_directory_path(p).unwrap());
-        tracing::debug!("initialization_options {:?}", self.options);
+        log::debug!("initialization_options {:?}", self.options);
         #[allow(deprecated)]
         let params = InitializeParams {
             process_id: Some(process::id()),
@@ -429,7 +429,7 @@ impl LspClient {
                 }
             }
             Err(err) => {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
         //     move |result| {
@@ -446,10 +446,10 @@ impl LspClient {
 
     fn shutdown(&mut self) {
         if let Err(err) = self.process.kill() {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
         if let Err(err) = self.process.wait() {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 

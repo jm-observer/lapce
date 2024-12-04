@@ -63,7 +63,7 @@ use floem_editor_core::command::{EditCommand, MultiSelectionCommand};
 use floem_editor_core::mode::{MotionMode, VisualMode};
 use floem_editor_core::selection::SelRegion;
 use floem_editor_core::word::{get_char_property, CharClassification, WordCursor};
-use tracing::{error, warn};
+use log::{error, warn};
 
 pub(crate) const CHAR_WIDTH: f64 = 7.5;
 
@@ -1464,7 +1464,6 @@ pub fn cursor_caret(
     block: bool,
     affinity: CursorAffinity,
 ) -> LineRegion {
-
     let (info, col, after_last_char) = ed.visual_line_of_offset(offset, affinity);
 
     let doc = ed.doc();

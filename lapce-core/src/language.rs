@@ -6,10 +6,10 @@ use std::{
 };
 
 use lapce_rpc::style::{LineStyle, Style};
+use log::Level;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumString, IntoStaticStr};
-use tracing::{event, Level};
 use tree_sitter::{Point, TreeCursor};
 
 use crate::{
@@ -332,8 +332,8 @@ fn read_grammar_query(queries_dir: &Path, name: &str, kind: &str) -> String {
 
     let file = queries_dir.join(name).join(kind);
     let query = std::fs::read_to_string(&file).unwrap_or_else(|err| {
-        tracing::event!(
-            tracing::Level::WARN,
+        log::event!(
+            log::Level::WARN,
             "Failed to read queries at: {file:?}, {err}"
         );
         String::new()

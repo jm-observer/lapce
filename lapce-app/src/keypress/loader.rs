@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use indexmap::IndexMap;
 use lapce_core::mode::Modes;
-use tracing::{debug, error};
+use log::{debug, error};
 
 use super::keymap::{KeyMap, KeyMapPress};
 

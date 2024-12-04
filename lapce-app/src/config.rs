@@ -10,12 +10,12 @@ use itertools::Itertools;
 use lapce_core::directory::Directory;
 use lapce_proxy::plugin::wasi::find_all_volts;
 use lapce_rpc::plugin::VoltID;
+use log::error;
 use lsp_types::{CompletionItemKind, SymbolKind};
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use serde::Deserialize;
 use strum::VariantNames;
-use tracing::error;
 
 use self::{
     color::LapceColor,
@@ -577,7 +577,7 @@ impl LapceConfig {
                 .write(true)
                 .open(&path)
             {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
 
@@ -593,7 +593,7 @@ impl LapceConfig {
                 .write(true)
                 .open(&path)
             {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
 

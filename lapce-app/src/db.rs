@@ -52,7 +52,7 @@ impl LapceDb {
             .join("db");
         let workspace_folder = folder.join("workspaces");
         if let Err(err) = std::fs::create_dir_all(&workspace_folder) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
 
         let (save_tx, save_rx) = unbounded();
@@ -71,43 +71,43 @@ impl LapceDb {
                     match event {
                         SaveEvent::App(info) => {
                             if let Err(err) = local_db.insert_app_info(info) {
-                                tracing::error!("{:?}", err);
+                                log::error!("{:?}", err);
                             }
                         }
                         SaveEvent::Workspace(workspace, info) => {
                             if let Err(err) =
                                 local_db.insert_workspace(&workspace, &info)
                             {
-                                tracing::error!("{:?}", err);
+                                log::error!("{:?}", err);
                             }
                         }
                         SaveEvent::RecentWorkspace(workspace) => {
                             if let Err(err) =
                                 local_db.insert_recent_workspace(workspace)
                             {
-                                tracing::error!("{:?}", err);
+                                log::error!("{:?}", err);
                             }
                         }
                         SaveEvent::Doc(info) => {
                             if let Err(err) = local_db.insert_doc(&info) {
-                                tracing::error!("{:?}", err);
+                                log::error!("{:?}", err);
                             }
                         }
                         SaveEvent::DisabledVolts(volts) => {
                             if let Err(err) = local_db.insert_disabled_volts(volts) {
-                                tracing::error!("{:?}", err);
+                                log::error!("{:?}", err);
                             }
                         }
                         SaveEvent::WorkspaceDisabledVolts(workspace, volts) => {
                             if let Err(err) = local_db
                                 .insert_workspace_disabled_volts(workspace, volts)
                             {
-                                tracing::error!("{:?}", err);
+                                log::error!("{:?}", err);
                             }
                         }
                         SaveEvent::PanelOrder(order) => {
                             if let Err(err) = local_db.insert_panel_orders(&order) {
-                                tracing::error!("{:?}", err);
+                                log::error!("{:?}", err);
                             }
                         }
                     }
@@ -125,7 +125,7 @@ impl LapceDb {
 
     pub fn save_disabled_volts(&self, volts: Vec<VoltID>) {
         if let Err(err) = self.save_tx.send(SaveEvent::DisabledVolts(volts)) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -138,7 +138,7 @@ impl LapceDb {
             .save_tx
             .send(SaveEvent::WorkspaceDisabledVolts(workspace, volts))
         {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -157,7 +157,7 @@ impl LapceDb {
             .workspace_folder
             .join(workspace_folder_name(&workspace));
         if let Err(err) = std::fs::create_dir_all(&folder) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
 
         let volts = serde_json::to_string_pretty(&volts)?;
@@ -251,7 +251,7 @@ impl LapceDb {
     ) -> Result<()> {
         let folder = self.workspace_folder.join(workspace_folder_name(workspace));
         if let Err(err) = std::fs::create_dir_all(&folder) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
         let workspace_info = serde_json::to_string_pretty(info)?;
         std::fs::write(folder.join(WORKSPACE_INFO), workspace_info)?;
@@ -262,7 +262,7 @@ impl LapceDb {
         let windows = data.windows.get_untracked();
         for (_, window) in &windows {
             if let Err(err) = self.save_window(window.clone()) {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
 
@@ -295,7 +295,7 @@ impl LapceDb {
         }
         for (_, window) in &windows {
             if let Err(err) = self.insert_window(window.clone()) {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
         let info = AppInfo {
@@ -337,7 +337,7 @@ impl LapceDb {
     pub fn save_window(&self, data: WindowData) -> Result<()> {
         for (_, window_tab) in data.window_tabs.get_untracked().into_iter() {
             if let Err(err) = self.save_window_tab(window_tab) {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
         Ok(())
@@ -346,7 +346,7 @@ impl LapceDb {
     pub fn insert_window(&self, data: WindowData) -> Result<()> {
         for (_, window_tab) in data.window_tabs.get_untracked().into_iter() {
             if let Err(err) = self.insert_window_tab(window_tab) {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
         let info = data.info();
@@ -383,7 +383,7 @@ impl LapceDb {
 
     pub fn save_panel_orders(&self, order: PanelOrder) {
         if let Err(err) = self.save_tx.send(SaveEvent::PanelOrder(order)) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -407,7 +407,7 @@ impl LapceDb {
             cursor_offset,
         };
         if let Err(err) = self.save_tx.send(SaveEvent::Doc(info)) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -417,7 +417,7 @@ impl LapceDb {
             .join(workspace_folder_name(&info.workspace))
             .join(WORKSPACE_FILES);
         if let Err(err) = std::fs::create_dir_all(&folder) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
         let contents = serde_json::to_string_pretty(info)?;
         std::fs::write(folder.join(doc_path_name(&info.path)), contents)?;

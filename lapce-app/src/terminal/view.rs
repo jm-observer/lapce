@@ -196,7 +196,7 @@ impl TerminalView {
                         .unwrap_or(0);
 
                     if !file.exists() {
-                        tracing::info!("{file:?} is not exists");
+                        log::info!("{file:?} is not exists");
                         file = self.workspace.path.as_ref()?.join(file);
                     }
                     self.internal_command.send(InternalCommand::JumpToLocation {

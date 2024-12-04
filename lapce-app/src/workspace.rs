@@ -140,7 +140,7 @@ impl LapceWorkspace {
                 .write_arc()
                 .watch(&path, RecursiveMode::NonRecursive)
             {
-                tracing::error!("{:?}", e);
+                log::error!("{:?}", e);
             }
         }
     }
@@ -151,7 +151,7 @@ impl LapceWorkspace {
     ) {
         if let Some(path) = self.project_setting() {
             if let Err(e) = watcher.write_arc().unwatch(&path) {
-                tracing::error!("{:?}", e);
+                log::error!("{:?}", e);
             }
         }
     }

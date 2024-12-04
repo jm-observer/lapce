@@ -63,7 +63,7 @@ impl ThemeBaseConfig {
                 Ok(Some(color)) => {
                     let color = Color::parse(color)
                         .unwrap_or_else(|| {
-                            tracing::warn!(
+                            log::warn!(
                                 "Failed to parse color theme variable for ({key}: {value})"
                             );
                             Color::HOT_PINK
@@ -71,12 +71,12 @@ impl ThemeBaseConfig {
                     base.0.insert(key.to_string(), color);
                 }
                 Ok(None) => {
-                    tracing::warn!(
+                    log::warn!(
                         "Failed to resolve color theme variable for ({key}: {value})"
                     );
                 }
                 Err(err) => {
-                    tracing::error!(
+                    log::error!(
                         "Failed to resolve color theme variable ({key}: {value}): {err}"
                     );
                 }

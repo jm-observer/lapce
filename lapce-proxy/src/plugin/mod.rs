@@ -32,6 +32,7 @@ use lapce_rpc::{
     RequestId, RpcError,
 };
 use lapce_xi_rope::{Rope, RopeDelta};
+use log::error;
 use lsp_types::{
     request::{
         CallHierarchyIncomingCalls, CallHierarchyPrepare, CodeActionRequest,
@@ -79,7 +80,6 @@ use parking_lot::Mutex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tar::Archive;
-use tracing::error;
 
 use self::{
     catalog::PluginCatalog,
@@ -249,7 +249,7 @@ impl PluginCatalogRpcHandler {
     fn handle_response(&self, id: RequestId, result: Result<Value, RpcError>) {
         if let Some(chan) = { self.pending.lock().remove(&id) } {
             if let Err(err) = chan.send(result) {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
     }
@@ -369,10 +369,10 @@ impl PluginCatalogRpcHandler {
         if let Err(err) =
             self.catalog_notification(PluginCatalogNotification::Shutdown)
         {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
         if let Err(err) = self.plugin_tx.send(PluginCatalogRpc::Shutdown) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -466,7 +466,7 @@ impl PluginCatalogRpcHandler {
             f: Box::new(f),
         };
         if let Err(err) = self.plugin_tx.send(rpc) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -490,7 +490,7 @@ impl PluginCatalogRpcHandler {
             check,
         };
         if let Err(err) = self.plugin_tx.send(rpc) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -511,7 +511,7 @@ impl PluginCatalogRpcHandler {
                 f,
             })
         {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -527,7 +527,7 @@ impl PluginCatalogRpcHandler {
                 text,
             })
         {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -554,7 +554,7 @@ impl PluginCatalogRpcHandler {
                     new_text,
                 })
         {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -1238,7 +1238,7 @@ impl PluginCatalogRpcHandler {
                     }
                 }
                 Err(err) => {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             },
         );
@@ -1323,7 +1323,7 @@ impl PluginCatalogRpcHandler {
                     }
                 }
                 Err(err) => {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             },
         );
@@ -1388,11 +1388,11 @@ impl PluginCatalogRpcHandler {
                         id,
                     })
                 {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             Err(_) => {
-                tracing::error!("Failed to parse URL from file path: {path:?}");
+                log::error!("Failed to parse URL from file path: {path:?}");
             }
         }
     }
@@ -1441,7 +1441,7 @@ impl PluginCatalogRpcHandler {
             id,
         };
         if let Err(err) = self.plugin_tx.send(rpc) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -1461,7 +1461,7 @@ impl PluginCatalogRpcHandler {
             id,
         };
         if let Err(err) = self.plugin_tx.send(rpc) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -1567,7 +1567,7 @@ impl PluginCatalogRpcHandler {
         path: PathBuf,
         breakpoints: Vec<SourceBreakpoint>,
     ) -> Result<()> {
-        tracing::info!("dap_set_breakpoints dap_id={dap_id:?} path={path:?} breakpoints={breakpoints:?}");
+        log::info!("dap_set_breakpoints dap_id={dap_id:?} path={path:?} breakpoints={breakpoints:?}");
         self.catalog_notification(PluginCatalogNotification::DapSetBreakpoints {
             dap_id,
             path,
@@ -1586,7 +1586,7 @@ impl PluginCatalogRpcHandler {
             reference,
             f: Box::new(f),
         }) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -1605,7 +1605,7 @@ impl PluginCatalogRpcHandler {
             frame_id,
             f: Box::new(f),
         }) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -1622,7 +1622,7 @@ impl PluginCatalogRpcHandler {
                 args,
             },
         ) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 }
@@ -1685,7 +1685,7 @@ pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
         .ok_or_else(|| anyhow!("can't get plugin directory"))?
         .join(id.to_string());
     if let Err(err) = fs::remove_dir_all(&plugin_dir) {
-        tracing::error!("{:?}", err);
+        log::error!("{:?}", err);
     }
     fs::create_dir_all(&plugin_dir)?;
 
@@ -1723,7 +1723,7 @@ pub fn install_volt(
     if let Err(err) =
         start_volt(workspace, configurations, local_catalog_rpc, local_meta, id)
     {
-        tracing::error!("{:?}", err);
+        log::error!("{:?}", err);
     }
     let icon = volt_icon(&meta);
     catalog_rpc.core_rpc.volt_installed(meta, icon);

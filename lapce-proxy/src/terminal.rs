@@ -22,8 +22,8 @@ use lapce_rpc::{
     core::CoreRpcHandler,
     terminal::{TermId, TerminalProfile},
 };
+use log::info;
 use polling::PollMode;
-use tracing::info;
 
 const READ_BUFFER_SIZE: usize = 0x10_0000;
 
@@ -113,9 +113,9 @@ impl TerminalSender {
 
     pub fn send(&self, msg: Msg) {
         if let Err(err) = self.tx.send(msg) {
-            tracing::error!("{:?} {:?}", self.term_id, err);
+            log::error!("{:?} {:?}", self.term_id, err);
         } else if let Err(err) = self.poller.notify() {
-            tracing::error!("{:?} {:?}", self.term_id, err);
+            log::error!("{:?} {:?}", self.term_id, err);
         }
     }
 }
@@ -193,7 +193,7 @@ impl Terminal {
         let timeout = Some(Duration::from_secs(2));
         let mut exit_code = None;
         let mut should_exit = false;
-        tracing::debug!("terminal {:?} {:?} loop", self.term_id, self.shell);
+        log::debug!("terminal {:?} {:?} loop", self.term_id, self.shell);
         'event_loop: loop {
             events.clear();
             if let Err(err) = self.poller.wait(&mut events, timeout) {
@@ -209,13 +209,13 @@ impl Terminal {
 
             // Handle channel events, if there are any.
             if !self.drain_recv_channel(&mut state) {
-                tracing::debug!(
+                log::debug!(
                     "terminal {:?} {:?} end by Msg::Shutdown",
                     self.term_id,
                     self.shell
                 );
                 if let Err(err) = self.pty.deregister(&self.poller) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
                 return;
             }
@@ -227,9 +227,9 @@ impl Terminal {
                             self.pty.next_child_event()
                         {
                             if let Err(err) = self.pty_read(&core_rpc, &mut buf) {
-                                tracing::error!("{:?}", err);
+                                log::error!("{:?}", err);
                             }
-                            tracing::debug!(
+                            log::debug!(
                                 "terminal {:?} {:?} end by exit_code {exited_code:?}",
                                 self.term_id, self.shell
                             );
@@ -257,7 +257,7 @@ impl Terminal {
                                         continue;
                                     }
 
-                                    tracing::error!(
+                                    log::error!(
                                         "Error reading from PTY in event loop: {}",
                                         err
                                     );
@@ -299,7 +299,7 @@ impl Terminal {
         }
         core_rpc.terminal_process_stopped(self.term_id, exit_code);
         if let Err(err) = self.pty.deregister(&self.poller) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -388,7 +388,7 @@ impl Terminal {
                     }
                 }
                 Err(err) => {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
         }

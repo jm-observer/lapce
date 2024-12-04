@@ -130,7 +130,7 @@ impl KeyMapPress {
                     Some(key) => key,
                     None => {
                         // Skip past unrecognized key definitions
-                        tracing::warn!("Unrecognized key: {key}");
+                        log::warn!("Unrecognized key: {key}");
                         return None;
                     }
                 };
@@ -144,7 +144,7 @@ impl KeyMapPress {
                         "alt" => mods.set(Modifiers::ALT, true),
                         "altgr" => mods.set(Modifiers::ALTGR, true),
                         "" => (),
-                        other => tracing::warn!("Invalid key modifier: {}", other),
+                        other => log::warn!("Invalid key modifier: {}", other),
                     }
                 }
 
@@ -318,27 +318,27 @@ impl Display for KeyMapPress {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.mods.contains(Modifiers::CONTROL) {
             if let Err(err) = f.write_str("Ctrl+") {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
         if self.mods.contains(Modifiers::ALT) {
             if let Err(err) = f.write_str("Alt+") {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
         if self.mods.contains(Modifiers::ALTGR) {
             if let Err(err) = f.write_str("AltGr+") {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
         if self.mods.contains(Modifiers::META) {
             if let Err(err) = f.write_str("Meta+") {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
         if self.mods.contains(Modifiers::SHIFT) {
             if let Err(err) = f.write_str("Shift+") {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
         f.write_str(&self.key.to_string())

@@ -44,8 +44,8 @@ use floem::{
     Renderer, View, ViewId,
 };
 use lapce_xi_rope::find::CaseMatching;
+use log::error;
 use lsp_types::CodeLens;
-use tracing::error;
 
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText, Buffer},
@@ -1175,7 +1175,7 @@ impl View for EditorView {
         let is_active =
             self.is_active.get_untracked() && !find_focus.get_untracked();
         if self.tracing {
-            tracing::debug!("paint");
+            log::debug!("paint");
         }
         // We repeatedly get the screen lines because we don't currently carefully manage the
         // paint functions to avoid potentially needing to recompute them, which could *maybe*
@@ -1451,7 +1451,7 @@ fn editor_gutter_breakpoint_view(
         let doc = doc.get_untracked();
         let offset = doc.lines.with_untracked(|x| x.buffer.offset_of_line(line));
         // let offset = doc.buffer.with_untracked(|b| b.offset_of_line(line));
-        tracing::info!("click breakpoint line={line}");
+        log::info!("click breakpoint line={line}");
         if let Some(path) = doc.content.get_untracked().path() {
             update_breakpoints(
                 daps,
@@ -1580,7 +1580,7 @@ fn editor_gutter_breakpoints(
                 let line_height = config.get().editor.line_height() as f64;
                 let y0 = viewport.get().y0;
                 let margin_top = -(y0 % line_height) as f32 + line_height as f32;
-                // tracing::info!(
+                // log::info!(
                 //     "y0={y0} line_height={line_height} margin_top={margin_top}"
                 // );
                 s.absolute().flex_col().margin_top(margin_top)
@@ -2160,7 +2160,7 @@ fn editor_content(
         window_origin.set(point);
     })
     .on_scroll(move |rect| {
-        tracing::info!("on_scroll rect{rect:?}");
+        log::info!("on_scroll rect{rect:?}");
         if rect.y0 != current_scroll.get_untracked().y0 {
             // only cancel completion if scrolled vertically
             let e_data = e_data.get_untracked();
@@ -2176,7 +2176,7 @@ fn editor_content(
         let e_data = e_data.get_untracked();
         let cursor = cursor.get();
         let offset = cursor.offset();
-        tracing::info!("ensure_visible offset={offset}");
+        log::info!("ensure_visible offset={offset}");
         let offset_line_from_top = e_data.offset_line_from_top.get();
         e_data.doc_signal().track();
         e_data.kind().track();
@@ -2202,7 +2202,7 @@ fn editor_content(
             rect.y0 -= offset_height;
             rect.y1 -= offset_height;
         }
-        tracing::info!(
+        log::info!(
             "{:?} {rect:?} offset_line_from_top={offset_line_from_top:?} vline={vline} offset={offset}",
             e_data.doc().content.get_untracked().path()
         );

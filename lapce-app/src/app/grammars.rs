@@ -6,8 +6,9 @@ use std::{
 
 use anyhow::{anyhow, Context, Result};
 use lapce_core::directory::Directory;
+use log::trace;
 
-use crate::{tracing::*, update::ReleaseInfo};
+use crate::{log::*, update::ReleaseInfo};
 
 fn get_github_api(url: &str) -> Result<String> {
     let user_agent = format!("Lapce/{}", lapce_core::meta::VERSION);
@@ -69,7 +70,7 @@ pub fn fetch_grammars(release: &ReleaseInfo) -> Result<bool> {
 
     let updated = download_release(dir, release, &file_name)?;
 
-    trace!(TraceLevel::INFO, "Successfully downloaded grammars");
+    trace!("Successfully downloaded grammars");
 
     Ok(updated)
 }
@@ -82,7 +83,7 @@ pub fn fetch_queries(release: &ReleaseInfo) -> Result<bool> {
 
     let updated = download_release(dir, release, file_name)?;
 
-    trace!(TraceLevel::INFO, "Successfully downloaded queries");
+    trace!("Successfully downloaded queries");
 
     Ok(updated)
 }

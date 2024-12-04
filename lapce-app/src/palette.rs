@@ -32,10 +32,10 @@ use lapce_core::{
 };
 use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;
+use log::error;
 use lsp_types::{DocumentSymbol, DocumentSymbolResponse};
 use nucleo::Utf32Str;
 use strum::{EnumMessage, IntoEnumIterator};
-use tracing::error;
 
 use self::{
     item::{PaletteItem, PaletteItemContent},
@@ -166,7 +166,7 @@ impl PaletteData {
                     if let Err(err) =
                         tx.send((run_id, input.input, items, preselect_index))
                     {
-                        tracing::error!("{:?}", err);
+                        log::error!("{:?}", err);
                     }
                 });
             }
@@ -180,7 +180,7 @@ impl PaletteData {
                 let items = items.get_untracked();
                 let run_id = run_id.get_untracked();
                 if let Err(err) = tx.send((run_id, input.input, items, None)) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
                 kind
             });
@@ -394,7 +394,7 @@ impl PaletteData {
 
         let run_id = self.run_id_counter.fetch_add(1, Ordering::Relaxed) + 1;
         self.run_id.set(run_id);
-        tracing::debug!("run_inner {} {:?}", run_id, kind);
+        log::debug!("run_inner {} {:?}", run_id, kind);
         match kind {
             PaletteKind::PaletteHelp => self.get_palette_help(),
             PaletteKind::File | PaletteKind::DiffFiles => {
@@ -1731,7 +1731,7 @@ impl PaletteData {
                         filtered_items,
                         preselect_index,
                     )) {
-                        tracing::error!("{:?}", err);
+                        log::error!("{:?}", err);
                     }
                 }
             } else {

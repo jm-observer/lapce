@@ -95,7 +95,7 @@ where
     match parse_value(value) {
         Ok(msg) => Ok(Some(msg)),
         Err(e) => {
-            tracing::error!("receive rpc from stdio error: {e:#}");
+            log::error!("receive rpc from stdio error: {e:#}");
             Ok(None)
         }
     }

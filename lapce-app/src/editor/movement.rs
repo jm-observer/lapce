@@ -15,7 +15,7 @@ use crate::editor::editor::{CommonAction, Editor};
 use floem::views::editor::text::Styling;
 use floem::views::editor::visual_line::RVLine;
 use floem_editor_core::word::WordCursor;
-use tracing::{error, warn};
+use log::{error, warn};
 
 /// Move a selection region by a given movement.
 /// Much of the time, this will just be a matter of moving the cursor, but
@@ -580,7 +580,7 @@ pub fn move_cursor(
     register: &mut Register,
 ) {
     let motion_mode = cursor.motion_mode.clone();
-    let horiz = cursor.horiz.clone();
+    let horiz = cursor.horiz;
     match cursor.mut_mode() {
         CursorMode::Normal(offset) => {
             let count = {

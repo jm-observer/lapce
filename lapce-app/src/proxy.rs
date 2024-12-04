@@ -9,7 +9,7 @@ use lapce_rpc::{
     proxy::{ProxyRpcHandler, ProxyStatus},
     terminal::TermId,
 };
-use tracing::error;
+use log::error;
 
 use self::{remote::start_remote, ssh::SshRemote};
 use crate::{
@@ -142,12 +142,12 @@ impl CoreHandler for Proxy {
                 .term_tx
                 .send((*term_id, TermEvent::UpdateContent(content.to_vec())))
             {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
             return;
         }
         if let Err(err) = self.tx.send(rpc) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 

@@ -74,7 +74,7 @@ impl<Resp, Error> ResponseHandler<Resp, Error> {
         match self {
             ResponseHandler::Chan(tx) => {
                 if let Err(err) = tx.send((id, result)) {
-                    tracing::error!("{:?}", err);
+                    log::error!("{:?}", err);
                 }
             }
             ResponseHandler::Callback(f) => f.call(id, result),
@@ -196,13 +196,13 @@ impl ResponseSender {
             message: e.to_string(),
         });
         if let Err(err) = self.tx.send(result) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
     pub fn send_null(&self) {
         if let Err(err) = self.tx.send(Ok(Value::Null)) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -211,7 +211,7 @@ impl ResponseSender {
             code,
             message: message.into(),
         })) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 }
@@ -322,13 +322,13 @@ impl PluginServerRpcHandler {
 
     fn send_server_rpc(&self, msg: JsonRpc) {
         if let Err(err) = self.io_tx.send(msg) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
     pub fn handle_rpc(&self, rpc: PluginServerRpc) {
         if let Err(err) = self.rpc_tx.send(rpc) {
-            tracing::error!("{:?}", err);
+            log::error!("{:?}", err);
         }
     }
 
@@ -352,7 +352,7 @@ impl PluginServerRpcHandler {
                 language_id,
                 path,
             }) {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         } else {
             self.send_server_notification(&method, params);
@@ -434,7 +434,7 @@ impl PluginServerRpcHandler {
                 path,
                 rh,
             }) {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         } else {
             self.send_server_request(Id::Num(id as i64), &method, params, rh);
@@ -937,7 +937,7 @@ impl PluginHostHandler {
     fn register_capabilities(&mut self, registrations: Vec<Registration>) {
         for registration in registrations {
             if let Err(err) = self.register_capability(registration) {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
     }
@@ -1052,7 +1052,7 @@ impl PluginHostHandler {
                         params.options,
                         0,
                     ) {
-                        tracing::error!("{:?}", err);
+                        log::error!("{:?}", err);
                     }
                 });
             }
@@ -1163,7 +1163,7 @@ impl PluginHostHandler {
                         params.options,
                         0,
                     ) {
-                        tracing::error!("{:?}", err);
+                        log::error!("{:?}", err);
                     }
                 });
             }

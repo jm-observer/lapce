@@ -31,7 +31,7 @@ impl notify::EventHandler for ConfigWatcher {
                                 500,
                             ));
                             if let Err(err) = tx.send(()) {
-                                tracing::error!("{:?}", err);
+                                log::error!("{:?}", err);
                             }
                             config_mutex
                                 .store(false, std::sync::atomic::Ordering::Relaxed);
@@ -41,7 +41,7 @@ impl notify::EventHandler for ConfigWatcher {
                 _ => {}
             },
             Err(err) => {
-                tracing::error!("{:?}", err);
+                log::error!("{:?}", err);
             }
         }
     }

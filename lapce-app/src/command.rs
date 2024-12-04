@@ -16,6 +16,7 @@ use lapce_rpc::{
     proxy::ProxyStatus,
     terminal::TerminalProfile,
 };
+use log::LevelFilter;
 use lsp_types::{CodeActionOrCommand, Position, WorkspaceEdit};
 use serde_json::Value;
 use strum::{EnumMessage, IntoEnumIterator};
@@ -752,7 +753,7 @@ pub enum InternalCommand {
         modal: bool,
     },
     UpdateLogLevel {
-        level: tracing_subscriber::filter::LevelFilter,
+        level: LevelFilter,
     },
     OpenWebUri {
         uri: String,

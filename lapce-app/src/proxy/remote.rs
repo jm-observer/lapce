@@ -15,8 +15,8 @@ use lapce_rpc::{
     proxy::{ProxyRpc, ProxyRpcHandler},
     stdio_transport, RpcMessage,
 };
+use log::{debug, error};
 use thiserror::Error;
-use tracing::{debug, error};
 
 const UNIX_PROXY_SCRIPT: &[u8] = include_bytes!("../../../extra/proxy.sh");
 const WINDOWS_PROXY_SCRIPT: &[u8] = include_bytes!("../../../extra/proxy.ps1");
@@ -186,22 +186,22 @@ pub fn start_remote(
                         if let Err(err) =
                             local_writer_tx.send(RpcMessage::Request(id, rpc))
                         {
-                            tracing::error!("{:?}", err);
+                            log::error!("{:?}", err);
                         }
                     }
                     ProxyRpc::Notification(rpc) => {
                         if let Err(err) =
                             local_writer_tx.send(RpcMessage::Notification(rpc))
                         {
-                            tracing::error!("{:?}", err);
+                            log::error!("{:?}", err);
                         }
                     }
                     ProxyRpc::Shutdown => {
                         if let Err(err) = child.kill() {
-                            tracing::error!("{:?}", err);
+                            log::error!("{:?}", err);
                         }
                         if let Err(err) = child.wait() {
-                            tracing::error!("{:?}", err);
+                            log::error!("{:?}", err);
                         }
                         return;
                     }
@@ -223,14 +223,14 @@ pub fn start_remote(
                                 if let Err(err) =
                                     writer_tx.send(RpcMessage::Response(id, resp))
                                 {
-                                    tracing::error!("{:?}", err);
+                                    log::error!("{:?}", err);
                                 }
                             }
                             Err(e) => {
                                 if let Err(err) =
                                     writer_tx.send(RpcMessage::Error(id, e))
                                 {
-                                    tracing::error!("{:?}", err);
+                                    log::error!("{:?}", err);
                                 }
                             }
                         });
