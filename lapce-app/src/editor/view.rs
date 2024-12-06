@@ -2579,7 +2579,7 @@ pub fn changes_colors_screen(
     let screen_lines = editor
         .doc()
         .lines
-        .with_untracked(|x| x.signals.screen_lines.clone());
+        .with_untracked(|x| x.screen_lines.clone());
 
     let Some((min, max)) = screen_lines.rvline_range() else {
         return Vec::new();

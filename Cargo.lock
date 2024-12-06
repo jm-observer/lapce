@@ -1475,13 +1475,10 @@ name = "doc"
 version = "0.1.0"
 dependencies = [
  "ahash",
- "anyhow",
  "arc-swap",
- "custom-utils",
  "directories",
  "floem",
  "floem-editor-core",
- "git2",
  "hashbrown 0.14.5",
  "im",
  "itertools 0.12.1",
@@ -1497,10 +1494,6 @@ dependencies = [
  "strum",
  "strum_macros",
  "thiserror",
- "tracing 0.2.0",
- "tracing-appender",
- "tracing-log",
- "tracing-subscriber",
  "tree-sitter",
 ]
 
@@ -1756,7 +1749,7 @@ dependencies = [
  "chrono",
  "log",
  "notify-debouncer-mini",
- "nu-ansi-term 0.50.1",
+ "nu-ansi-term",
  "serde",
  "serde_derive",
  "thiserror",
@@ -3630,16 +3623,6 @@ dependencies = [
 
 [[package]]
 name = "nu-ansi-term"
-version = "0.46.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77a8165726e8236064dbb45459242600304b42a5ea24ee2948e18e023bf7ba84"
-dependencies = [
- "overload",
- "winapi",
-]
-
-[[package]]
-name = "nu-ansi-term"
 version = "0.50.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4a28e057d01f97e61255210fcff094d74ed0466038633e95017f5beb68e4399"
@@ -3924,12 +3907,6 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
 ]
-
-[[package]]
-name = "overload"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 
 [[package]]
 name = "owned_ttf_parser"
@@ -4796,15 +4773,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sharded-slab"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
-dependencies = [
- "lazy_static",
-]
-
-[[package]]
 name = "shellexpand"
 version = "2.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5273,16 +5241,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "thread_local"
-version = "1.1.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b9ef9bad013ada3808854ceac7b46812a6465ba368859a37e2100283d2d719c"
-dependencies = [
- "cfg-if",
- "once_cell",
-]
-
-[[package]]
 name = "time"
 version = "0.3.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5532,17 +5490,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tracing-appender"
-version = "0.2.0"
-source = "git+https://github.com/jm-observer/tracing#0f0d0940f94ebbfc435465edf6d07df0b8589993"
-dependencies = [
- "crossbeam-channel",
- "thiserror",
- "time",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "tracing-attributes"
 version = "0.1.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5578,29 +5525,6 @@ version = "0.2.0"
 source = "git+https://github.com/jm-observer/tracing#0f0d0940f94ebbfc435465edf6d07df0b8589993"
 dependencies = [
  "once_cell",
-]
-
-[[package]]
-name = "tracing-log"
-version = "0.2.0"
-source = "git+https://github.com/jm-observer/tracing#0f0d0940f94ebbfc435465edf6d07df0b8589993"
-dependencies = [
- "log",
- "once_cell",
- "tracing-core 0.2.0",
-]
-
-[[package]]
-name = "tracing-subscriber"
-version = "0.3.0"
-source = "git+https://github.com/jm-observer/tracing#0f0d0940f94ebbfc435465edf6d07df0b8589993"
-dependencies = [
- "nu-ansi-term 0.46.0",
- "sharded-slab",
- "smallvec",
- "thread_local",
- "tracing-core 0.2.0",
- "tracing-log",
 ]
 
 [[package]]
