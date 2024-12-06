@@ -24,15 +24,15 @@ use floem_editor_core::{
 };
 
 use crate::doc::Doc;
+use doc::lines::layout::{LineExtraStyle, TextLayoutLine};
+use doc::lines::phantom_text::PhantomTextMultiLine;
 use floem::context::PaintCx;
-use floem::kurbo::Line;
+use floem::kurbo::{Line, Size};
 use floem::reactive::{SignalGet, SignalTrack, SignalUpdate, SignalWith, Trigger};
 use floem::text::FONT_SYSTEM;
 use floem::views::editor::command::Command;
 use floem::views::editor::id::EditorId;
-use floem::views::editor::layout::TextLayoutLine;
 use floem::views::editor::movement::{move_offset, move_selection};
-use floem::views::editor::phantom_text::PhantomTextMultiLine;
 use floem::views::editor::text::{
     Document, Preedit, PreeditData, Styling, WrapMethod,
 };
@@ -1996,7 +1996,7 @@ pub fn paint_text(
         let y = line_info.y;
         let text_layout = ed.text_layout_of_visual_line(line);
 
-        EditorView::paint_extra_style(cx, &text_layout.extra_style, y, viewport);
+        paint_extra_style(cx, &text_layout.extra_style, y, viewport);
 
         if let Some(whitespaces) = &text_layout.whitespaces {
             let family = style.font_family(line);
@@ -2023,6 +2023,56 @@ pub fn paint_text(
         }
 
         cx.draw_text(&text_layout.text, Point::new(0.0, y));
+    }
+}
+
+pub fn paint_extra_style(
+    cx: &mut PaintCx,
+    extra_styles: &[LineExtraStyle],
+    y: f64,
+    viewport: Rect,
+) {
+    for style in extra_styles {
+        let height = style.height;
+        if let Some(bg) = style.bg_color {
+            let width = style.width.unwrap_or_else(|| viewport.width());
+            let base = if style.width.is_none() {
+                viewport.x0
+            } else {
+                0.0
+            };
+            let x = style.x + base;
+            let y = y + style.y;
+            cx.fill(
+                &Rect::ZERO
+                    .with_size(Size::new(width, height))
+                    .with_origin(Point::new(x, y)),
+                bg,
+                0.0,
+            );
+        }
+
+        if let Some(color) = style.under_line {
+            let width = style.width.unwrap_or_else(|| viewport.width());
+            let base = if style.width.is_none() {
+                viewport.x0
+            } else {
+                0.0
+            };
+            let x = style.x + base;
+            let y = y + style.y + height;
+            cx.stroke(
+                &Line::new(Point::new(x, y), Point::new(x + width, y)),
+                color,
+                1.0,
+            );
+        }
+
+        if let Some(color) = style.wave_line {
+            let width = style.width.unwrap_or_else(|| viewport.width());
+            let y = y + style.y + height;
+            EditorView::paint_wave_line(cx, width, Point::new(style.x, y), color);
+        }
     }
 }
 

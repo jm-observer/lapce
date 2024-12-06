@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use floem::views::editor::phantom_text::PhantomTextKind;
+use doc::lines::phantom_text::PhantomTextKind;
 use floem::{
     action::{exec_after, show_context_menu, TimerToken},
     ext_event::create_ext_action,
