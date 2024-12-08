@@ -339,14 +339,22 @@ fn move_up(
 ) -> (usize, ColPosition) {
     let (visual_line, line_offset, ..) =
         view.visual_line_of_offset_v2(offset, *affinity);
-    let (visual_line, line_offset, ..) =
+    let (previous_visual_line, line_offset, ..) =
         view.previous_visual_line(visual_line.line_index, line_offset, *affinity);
-
     let horiz = horiz.unwrap_or_else(|| {
-        ColPosition::Col(view.line_point_of_offset(offset, *affinity).x)
+        ColPosition::Col(
+            view.line_point_of_visual_line_col(
+                visual_line.line_index,
+                line_offset,
+                *affinity,
+                false,
+            )
+            .x,
+        )
     });
+
     let offset_of_buffer =
-        view.rvline_horiz_col(&horiz, _mode != Mode::Normal, &visual_line);
+        view.rvline_horiz_col(&horiz, _mode != Mode::Normal, &previous_visual_line);
 
     // TODO: this should maybe be doing `new_offset == info.interval.start`?
     *affinity = if line_offset == 0 {
@@ -434,14 +442,22 @@ fn move_down(
 ) -> (usize, ColPosition) {
     let (visual_line, line_offset, ..) =
         view.visual_line_of_offset_v2(offset, *affinity);
-    let (visual_line, line_offset, ..) =
+    let (next_visual_line, next_line_offset, ..) =
         view.next_visual_line(visual_line.line_index, line_offset, *affinity);
     let horiz = horiz.unwrap_or_else(|| {
-        ColPosition::Col(view.line_point_of_offset(offset, *affinity).x)
+        ColPosition::Col(
+            view.line_point_of_visual_line_col(
+                visual_line.line_index,
+                line_offset,
+                *affinity,
+                false,
+            )
+            .x,
+        )
     });
     let offset_of_buffer =
-        view.rvline_horiz_col(&horiz, _mode != Mode::Normal, &visual_line);
-    *affinity = if line_offset == 0 {
+        view.rvline_horiz_col(&horiz, _mode != Mode::Normal, &next_visual_line);
+    *affinity = if next_line_offset == 0 {
         CursorAffinity::Forward
     } else {
         CursorAffinity::Backward

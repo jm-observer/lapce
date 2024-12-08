@@ -1106,7 +1106,7 @@ impl Editor {
                 let n = hit_point.index;
                 let rs = text_layout.phantom_text.cursor_position_of_final_col(n);
                 warn!("rs={rs:?}");
-                rs.2
+                rs.2 + rs.1
             }
             ColPosition::End => visual_line.origin_interval.end,
             ColPosition::Start => visual_line.origin_interval.start,
