@@ -44,7 +44,7 @@ use floem::{
     Renderer, View, ViewId,
 };
 use lapce_xi_rope::find::CaseMatching;
-use log::error;
+use log::{error, info};
 use lsp_types::CodeLens;
 
 use lapce_core::{
@@ -1235,15 +1235,18 @@ fn get_sticky_header_info(
     let start_info = screen_lines.info(*start).unwrap();
     let start_line = start_info.vline_info.rvline.line;
 
-    let y_diff = viewport.y0 - start_info.vline_y;
+    // let y_diff = viewport.y0 - start_info.vline_y;
+    let y_diff = 0.0;
 
     let mut last_sticky_should_scroll = false;
     let mut sticky_lines = Vec::new();
     if let Some(lines) = doc.sticky_headers(start_line) {
         let total_lines = lines.len();
         if total_lines > 0 {
+            info!("total_lines={total_lines} start_line={start_line}");
             let line = start_line + total_lines;
             if let Some(new_lines) = doc.sticky_headers(line) {
+                info!("total_lines={} line={line}", new_lines.len());
                 if new_lines.len() > total_lines {
                     sticky_lines = new_lines;
                 } else {
@@ -1293,11 +1296,11 @@ fn get_sticky_header_info(
         };
     }
 
-    let scroll_offset = if last_sticky_should_scroll {
-        y_diff
-    } else {
-        0.0
-    };
+    // let scroll_offset = if last_sticky_should_scroll {
+    //     y_diff
+    // } else {
+    //     0.0
+    // };
 
     let sticky_header_height = sticky_lines
         .iter()
@@ -1305,17 +1308,20 @@ fn get_sticky_header_info(
         .map(|(i, line)| {
             // TODO(question): won't y_diff always be scroll_offset here? so we should just sub on
             // the outside
-            let y_diff = if i == total_sticky_lines - 1 {
-                scroll_offset
-            } else {
-                0.0
-            };
+            // let y_diff = if i == total_sticky_lines - 1 {
+            //     scroll_offset
+            // } else {
+            //     0.0
+            // };
 
             let layout = editor.text_layout_of_visual_line(*line);
-            layout.line_count() as f64 * line_height - y_diff
+            layout.line_count() as f64 * line_height
         })
         .sum();
-
+    info!(
+        "sticky_header_height={sticky_header_height} len={} y_diff={y_diff} last_sticky_should_scroll={last_sticky_should_scroll}",
+        sticky_lines.len()
+    );
     sticky_header_height_signal.set(sticky_header_height);
     StickyHeaderInfo {
         sticky_lines,
