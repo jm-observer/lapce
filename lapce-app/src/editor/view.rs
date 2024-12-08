@@ -1930,7 +1930,8 @@ fn editor_gutter(
             label(move || {
                 let doc = doc.get();
                 doc.lines
-                    .with_untracked(|x| x.buffer.last_line() + 1)
+                    .with_untracked(|x| x.signal_last_line())
+                    .get()
                     .to_string()
             })
             .style(|x| x.hide()),
