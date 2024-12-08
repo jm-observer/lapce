@@ -2451,7 +2451,7 @@ impl WindowTabData {
         }
         let focus = self.common.focus.get_untracked();
         let keypress = self.common.keypress.get_untracked();
-        log::debug!("key_down {:?}", focus);
+        log::info!("key_down {:?}", focus);
         let handle = match focus {
             Focus::Workbench => self.main_split.key_down(event, &keypress),
             Focus::Palette => Some(keypress.key_down(event, &self.palette)),

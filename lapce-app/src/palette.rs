@@ -32,7 +32,7 @@ use lapce_core::{
 };
 use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;
-use log::error;
+use log::{error, info};
 use lsp_types::{DocumentSymbol, DocumentSymbolResponse};
 use nucleo::Utf32Str;
 use strum::{EnumMessage, IntoEnumIterator};
@@ -142,7 +142,11 @@ impl PaletteData {
             kind: PaletteKind::File,
         });
         let kind = cx.create_rw_signal(None);
-        let input_editor = main_split.editors.make_local(cx, common.clone());
+        let input_editor = main_split.editors.make_local_with_name(
+            cx,
+            common.clone(),
+            "PaletteData".to_string(),
+        );
         let preview_editor = main_split.editors.make_local(cx, common.clone());
         let has_preview = cx.create_rw_signal(false);
         let run_id = cx.create_rw_signal(0);

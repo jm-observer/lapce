@@ -1105,7 +1105,6 @@ impl Editor {
                     text_layout.text.hit_point(Point::new(x, y_pos as f64));
                 let n = hit_point.index;
                 let rs = text_layout.phantom_text.cursor_position_of_final_col(n);
-                warn!("rs={rs:?}");
                 rs.2 + rs.1
             }
             ColPosition::End => visual_line.origin_interval.end,
@@ -1118,11 +1117,11 @@ impl Editor {
                     .find(|(_, c)| !c.is_whitespace())
                     .map(|(idx, _)| visual_line.visual_interval.start + idx)
                     .unwrap_or(visual_line.visual_interval.end);
-                visual_line
+                let rs = visual_line
                     .text_layout
                     .phantom_text
-                    .cursor_position_of_final_col(final_offset)
-                    .2
+                    .cursor_position_of_final_col(final_offset);
+                rs.2 + rs.1
             }
         }
     }

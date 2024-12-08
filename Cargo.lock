@@ -1811,6 +1811,7 @@ dependencies = [
  "bitflags 2.6.0",
  "itertools 0.12.1",
  "lapce-xi-rope",
+ "log",
  "memchr",
  "serde",
  "strum",

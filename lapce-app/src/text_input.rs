@@ -30,6 +30,7 @@ use lapce_core::{
     selection::Selection,
 };
 use lapce_xi_rope::Rope;
+use log::info;
 
 use crate::{
     config::{color::LapceColor, LapceConfig},
@@ -148,11 +149,10 @@ fn text_input_full<T: KeyPressFocus + 'static>(
     let cursor_line = create_rw_signal(Line::new(Point::ZERO, Point::ZERO));
     let local_editor = e_data.clone();
     let editor = local_editor.editor.clone();
-
     {
-        let doc = doc.get();
-        let preedit = doc.preedit();
         create_effect(move |_| {
+            let doc = doc.get();
+            let preedit = doc.preedit();
             let offset = cursor.with(|c| c.offset());
             let (content, offset, preedit_range) = {
                 let buffer = doc.lines.with_untracked(|x| x.signal_buffer());
@@ -173,6 +173,7 @@ fn text_input_full<T: KeyPressFocus + 'static>(
                     (content, offset, None)
                 }
             };
+            info!("update content of input: [{}]", content);
             id.update_state(TextInputState::Content {
                 text: content,
                 offset,

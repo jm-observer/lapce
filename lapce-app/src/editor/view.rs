@@ -1149,13 +1149,13 @@ impl View for EditorView {
 
     fn compute_layout(
         &mut self,
-        cx: &mut floem::context::ComputeLayoutCx,
+        _cx: &mut floem::context::ComputeLayoutCx,
     ) -> Option<Rect> {
-        let viewport = cx.current_viewport();
-        self.editor
-            .doc()
-            .lines
-            .update(|x| x.update_viewport(viewport));
+        // let viewport = cx.current_viewport();
+        // self.editor
+        //     .doc()
+        //     .lines
+        //     .update(|x| x.update_viewport(viewport));
 
         None
     }
@@ -2111,7 +2111,7 @@ fn editor_content(
             e_data.cancel_inline_completion();
         });
     }
-
+    let lines = editor.doc().lines;
     let current_scroll = create_rw_signal(Rect::ZERO);
     scroll({
         let editor_content_view =
@@ -2167,6 +2167,7 @@ fn editor_content(
             e_data.cancel_completion();
             e_data.cancel_inline_completion();
         }
+        lines.update(|x| x.update_viewport(rect));
         e_data.get_untracked().common.hover.active.set(false);
         current_scroll.set(rect);
     })
