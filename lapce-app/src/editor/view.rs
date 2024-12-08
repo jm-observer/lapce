@@ -1924,6 +1924,7 @@ fn editor_gutter(
     let gutter_padding_right = create_memo(move |_| icon_total_width() + 6.0);
 
     stack((
+        // 根据行最大值来确认左侧宽度
         stack((
             empty().style(move |s| s.width(icon_total_width() * 2.0 - 8.0)),
             label(move || {
@@ -1931,7 +1932,8 @@ fn editor_gutter(
                 doc.lines
                     .with_untracked(|x| x.buffer.last_line() + 1)
                     .to_string()
-            }),
+            })
+            .style(|x| x.hide()),
             empty().style(move |s| s.width(gutter_padding_right.get())),
         ))
         .debug_name("Centered Last Line Count")
@@ -1955,7 +1957,8 @@ fn editor_gutter(
                             scroll_delta.set(pointer_event.delta);
                         }
                     })
-                    .style(|s| s.size_pct(100.0, 100.0)),
+                    .style(|s| s.size_pct(100.0, 100.0))
+                    .debug_name("line number"),
                 editor_gutter_code_actions(e_data, gutter_width, icon_padding),
             ))
             .style(|s| s.size_pct(100.0, 100.0)),

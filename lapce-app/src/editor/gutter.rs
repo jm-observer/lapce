@@ -169,7 +169,7 @@ impl View for EditorGutterView {
             && kind_is_normal;
 
         let current_number = current_visual_line.line_number(false, None);
-        screen_lines.with_untracked(|screen_lines| {
+        screen_lines.with(|screen_lines| {
             for visual_line_info in screen_lines.visual_lines.iter() {
                 let line_number = visual_line_info
                     .visual_line
@@ -189,16 +189,13 @@ impl View for EditorGutterView {
                 let size = text_layout.size();
                 let height = size.height;
 
-                cx.draw_text(
-                    &text_layout,
-                    Point::new(
-                        (self.width
-                            - size.width
-                            - self.gutter_padding_right.get_untracked() as f64)
-                            .max(0.0),
-                        y + (line_height - height) / 2.0 - viewport.y0,
-                    ),
-                );
+                let x = (self.width
+                    - size.width
+                    - self.gutter_padding_right.get_untracked() as f64)
+                    .max(0.0);
+                let y = y + (line_height - height) / 2.0;
+
+                cx.draw_text(&text_layout, Point::new(x, y));
             }
         });
 
