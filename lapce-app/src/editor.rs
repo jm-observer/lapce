@@ -1,4 +1,4 @@
-use doc::lines::FindHintRs;
+use doc::lines::ClickResult;
 use doc::EditorViewKind;
 use std::{
     collections::{HashMap, HashSet},
@@ -60,7 +60,6 @@ use view::StickyHeaderInfo;
 use self::location::{EditorLocation, EditorPosition};
 use crate::editor::editor::{do_motion_mode, Editor};
 use crate::editor::movement::{do_multi_selection, move_cursor};
-use crate::editor::FindHintRs::{Match, MatchWithoutLocation};
 use crate::panel::call_hierarchy_view::CallHierarchyData;
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand},
@@ -2828,34 +2827,38 @@ impl EditorData {
                     || (cfg!(not(target_os = "macos"))
                         && pointer_event.modifiers.control())
                 {
-                    let rs = self.find_hint(pointer_event.pos);
-                    match rs {
-                        FindHintRs::NoHint => {
-                            self.common.lapce_command.send(LapceCommand {
-                                kind: CommandKind::Focus(
-                                    FocusCommand::GotoDefinition,
-                                ),
-                                data: None,
-                            })
-                        }
-                        FindHintRs::MatchWithoutLocation => {}
-                        FindHintRs::Match(location) => {
-                            let Ok(path) = location.uri.to_file_path() else {
-                                return;
-                            };
-                            self.common.internal_command.send(
-                                InternalCommand::JumpToLocation {
-                                    location: EditorLocation {
-                                        path,
-                                        position: Some(EditorPosition::Position(
-                                            location.range.start,
-                                        )),
-                                        scroll_offset: None,
-                                        ignore_unconfirmed: true,
-                                        same_editor_tab: false,
+                    if let Some(rs) = self.result_of_left_click(pointer_event.pos) {
+                        match rs {
+                            ClickResult::NoHint => {
+                                self.common.lapce_command.send(LapceCommand {
+                                    kind: CommandKind::Focus(
+                                        FocusCommand::GotoDefinition,
+                                    ),
+                                    data: None,
+                                })
+                            }
+                            ClickResult::MatchWithoutLocation
+                            | ClickResult::MatchFolded => {}
+                            ClickResult::MatchHint(location) => {
+                                let Ok(path) = location.uri.to_file_path() else {
+                                    return;
+                                };
+                                self.common.internal_command.send(
+                                    InternalCommand::JumpToLocation {
+                                        location: EditorLocation {
+                                            path,
+                                            position: Some(
+                                                EditorPosition::Position(
+                                                    location.range.start,
+                                                ),
+                                            ),
+                                            scroll_offset: None,
+                                            ignore_unconfirmed: true,
+                                            same_editor_tab: false,
+                                        },
                                     },
-                                },
-                            );
+                                );
+                            }
                         }
                     }
                 }
@@ -2867,10 +2870,8 @@ impl EditorData {
         }
     }
 
-    fn find_hint(&self, pos: Point) -> FindHintRs {
-        self.doc()
-            .lines
-            .with_untracked(|x| x.inlay_hint_of_click(pos))
+    fn result_of_left_click(&self, pos: Point) -> Option<ClickResult> {
+        self.doc().lines.try_update(|x| x.result_of_left_click(pos))
     }
 
     fn left_click(&self, pointer_event: &PointerInputEvent) {

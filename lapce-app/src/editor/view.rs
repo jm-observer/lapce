@@ -1797,13 +1797,12 @@ fn editor_gutter_folding_range(
     viewport: ReadSignal<Rect>,
 ) -> impl View {
     let config = window_tab_data.common.config;
+    let folding_items_signal = doc
+        .get_untracked()
+        .lines
+        .with_untracked(|x| x.folding_items_signal());
     dyn_stack(
-        move || {
-            doc.get()
-                .lines
-                .with_untracked(|x| x.folding_items_signal())
-                .get()
-        },
+        move || folding_items_signal.get(),
         move |item| *item,
         move |item| {
             editor_gutter_folding_view(window_tab_data.clone(), viewport, item)
