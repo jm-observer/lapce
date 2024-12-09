@@ -811,8 +811,8 @@ impl Editor {
         usize,
         usize,
         bool,
-        Point,
-        Option<VisualLineInfo>,
+        // Point,
+        Option<Point>,
         f64,
     ) {
         self.doc()
@@ -1580,7 +1580,7 @@ pub fn cursor_caret_v2(
         _offset_folded,
         _after_last_char,
         point,
-        screen,
+        // screen,
         line_height,
     ) = ed.cursor_position_of_buffer_offset(offset, affinity);
 
@@ -1614,12 +1614,12 @@ pub fn cursor_caret_v2(
     // };
     // error!("offset={offset} block={block}, point={point:?} rvline={rvline:?} info={info:?} col={col} after_last_char={after_last_char}");
 
-    let x0 = point.x;
+    // let x0 = point.x;
     if block {
         panic!("block");
     } else {
-        if let Some(screen_line) = screen {
-            Some((x0 - 1.0, screen_line.vline_y, 2.0, line_height))
+        if let Some(point) = point {
+            Some((point.x - 1.0, point.y, 2.0, line_height))
         } else {
             None
         }
