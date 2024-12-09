@@ -1243,10 +1243,10 @@ fn get_sticky_header_info(
     if let Some(lines) = doc.sticky_headers(start_line) {
         let total_lines = lines.len();
         if total_lines > 0 {
-            info!("total_lines={total_lines} start_line={start_line}");
+            // info!("total_lines={total_lines} start_line={start_line}");
             let line = start_line + total_lines;
             if let Some(new_lines) = doc.sticky_headers(line) {
-                info!("total_lines={} line={line}", new_lines.len());
+                // info!("total_lines={} line={line}", new_lines.len());
                 if new_lines.len() > total_lines {
                     sticky_lines = new_lines;
                 } else {
@@ -2176,7 +2176,7 @@ fn editor_content(
             e_data.cancel_completion();
             e_data.cancel_inline_completion();
         }
-        lines.update(|x| x.update_viewport(rect));
+        lines.update(|x| x.update_viewport_by_scroll(rect));
         e_data.get_untracked().common.hover.active.set(false);
         current_scroll.set(rect);
     })
