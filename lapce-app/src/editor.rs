@@ -1,3 +1,4 @@
+use doc::lines::FindHintRs;
 use doc::EditorViewKind;
 use std::{
     collections::{HashMap, HashSet},
@@ -59,7 +60,7 @@ use view::StickyHeaderInfo;
 use self::location::{EditorLocation, EditorPosition};
 use crate::editor::editor::{do_motion_mode, Editor};
 use crate::editor::movement::{do_multi_selection, move_cursor};
-use crate::editor::FindHintRs::{Match, MatchWithoutLocation, NoMatchBreak};
+use crate::editor::FindHintRs::{Match, MatchWithoutLocation};
 use crate::panel::call_hierarchy_view::CallHierarchyData;
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand},
@@ -2829,7 +2830,7 @@ impl EditorData {
                 {
                     let rs = self.find_hint(pointer_event.pos);
                     match rs {
-                        FindHintRs::NoMatchBreak => {
+                        FindHintRs::NoHint => {
                             self.common.lapce_command.send(LapceCommand {
                                 kind: CommandKind::Focus(
                                     FocusCommand::GotoDefinition,
@@ -2867,60 +2868,9 @@ impl EditorData {
     }
 
     fn find_hint(&self, pos: Point) -> FindHintRs {
-        let (_, line_index, text_layout) =
-            self.editor.line_col_of_point_with_phantom(pos);
-        let Some((phantom, phantom_offset)) = text_layout
-            .phantom_text
-            .phantom_text_of_final_col(line_index)
-        else {
-            return FindHintRs::NoMatchBreak;
-        };
-        if let PhantomTextKind::InlayHint = phantom.kind {
-            let line = phantom.line as u32;
-            let index = phantom.col as u32;
-            let rs = self.doc().lines.with_untracked(|x| {
-                if let Some(hints) = &x.inlay_hints {
-                    if let Some(rs) = hints.iter().find_map(|(_, hint)| {
-                        if hint.position.line == line
-                            && hint.position.character == index
-                        {
-                            match &hint.label {
-                                InlayHintLabel::String(..) => {
-                                    Some(MatchWithoutLocation)
-                                }
-                                InlayHintLabel::LabelParts(parts) => {
-                                    let mut start = 0;
-                                    for part in parts {
-                                        let end = start + part.value.len();
-                                        if start <= phantom_offset
-                                            && phantom_offset < end
-                                        {
-                                            return Some(match &part.location {
-                                                None => MatchWithoutLocation,
-                                                Some(location) => {
-                                                    Match(location.clone())
-                                                }
-                                            });
-                                        }
-                                        start = end;
-                                    }
-                                    // should not be reach
-                                    warn!("should not be reach");
-                                    Some(MatchWithoutLocation)
-                                }
-                            }
-                        } else {
-                            None
-                        }
-                    }) {
-                        return rs;
-                    }
-                }
-                NoMatchBreak
-            });
-            return rs;
-        }
-        NoMatchBreak
+        self.doc()
+            .lines
+            .with_untracked(|x| x.inlay_hint_of_click(pos))
     }
 
     fn left_click(&self, pointer_event: &PointerInputEvent) {
@@ -3943,11 +3893,4 @@ fn parse_hover_resp(
             MarkupKind::Markdown => parse_markdown(&content.value, 1.8, config),
         },
     }
-}
-
-#[derive(Debug)]
-enum FindHintRs {
-    NoMatchBreak,
-    MatchWithoutLocation,
-    Match(Location),
 }
