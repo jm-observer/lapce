@@ -1,4 +1,12 @@
-use doc::lines::ClickResult;
+use doc::lines::buffer::diff::DiffLines;
+use doc::lines::buffer::rope_text::{RopeText, RopeTextVal};
+use doc::lines::buffer::InvalLines;
+use doc::lines::edit::EditType;
+use doc::lines::{
+    cursor::{Cursor, CursorMode},
+    selection::{InsertDrift, SelRegion, Selection},
+};
+use doc::lines::{ClickResult, RopeTextPosition};
 use doc::EditorViewKind;
 use std::{
     collections::{HashMap, HashSet},
@@ -30,20 +38,11 @@ use floem::{
     ViewId,
 };
 use lapce_core::{
-    buffer::{
-        diff::DiffLines,
-        rope_text::{RopeText, RopeTextVal},
-        InvalLines,
-    },
     command::{
         EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand,
         ScrollCommand,
     },
-    cursor::{Cursor, CursorMode},
-    editor::EditType,
     mode::{Mode, MotionMode},
-    rope_text_pos::RopeTextPosition,
-    selection::{InsertDrift, SelRegion, Selection},
 };
 use lapce_rpc::{buffer::BufferId, plugin::PluginId, proxy::ProxyResponse};
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
@@ -453,12 +452,11 @@ impl EditorData {
         let mut cursor = self.editor.cursor.get_untracked();
         let mut register = self.common.register.get_untracked();
 
-        let yank_data =
-            if let lapce_core::cursor::CursorMode::Visual { .. } = &cursor.mode() {
-                Some(cursor.yank(&text))
-            } else {
-                None
-            };
+        let yank_data = if let CursorMode::Visual { .. } = &cursor.mode() {
+            Some(cursor.yank(&text))
+        } else {
+            None
+        };
 
         let deltas =
             batch(|| doc.do_edit(&mut cursor, cmd, modal, &mut register, smart_tab));
@@ -993,11 +991,8 @@ impl EditorData {
 
                         if let Some((_, (start, end))) = snippet_mut.get(current + 1)
                         {
-                            let mut selection =
-                                lapce_core::selection::Selection::new();
-                            let region = lapce_core::selection::SelRegion::new(
-                                *start, *end, None,
-                            );
+                            let mut selection = Selection::new();
+                            let region = SelRegion::new(*start, *end, None);
                             selection.add_region(region);
                             self.cursor().update(|cursor| {
                                 cursor.set_insert(selection);
@@ -1030,11 +1025,8 @@ impl EditorData {
                             if let Some((_, (start, end))) =
                                 snippet_mut.get(current - 1)
                             {
-                                let mut selection =
-                                    lapce_core::selection::Selection::new();
-                                let region = lapce_core::selection::SelRegion::new(
-                                    *start, *end, None,
-                                );
+                                let mut selection = Selection::new();
+                                let region = SelRegion::new(*start, *end, None);
                                 selection.add_region(region);
                                 self.cursor().update(|cursor| {
                                     cursor.set_insert(selection);
@@ -1963,13 +1955,13 @@ impl EditorData {
             .into_iter()
             .flatten()
             .map(|edit| {
-                let selection = lapce_core::selection::Selection::region(
+                let selection = Selection::region(
                     buffer.offset_of_position(&edit.range.start),
                     buffer.offset_of_position(&edit.range.end),
                 );
                 (selection, edit.new_text.as_str())
             })
-            .collect::<Vec<(lapce_core::selection::Selection, &str)>>();
+            .collect::<Vec<(Selection, &str)>>();
 
         let text_format = item
             .insert_text_format
@@ -1983,7 +1975,7 @@ impl EditorData {
                     let edit_start = buffer.offset_of_position(&edit.range.start);
                     let edit_end = buffer.offset_of_position(&edit.range.end);
 
-                    let selection = lapce_core::selection::Selection::region(
+                    let selection = Selection::region(
                         start_offset.min(edit_start),
                         end_offset.max(edit_end),
                     );
@@ -2077,9 +2069,9 @@ impl EditorData {
             return Ok(());
         }
 
-        let mut selection = lapce_core::selection::Selection::new();
+        let mut selection = Selection::new();
         let (_tab, (start, end)) = &snippet_tabs[0];
-        let region = lapce_core::selection::SelRegion::new(*start, *end, None);
+        let region = SelRegion::new(*start, *end, None);
         selection.add_region(region);
         cursor.set_insert(selection);
 
@@ -2207,7 +2199,7 @@ impl EditorData {
             let edits = edits
                 .iter()
                 .map(|edit| {
-                    let selection = lapce_core::selection::Selection::region(
+                    let selection = Selection::region(
                         x.buffer.offset_of_position(&edit.range.start),
                         x.buffer.offset_of_position(&edit.range.end),
                     );
@@ -2716,14 +2708,12 @@ impl EditorData {
     pub fn word_at_cursor(&self) -> String {
         let doc = self.doc();
         let region = self.cursor().with_untracked(|c| match &c.mode() {
-            lapce_core::cursor::CursorMode::Normal(offset) => {
-                lapce_core::selection::SelRegion::caret(*offset)
-            }
-            lapce_core::cursor::CursorMode::Visual {
+            CursorMode::Normal(offset) => SelRegion::caret(*offset),
+            CursorMode::Visual {
                 start,
                 end,
                 mode: _,
-            } => lapce_core::selection::SelRegion::new(
+            } => SelRegion::new(
                 *start.min(end),
                 doc.lines.with_untracked(|buffer| {
                     buffer.buffer.next_grapheme_offset(
@@ -2734,9 +2724,7 @@ impl EditorData {
                 }),
                 None,
             ),
-            lapce_core::cursor::CursorMode::Insert(selection) => {
-                *selection.last_inserted().unwrap()
-            }
+            CursorMode::Insert(selection) => *selection.last_inserted().unwrap(),
         });
 
         if region.is_caret() {

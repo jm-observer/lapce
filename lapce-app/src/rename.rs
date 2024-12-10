@@ -1,3 +1,4 @@
+use doc::lines::selection::Selection;
 use std::{path::PathBuf, rc::Rc};
 
 use floem::{
@@ -6,7 +7,7 @@ use floem::{
     peniko::kurbo::Rect,
     reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
 };
-use lapce_core::{command::FocusCommand, mode::Mode, selection::Selection};
+use lapce_core::{command::FocusCommand, mode::Mode};
 use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;
 use lsp_types::Position;

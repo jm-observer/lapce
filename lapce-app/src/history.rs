@@ -1,6 +1,5 @@
+use doc::lines::buffer::Buffer;
 use std::path::PathBuf;
-
-use lapce_core::buffer::Buffer;
 
 #[derive(Clone)]
 pub struct DocumentHistory {

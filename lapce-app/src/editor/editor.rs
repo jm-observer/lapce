@@ -13,19 +13,21 @@ use std::{
 
 use lapce_xi_rope::Rope;
 
-use floem_editor_core::{
+use doc::lines::{
     buffer::rope_text::{RopeText, RopeTextVal},
-    command::MoveCommand,
     cursor::{ColPosition, Cursor, CursorAffinity, CursorMode},
-    mode::Mode,
-    movement::Movement,
-    register::Register,
-    selection::Selection,
+};
+use floem_editor_core::{
+    command::MoveCommand, mode::Mode, movement::Movement, register::Register,
 };
 
 use crate::doc::Doc;
 use doc::lines::layout::{LineExtraStyle, TextLayoutLine};
 use doc::lines::phantom_text::PhantomTextMultiLine;
+use doc::lines::{
+    selection::{InsertDrift, Selection},
+    word::{get_char_property, CharClassification, WordCursor},
+};
 use floem::context::PaintCx;
 use floem::kurbo::{Line, Size};
 use floem::reactive::{SignalGet, SignalTrack, SignalUpdate, SignalWith, Trigger};
@@ -62,7 +64,6 @@ use floem_editor_core::command::MultiSelectionCommand::{
 use floem_editor_core::command::{EditCommand, MultiSelectionCommand};
 use floem_editor_core::mode::{MotionMode, VisualMode};
 use floem_editor_core::selection::SelRegion;
-use floem_editor_core::word::{get_char_property, CharClassification, WordCursor};
 use log::{error, warn};
 
 pub(crate) const CHAR_WIDTH: f64 = 7.5;

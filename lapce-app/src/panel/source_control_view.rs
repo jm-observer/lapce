@@ -1,3 +1,4 @@
+use doc::lines::buffer::rope_text::RopeText;
 use std::{path::PathBuf, rc::Rc};
 
 use floem::{
@@ -16,7 +17,6 @@ use floem::{
     },
     View,
 };
-use lapce_core::buffer::rope_text::RopeText;
 use lapce_rpc::source_control::FileDiff;
 
 use super::{data::PanelSection, kind::PanelKind, view::foldable_panel_section};

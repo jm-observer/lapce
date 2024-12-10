@@ -6,8 +6,13 @@ use std::{
     rc::Rc,
 };
 
+use doc::lines::selection::Selection;
+use doc::lines::{
+    buffer::rope_text::RopeText,
+    cursor::{Cursor, CursorAffinity},
+    RopeTextPosition,
+};
 use floem::reactive::batch;
-use floem::views::editor::core::cursor::CursorAffinity;
 use floem::{
     action::save_as,
     ext_event::create_ext_action,
@@ -18,11 +23,8 @@ use floem::{
     views::editor::id::EditorId,
 };
 use itertools::Itertools;
+use lapce_core::command::FocusCommand;
 use lapce_core::directory::Directory;
-use lapce_core::{
-    buffer::rope_text::RopeText, command::FocusCommand, cursor::Cursor,
-    rope_text_pos::RopeTextPosition, selection::Selection,
-};
 use lapce_rpc::{
     buffer::BufferId,
     core::FileChanged,

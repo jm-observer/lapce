@@ -1,3 +1,4 @@
+use doc::lines::selection::Selection;
 use std::{path::Path, rc::Rc, sync::Arc};
 
 use floem::{
@@ -15,7 +16,6 @@ use floem::{
     },
     View,
 };
-use lapce_core::selection::Selection;
 use lapce_rpc::{
     file::{FileNodeViewData, FileNodeViewKind, Naming},
     source_control::FileDiffKind,

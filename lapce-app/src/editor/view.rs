@@ -47,11 +47,12 @@ use lapce_xi_rope::find::CaseMatching;
 use log::{error, info};
 use lsp_types::CodeLens;
 
-use lapce_core::{
+use doc::lines::selection::SelRegion;
+use doc::lines::{
     buffer::{diff::DiffLines, rope_text::RopeText, Buffer},
     cursor::{CursorAffinity, CursorMode},
-    selection::SelRegion,
 };
+
 use lapce_rpc::{dap_types::DapId, plugin::PluginId};
 
 use crate::debug::update_breakpoints;

@@ -1,3 +1,4 @@
+use doc::lines::selection::Selection;
 use std::{ops::Range, path::PathBuf, rc::Rc};
 
 use floem::{
@@ -6,8 +7,8 @@ use floem::{
     reactive::{Memo, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     views::VirtualVector,
 };
+use floem_editor_core::mode::Mode;
 use indexmap::IndexMap;
-use lapce_core::{mode::Mode, selection::Selection};
 use lapce_rpc::proxy::{ProxyResponse, SearchMatch};
 use lapce_xi_rope::Rope;
 

@@ -1,14 +1,17 @@
 //! Movement logic for the editor.
 
 use floem_editor_core::{
-    buffer::rope_text::{RopeText, RopeTextVal},
     command::MultiSelectionCommand,
-    cursor::{ColPosition, Cursor, CursorAffinity, CursorMode},
     mode::{Mode, MotionMode, VisualMode},
     movement::{LinePosition, Movement},
     register::Register,
-    selection::{SelRegion, Selection},
     soft_tab::{snap_to_soft_tab, SnapDirection},
+};
+
+use doc::lines::{
+    buffer::rope_text::{RopeText, RopeTextVal},
+    cursor::{ColPosition, Cursor, CursorAffinity, CursorMode},
+    selection::{SelRegion, Selection},
 };
 
 use crate::editor::editor::{CommonAction, Editor};

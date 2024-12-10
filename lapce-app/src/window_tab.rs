@@ -12,6 +12,8 @@ use alacritty_terminal::vte::ansi::Handler;
 use anyhow::anyhow;
 use crossbeam_channel::Sender;
 use doc::config::EditorConfig;
+use doc::lines::buffer::rope_text::RopeText;
+use doc::lines::cursor::CursorAffinity;
 use floem::reactive::SignalTrack;
 use floem::{
     action::{open_file, remove_overlay, TimerToken},
@@ -25,15 +27,14 @@ use floem::{
         SignalUpdate, SignalWith, WriteSignal,
     },
     text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
-    views::editor::core::buffer::rope_text::RopeText,
     ViewId,
 };
 use im::HashMap;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::{
-    command::FocusCommand, cursor::CursorAffinity, directory::Directory, meta,
-    mode::Mode, register::Register,
+    command::FocusCommand, directory::Directory, meta, mode::Mode,
+    register::Register,
 };
 use lapce_rpc::{
     core::CoreNotification,

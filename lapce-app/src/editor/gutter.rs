@@ -1,3 +1,4 @@
+use doc::lines::cursor::CursorAffinity;
 use floem::views::editor::phantom_text::{PhantomText, PhantomTextKind};
 use floem::{
     context::PaintCx,
@@ -6,7 +7,6 @@ use floem::{
     text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     Renderer, View, ViewId,
 };
-use floem_editor_core::cursor::CursorAffinity;
 use im::HashMap;
 use lsp_types::Position;
 use serde::{Deserialize, Serialize};

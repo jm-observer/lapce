@@ -1,7 +1,7 @@
 use doc::language::LapceLanguage;
 use doc::lines::fold::FoldingRange;
 use doc::lines::screen_lines::ScreenLines;
-use doc::lines::DocLinesManager;
+use doc::lines::{DocLinesManager, RopeTextPosition};
 use doc::syntax::edit::SyntaxEdit;
 use doc::syntax::{BracketParser, Syntax};
 use doc::{DiagnosticData, EditorViewKind};
@@ -18,6 +18,18 @@ use std::{
     },
 };
 
+use doc::lines::buffer::rope_text::RopeTextVal;
+use doc::lines::edit::EditType;
+use doc::lines::{
+    buffer::{
+        diff::{rope_diff, DiffLines},
+        rope_text::RopeText,
+        Buffer, InvalLines,
+    },
+    cursor::{Cursor, CursorAffinity},
+    selection::{InsertDrift, Selection},
+    word::{get_char_property, CharClassification, WordCursor},
+};
 use floem::kurbo::Rect;
 use floem::reactive::Trigger;
 use floem::views::editor::lines::Lines;
@@ -39,28 +51,14 @@ use floem::{
     },
     ViewId,
 };
-use floem_editor_core::buffer::rope_text::RopeTextVal;
 use itertools::Itertools;
 use lapce_core::directory::Directory;
 use lapce_core::{
-    buffer::{
-        diff::{rope_diff, DiffLines},
-        rope_text::RopeText,
-        Buffer, InvalLines,
-    },
-    char_buffer::CharBuffer,
-    command::EditCommand,
-    cursor::{Cursor, CursorAffinity},
-    editor::{Action, EditConf, EditType},
-    indent::IndentStyle,
-    line_ending::LineEnding,
-    mode::MotionMode,
-    register::Register,
-    rope_text_pos::RopeTextPosition,
-    selection::{InsertDrift, Selection},
-    style::line_styles,
-    word::{get_char_property, CharClassification, WordCursor},
+    char_buffer::CharBuffer, command::EditCommand, editor::Action,
+    indent::IndentStyle, line_ending::LineEnding, mode::MotionMode,
+    register::Register, style::line_styles,
 };
+
 use lapce_rpc::{
     buffer::BufferId,
     plugin::PluginId,

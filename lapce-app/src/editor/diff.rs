@@ -1,7 +1,11 @@
+use doc::lines::buffer::rope_text::RopeText;
 use doc::lines::diff::DiffInfo;
 use doc::EditorViewKind;
 use std::{rc::Rc, sync::atomic};
 
+use doc::lines::buffer::diff::{
+    expand_diff_lines, rope_diff, DiffExpand, DiffLines,
+};
 use floem::{
     event::EventListener,
     ext_event::create_ext_action,
@@ -11,10 +15,6 @@ use floem::{
         clip, dyn_stack, editor::id::EditorId, empty, label, stack, svg, Decorators,
     },
     View,
-};
-use lapce_core::buffer::{
-    diff::{expand_diff_lines, rope_diff, DiffExpand, DiffLines},
-    rope_text::RopeText,
 };
 use lapce_rpc::{buffer::BufferId, proxy::ProxyResponse};
 use lapce_xi_rope::Rope;

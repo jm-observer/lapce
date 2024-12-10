@@ -1,5 +1,10 @@
 use std::{rc::Rc, sync::Arc};
 
+use doc::lines::selection::Selection;
+use doc::lines::{
+    buffer::rope_text::RopeText,
+    cursor::{Cursor, CursorMode},
+};
 use floem::views::editor::text::Document;
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
@@ -23,11 +28,6 @@ use floem::{
     unit::PxPct,
     views::Decorators,
     Renderer, View, ViewId,
-};
-use lapce_core::{
-    buffer::rope_text::RopeText,
-    cursor::{Cursor, CursorMode},
-    selection::Selection,
 };
 use lapce_xi_rope::Rope;
 use log::info;
