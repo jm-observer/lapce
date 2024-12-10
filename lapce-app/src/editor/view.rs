@@ -1304,8 +1304,8 @@ fn get_sticky_header_info(
 
     let sticky_header_height = sticky_lines
         .iter()
-        .enumerate()
-        .map(|(_i, line)| {
+        // .enumerate()
+        .map(|line| {
             // TODO(question): won't y_diff always be scroll_offset here? so we should just sub on
             // the outside
             // let y_diff = if i == total_sticky_lines - 1 {

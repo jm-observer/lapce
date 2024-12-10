@@ -1613,11 +1613,7 @@ pub fn cursor_caret_v2(
     if block {
         panic!("block");
     } else {
-        if let Some(point) = point {
-            Some((point.x - 1.0, point.y, 2.0, line_height))
-        } else {
-            None
-        }
+        point.map(|point| (point.x - 1.0, point.y, 2.0, line_height))
     }
 }
 
@@ -2097,8 +2093,7 @@ fn paint_cursor_caret(
                 // }
 
                 // let line_height = ed.line_height(info.vline_info.origin_line);
-                let rect =
-                    Rect::from_origin_size((x, y), (width, f64::from(line_height)));
+                let rect = Rect::from_origin_size((x, y), (width, line_height));
                 cx.fill(&rect, &caret_color, 0.0);
             }
         }

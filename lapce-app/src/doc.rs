@@ -240,12 +240,34 @@ impl Doc {
         let grammars_directory = Directory::grammars_directory().unwrap();
         let syntax = Syntax::init(&path, &grammars_directory, &queries_directory);
         let config = common.config.get_untracked();
-        let rw_config = common.editor_config;
-        // let lines = cx.create_rw_signal(Lines::new(cx));
+        let rw_config = config.get_doc_editor_config();
         let viewport = Rect::ZERO;
         let editor_style = EditorStyle::default();
         let buffer = Buffer::new("");
         let kind = cx.create_rw_signal(EditorViewKind::Normal);
+        let lines = DocLinesManager::new(
+            cx,
+            diagnostics,
+            syntax,
+            BracketParser::new(
+                String::new(),
+                config.editor.bracket_pair_colorization,
+                config.editor.bracket_colorization_limit,
+            ),
+            viewport,
+            editor_style,
+            rw_config,
+            buffer,
+            kind,
+        );
+        let config = common.config;
+        cx.create_effect(move |_| {
+            let editor_config = config.get().get_doc_editor_config();
+            lines.update(|x| {
+                x.update_config(editor_config);
+            });
+        });
+
         Doc {
             editor_id,
             name: None,
@@ -272,21 +294,7 @@ impl Doc {
             document_symbol_data: DocumentSymbolViewData::new(cx),
             // folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
             // semantic_previous_rs_id: cx.create_rw_signal(None),
-            lines: DocLinesManager::new(
-                cx,
-                diagnostics,
-                syntax,
-                BracketParser::new(
-                    String::new(),
-                    config.editor.bracket_pair_colorization,
-                    config.editor.bracket_colorization_limit,
-                ),
-                viewport,
-                editor_style,
-                rw_config,
-                buffer,
-                kind,
-            ),
+            lines,
         }
     }
 
@@ -309,8 +317,7 @@ impl Doc {
         let editor_id = EditorId::next();
         let cx = cx.create_child();
         let config = common.config.get_untracked();
-        let rw_config = common.editor_config;
-        // let lines = cx.create_rw_signal(Lines::new(cx));
+        let rw_config = config.get_doc_editor_config();
         let viewport = Rect::ZERO;
         let editor_style = EditorStyle::default();
         let diagnostics = DiagnosticData {
@@ -323,6 +330,29 @@ impl Doc {
         let syntax = Syntax::plaintext(&grammars_directory, &queries_directory);
         let buffer = Buffer::new("");
         let kind = cx.create_rw_signal(EditorViewKind::Normal);
+
+        let lines = DocLinesManager::new(
+            cx,
+            diagnostics,
+            syntax,
+            BracketParser::new(
+                String::new(),
+                config.editor.bracket_pair_colorization,
+                config.editor.bracket_colorization_limit,
+            ),
+            viewport,
+            editor_style,
+            rw_config,
+            buffer,
+            kind,
+        );
+        let config = common.config;
+        cx.create_effect(move |_| {
+            let editor_config = config.get().get_doc_editor_config();
+            lines.update(|x| {
+                x.update_config(editor_config);
+            });
+        });
         Self {
             editor_id,
             name,
@@ -342,26 +372,7 @@ impl Doc {
             common,
             code_lens: cx.create_rw_signal(im::HashMap::new()),
             document_symbol_data: DocumentSymbolViewData::new(cx),
-            // folding_ranges: cx.create_rw_signal(FoldingRanges::default()),
-            // semantic_previous_rs_id: cx.create_rw_signal(None),
-            // lines,
-            // viewport,
-            // editor_style,
-            lines: DocLinesManager::new(
-                cx,
-                diagnostics,
-                syntax,
-                BracketParser::new(
-                    String::new(),
-                    config.editor.bracket_pair_colorization,
-                    config.editor.bracket_colorization_limit,
-                ),
-                viewport,
-                editor_style,
-                rw_config,
-                buffer,
-                kind,
-            ),
+            lines,
         }
     }
 
@@ -373,7 +384,7 @@ impl Doc {
     ) -> Doc {
         let editor_id = EditorId::next();
         let config = common.config.get_untracked();
-        let rw_config = common.editor_config;
+        let rw_config = config.get_doc_editor_config();
 
         let queries_directory = Directory::queries_directory().unwrap();
         let grammars_directory = Directory::grammars_directory().unwrap();
@@ -392,6 +403,30 @@ impl Doc {
         };
         let buffer = Buffer::new("");
         let kind = cx.create_rw_signal(EditorViewKind::Normal);
+
+        let lines = DocLinesManager::new(
+            cx,
+            diagnostics,
+            syntax,
+            BracketParser::new(
+                String::new(),
+                config.editor.bracket_pair_colorization,
+                config.editor.bracket_colorization_limit,
+            ),
+            viewport,
+            editor_style,
+            rw_config,
+            buffer,
+            kind,
+        );
+        let config = common.config;
+        cx.create_effect(move |_| {
+            let editor_config = config.get().get_doc_editor_config();
+            lines.update(|x| {
+                x.update_config(editor_config);
+            });
+        });
+
         Self {
             editor_id,
             name: None,
@@ -424,21 +459,7 @@ impl Doc {
             // lines,
             // viewport,
             // editor_style,
-            lines: DocLinesManager::new(
-                cx,
-                diagnostics,
-                syntax,
-                BracketParser::new(
-                    String::new(),
-                    config.editor.bracket_pair_colorization,
-                    config.editor.bracket_colorization_limit,
-                ),
-                viewport,
-                editor_style,
-                rw_config,
-                buffer,
-                kind,
-            ),
+            lines,
         }
     }
 
