@@ -428,10 +428,6 @@ impl Editor {
     pub fn single_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.mode().clone());
         let (new_offset, _) = self.offset_of_point(&mode, pointer_event.pos);
-        println!(
-            "single_click {:?} new_offset={new_offset}",
-            pointer_event.pos
-        );
         self.cursor.update(|cursor| {
             cursor.set_offset(
                 new_offset,
@@ -1558,7 +1554,6 @@ pub fn cursor_caret(
             rvline,
         }
     } else {
-        error!("false block");
         LineRegion {
             x: x0 - 1.0,
             width: 2.0,

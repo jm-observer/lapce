@@ -1215,7 +1215,7 @@ impl View for EditorView {
 
 fn get_sticky_header_info(
     editor_data: &EditorData,
-    viewport: Rect,
+    _viewport: Rect,
     sticky_header_height_signal: RwSignal<f64>,
     config: &LapceConfig,
     screen_lines: &ScreenLines,
@@ -1305,7 +1305,7 @@ fn get_sticky_header_info(
     let sticky_header_height = sticky_lines
         .iter()
         .enumerate()
-        .map(|(i, line)| {
+        .map(|(_i, line)| {
             // TODO(question): won't y_diff always be scroll_offset here? so we should just sub on
             // the outside
             // let y_diff = if i == total_sticky_lines - 1 {
