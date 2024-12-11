@@ -248,7 +248,9 @@ impl Editor {
             // Get rid of all the effects
             self.effects_cx.get().dispose();
             self.doc.set(doc);
-            // doc.lines.with_untracked(|lines| lines.trigger_buffer());
+            // self.doc()
+            //     .lines
+            //     .update(|lines| lines.trigger_signals_force());
 
             // Recreate the effects
             self.effects_cx.set(self.cx.get().create_child());

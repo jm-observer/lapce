@@ -1156,9 +1156,9 @@ impl View for EditorView {
         cx: &mut floem::context::ComputeLayoutCx,
     ) -> Option<Rect> {
         let viewport = cx.current_viewport();
-        if self.name == "editor" {
-            info!("compute_layout {} {:?}", self.name, viewport);
-        }
+        // if self.name == "editor" {
+        //     info!("compute_layout {} {:?}", self.name, viewport);
+        // }
         self.editor
             .doc()
             .lines
@@ -1340,7 +1340,7 @@ pub fn editor_container_view(
     is_active: impl Fn(bool) -> bool + 'static + Copy,
     editor: RwSignal<EditorData>,
 ) -> impl View {
-    let (editor_id, find_focus, sticky_header_height, editor_view, config, doc, ed) =
+    let (editor_id, find_focus, sticky_header_height, editor_view, config, doc) =
         editor.with_untracked(|editor| {
             (
                 editor.id(),
@@ -1349,7 +1349,7 @@ pub fn editor_container_view(
                 editor.kind(),
                 editor.common.config,
                 editor.doc_signal(),
-                editor.editor.clone(),
+                // editor.editor.clone(),
             )
         });
 
@@ -1362,13 +1362,11 @@ pub fn editor_container_view(
     let replace_focus = main_split.common.find.replace_focus;
     let debug_breakline = window_tab_data.terminal.breakline;
 
-    let viewport = ed.doc().lines.with_untracked(|x| x.signal_viewport());
-
     stack((
         editor_breadcrumbs(workspace, editor.get_untracked(), config),
         stack((
             editor_gutter(window_tab_data.clone(), editor),
-            editor_gutter_folding_range(window_tab_data.clone(), doc, viewport),
+            editor_gutter_folding_range(window_tab_data.clone(), doc),
             editor_content(editor, debug_breakline, is_active),
             empty().style(move |s| {
                 let config = config.get();
@@ -1718,7 +1716,6 @@ fn editor_gutter_code_lens_view(
 
 fn editor_gutter_folding_view(
     window_tab_data: Rc<WindowTabData>,
-    viewport: ReadSignal<Rect>,
     folding_display_item: FoldingDisplayItem,
 ) -> impl View {
     let config = window_tab_data.common.config;
@@ -1753,7 +1750,6 @@ fn editor_gutter_folding_view(
             })
     });
     container(view).style(move |s| {
-        let rect = viewport.get();
         let config = config.get();
         let icon_size = config.ui.icon_size();
         let width = icon_size as f32 + 4.0;
@@ -1762,7 +1758,7 @@ fn editor_gutter_folding_view(
             .height(config.editor.line_height() as f32)
             .justify_center()
             .items_center()
-            .margin_top(folding_display_item.y as f32 - rect.y0 as f32)
+            .margin_top(folding_display_item.y as f32)
     })
 }
 
@@ -1806,26 +1802,26 @@ fn editor_gutter_code_lens(
 fn editor_gutter_folding_range(
     window_tab_data: Rc<WindowTabData>,
     doc: DocSignal,
-    viewport: ReadSignal<Rect>,
 ) -> impl View {
     let config = window_tab_data.common.config;
-    let folding_items_signal = doc
-        .get_untracked()
-        .lines
-        .with_untracked(|x| x.signal_folding_items());
     dyn_stack(
-        move || folding_items_signal.get(),
+        move || {
+            let folding_items_signal =
+                doc.get().lines.with_untracked(|x| x.signal_folding_items());
+            folding_items_signal.get()
+        },
         move |item| *item,
         move |item| {
-            editor_gutter_folding_view(window_tab_data.clone(), viewport, item)
-                .on_click_stop({
+            editor_gutter_folding_view(window_tab_data.clone(), item).on_click_stop(
+                {
                     let lines = doc.get_untracked().lines;
                     move |_| {
                         lines.update(|x| {
                             x.update_folding_ranges(item.into());
                         });
                     }
-                })
+                },
+            )
         },
     )
     .style(move |s| {
@@ -2132,7 +2128,6 @@ fn editor_content(
             e_data.cancel_inline_completion();
         });
     }
-    let lines = editor.doc().lines;
     let current_scroll = create_rw_signal(Rect::ZERO);
     scroll({
         let editor_content_view =
@@ -2184,14 +2179,14 @@ fn editor_content(
     })
     .on_scroll(move |rect| {
         log::info!("on_scroll rect{rect:?}");
+        let e_data = e_data.get_untracked();
         if rect.y0 != current_scroll.get_untracked().y0 {
             // only cancel completion if scrolled vertically
-            let e_data = e_data.get_untracked();
             e_data.cancel_completion();
             e_data.cancel_inline_completion();
         }
-        lines.update(|x| x.update_viewport_by_scroll(rect));
-        e_data.get_untracked().common.hover.active.set(false);
+        e_data.editor.doc().lines.update(|x| x.update_viewport_by_scroll(rect));
+        e_data.common.hover.active.set(false);
         current_scroll.set(rect);
     })
     .scroll_to(move || scroll_to.get().map(|s| s.to_point()))
