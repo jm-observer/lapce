@@ -64,7 +64,7 @@ use floem_editor_core::command::MultiSelectionCommand::{
 use floem_editor_core::command::{EditCommand, MultiSelectionCommand};
 use floem_editor_core::mode::{MotionMode, VisualMode};
 use floem_editor_core::selection::SelRegion;
-use log::{error, warn};
+use log::{error, info, warn};
 
 pub(crate) const CHAR_WIDTH: f64 = 7.5;
 
@@ -243,13 +243,12 @@ impl Editor {
 
     /// Swap the underlying document out
     pub fn update_doc(&self, doc: Rc<Doc>) {
+        info!("update_doc");
         batch(|| {
             // Get rid of all the effects
             self.effects_cx.get().dispose();
             self.doc.set(doc);
-            // self.screen_lines.update(|screen_lines| {
-            //     screen_lines.clear(self.viewport.get_untracked());
-            // });
+            // doc.lines.with_untracked(|lines| lines.trigger_buffer());
 
             // Recreate the effects
             self.effects_cx.set(self.cx.get().create_child());

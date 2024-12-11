@@ -8,6 +8,7 @@ use floem::{
     Renderer, View, ViewId,
 };
 use im::HashMap;
+use log::debug;
 use lsp_types::Position;
 use serde::{Deserialize, Serialize};
 
@@ -133,9 +134,14 @@ impl View for EditorGutterView {
 
     fn paint(&mut self, cx: &mut floem::context::PaintCx) {
         let doc = self.editor.doc_signal().get();
+        if let Some(path) = doc.content.get_untracked().path() {
+            if path.ends_with("test.rs") {
+                debug!("{:?}", path);
+            }
+        }
         let viewport = self.editor.viewport();
         let cursor = self.editor.cursor();
-        let screen_lines = doc.lines.with_untracked(|x| x.screen_lines_signal());
+        let screen_lines = doc.lines.with_untracked(|x| x.signal_screen_lines());
         let config = self.editor.common.config;
 
         let kind_is_normal =

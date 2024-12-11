@@ -143,6 +143,7 @@ pub fn editor_style(
 
 pub struct EditorView {
     id: ViewId,
+    name: &'static str,
     editor: EditorData,
     is_active: Memo<bool>,
     inner_node: Option<NodeId>,
@@ -157,6 +158,7 @@ pub fn editor_view(
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
     tracing: bool,
+    name: &'static str,
 ) -> EditorView {
     let id = ViewId::new();
     let is_active = create_memo(move |_| is_active(true));
@@ -165,7 +167,7 @@ pub fn editor_view(
         .editor
         .doc()
         .lines
-        .with_untracked(|x| (x.signal_viewport(), x.screen_lines_signal()));
+        .with_untracked(|x| (x.signal_viewport(), x.signal_screen_lines()));
     // let viewport_rw = e_data.viewport_rw();
 
     let doc = e_data.doc_signal();
@@ -278,6 +280,7 @@ pub fn editor_view(
     let doc = e_data.doc_signal();
     EditorView {
         id,
+        name,
         editor: e_data,
         is_active,
         inner_node: None,
@@ -1058,9 +1061,9 @@ impl View for EditorView {
         }
     }
 
-    fn debug_name(&self) -> std::borrow::Cow<'static, str> {
-        "Editor View".into()
-    }
+    // fn debug_name(&self) -> std::borrow::Cow<'static, str> {
+    //
+    // }
 
     fn update(
         &mut self,
@@ -1150,19 +1153,21 @@ impl View for EditorView {
 
     fn compute_layout(
         &mut self,
-        _cx: &mut floem::context::ComputeLayoutCx,
+        cx: &mut floem::context::ComputeLayoutCx,
     ) -> Option<Rect> {
-        // let viewport = cx.current_viewport();
-        // self.editor
-        //     .doc()
-        //     .lines
-        //     .update(|x| x.update_viewport(viewport));
+        let viewport = cx.current_viewport();
+        if self.name == "editor" {
+            info!("compute_layout {} {:?}", self.name, viewport);
+        }
+        self.editor
+            .doc()
+            .lines
+            .update(|x| x.update_viewport_size(viewport));
 
         None
     }
 
     fn paint(&mut self, cx: &mut PaintCx) {
-        // let viewport = self.editor.viewport();
         let doc = self.editor.doc_signal().get();
         let show_indent_guide = doc
             .lines
@@ -1175,9 +1180,6 @@ impl View for EditorView {
         let find_focus = self.editor.find_focus;
         let is_active =
             self.is_active.get_untracked() && !find_focus.get_untracked();
-        if self.tracing {
-            log::debug!("paint");
-        }
         // We repeatedly get the screen lines because we don't currently carefully manage the
         // paint functions to avoid potentially needing to recompute them, which could *maybe*
         // make them invalid.
@@ -1189,7 +1191,8 @@ impl View for EditorView {
         let (viewport, screen_lines) = ed
             .doc()
             .lines
-            .with_untracked(|x| (x.viewport(), x.screen_lines()));
+            .with_untracked(|x| (x.viewport(), x.signal_screen_lines()));
+        let screen_lines = screen_lines.get();
         self.paint_current_line(cx, is_local, &screen_lines);
         paint_selection(cx, ed, &screen_lines);
         // let screen_lines = ed.screen_lines.get_untracked();
@@ -1431,7 +1434,6 @@ fn editor_gutter_breakpoint_view(
     doc: DocSignal,
     daps: RwSignal<im::HashMap<DapId, DapData>>,
     breakpoints: RwSignal<BTreeMap<PathBuf, BTreeMap<usize, LapceBreakpoint>>>,
-    screen_lines: ReadSignal<ScreenLines>,
     common: Rc<CommonData>,
     icon_padding: f32,
 ) -> impl View {
@@ -1449,8 +1451,11 @@ fn editor_gutter_breakpoint_view(
         ),
     )
     .on_click_stop(move |_| {
-        let screen_lines = screen_lines.get_untracked();
-        let line = screen_lines.lines.get(i).map(|r| r.line).unwrap_or(0);
+        let line = doc.get_untracked().lines.with_untracked(|x| {
+            x.screen_lines.lines.get(i).map(|r| r.line).unwrap_or(0)
+        });
+        // let screen_lines = screen_lines.get_untracked();
+        // let line = screen_lines;
         // let line = (viewport.get_untracked().y0
         //     / config.get_untracked().editor.line_height() as f64)
         //     .floor() as usize
@@ -1550,12 +1555,10 @@ fn editor_gutter_breakpoints(
 
     let (ed, doc, config) = e_data
         .with_untracked(|e| (e.editor.clone(), e.doc_signal(), e.common.config));
-    let (viewport, screen_lines) = ed
-        .doc()
-        .lines
-        .with_untracked(|x| (x.signal_viewport(), x.screen_lines_signal()));
 
     let num_display_lines = create_memo(move |_| {
+        let screen_lines =
+            doc.get().lines.with_untracked(|x| x.signal_screen_lines());
         let screen_lines = screen_lines.get();
         screen_lines.lines.len()
         // let viewport = viewport.get();
@@ -1577,14 +1580,16 @@ fn editor_gutter_breakpoints(
                         doc,
                         daps,
                         breakpoints,
-                        screen_lines,
                         common.clone(),
                         icon_padding,
                     )
                 },
             )
             .style(move |s| {
+                // todo improve
                 let line_height = config.get().editor.line_height() as f64;
+                let viewport =
+                    ed.doc().lines.with_untracked(|x| x.signal_viewport());
                 let y0 = viewport.get().y0;
                 let margin_top = -(y0 % line_height) as f32 + line_height as f32;
                 // log::info!(
@@ -1627,9 +1632,15 @@ fn editor_gutter_breakpoints(
                         }),
                     )
                     .style(move |s| {
+                        // todo improve
                         let config = config.get();
+                        let screen_lines = doc
+                            .get()
+                            .lines
+                            .with_untracked(|x| x.signal_screen_lines())
+                            .get_untracked();
                         let line_y = screen_lines
-                            .with(|s| s.info_for_line(line))
+                            .info_for_line(line)
                             .map(|l| l.y)
                             .unwrap_or_default();
                         s.absolute()
@@ -1637,7 +1648,7 @@ fn editor_gutter_breakpoints(
                             .height(config.editor.line_height() as f32)
                             .justify_center()
                             .items_center()
-                            .margin_top(line_y as f32 - viewport.get().y0 as f32)
+                            .margin_top(line_y as f32 - screen_lines.base.y0 as f32)
                     })
                 },
             )
@@ -1916,7 +1927,7 @@ fn editor_gutter(
     let (viewport, screen_lines) = ed
         .doc()
         .lines
-        .with_untracked(|x| (x.signal_viewport(), x.screen_lines_signal()));
+        .with_untracked(|x| (x.signal_viewport(), x.signal_screen_lines()));
     let scroll_delta = ed.scroll_delta;
 
     let gutter_rect = create_rw_signal(Rect::ZERO);
@@ -2125,7 +2136,7 @@ fn editor_content(
     let current_scroll = create_rw_signal(Rect::ZERO);
     scroll({
         let editor_content_view =
-            editor_view(e_data.get_untracked(), debug_breakline, is_active, false)
+            editor_view(e_data.get_untracked(), debug_breakline, is_active, false, "editor")
                 .style(move |s| {
                     s.absolute()
                         .margin_left(1.0)
@@ -2168,6 +2179,8 @@ fn editor_content(
     })
     .on_move(move |point| {
         window_origin.set(point);
+    }).on_resize(|size| {
+        log::info!("on_resize rect={size:?}");
     })
     .on_scroll(move |rect| {
         log::info!("on_scroll rect{rect:?}");
