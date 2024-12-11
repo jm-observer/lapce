@@ -336,16 +336,17 @@ pub fn settings_view(
     let plugin_kinds = settings_data.plugin_kinds;
 
     let search_editor = editors.make_local(cx, common);
-    let doc = search_editor.doc_signal();
+    let buffer = search_editor
+        .doc_signal()
+        .get_untracked()
+        .lines
+        .with_untracked(|x| x.signal_buffer());
 
     let items = settings_data.items;
     let kinds = settings_data.kinds;
     let filtered_items_signal = settings_data.filtered_items;
     create_effect(move |_| {
-        let doc = doc.get();
-        let pattern = doc
-            .lines
-            .with_untracked(|x| x.buffer.to_string().to_lowercase());
+        let pattern = buffer.with(|x| x.to_string().to_lowercase());
         let plugin_items = settings_data.plugin_items.get();
         let mut items = items.get();
         if pattern.is_empty() {

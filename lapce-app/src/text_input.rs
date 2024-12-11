@@ -173,7 +173,6 @@ fn text_input_full<T: KeyPressFocus + 'static>(
                     (content, offset, None)
                 }
             };
-            info!("update content of input: [{}]", content);
             id.update_state(TextInputState::Content {
                 text: content,
                 offset,
