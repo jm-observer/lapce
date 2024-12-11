@@ -1452,7 +1452,7 @@ fn editor_gutter_breakpoint_view(
     )
     .on_click_stop(move |_| {
         let line = doc.get_untracked().lines.with_untracked(|x| {
-            x.screen_lines.lines.get(i).map(|r| r.line).unwrap_or(0)
+            x.screen_lines().lines.get(i).map(|r| r.line).unwrap_or(0)
         });
         // let screen_lines = screen_lines.get_untracked();
         // let line = screen_lines;
@@ -1812,7 +1812,7 @@ fn editor_gutter_folding_range(
     let folding_items_signal = doc
         .get_untracked()
         .lines
-        .with_untracked(|x| x.folding_items_signal());
+        .with_untracked(|x| x.signal_folding_items());
     dyn_stack(
         move || folding_items_signal.get(),
         move |item| *item,
@@ -2603,7 +2603,7 @@ pub fn changes_colors_screen(
     let screen_lines = editor
         .doc()
         .lines
-        .with_untracked(|x| x.screen_lines.clone());
+        .with_untracked(|x| x.screen_lines().clone());
 
     let Some((min, max)) = screen_lines.rvline_range() else {
         return Vec::new();

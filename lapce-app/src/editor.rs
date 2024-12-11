@@ -1195,7 +1195,7 @@ impl EditorData {
             .editor
             .doc()
             .lines
-            .with_untracked(|x| x.screen_lines.clone());
+            .with_untracked(|x| x.screen_lines().clone());
         let lines: HashSet<usize> =
             screen_lines.lines.iter().map(|l| l.line).collect();
 

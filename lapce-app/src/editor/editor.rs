@@ -953,7 +953,7 @@ impl Editor {
         let line_height = f64::from(self.doc().line_height(line));
 
         let info = self.doc().lines.with_untracked(|sl| {
-            sl.screen_lines.iter_line_info().find(|info| {
+            sl.screen_lines().iter_line_info().find(|info| {
                 info.vline_info.interval.start <= offset
                     && offset <= info.vline_info.interval.end
             })
@@ -1019,7 +1019,7 @@ impl Editor {
             self.first_rvline_info()
         } else {
             self.doc().lines.with_untracked(|sl| {
-                let sl = &sl.screen_lines;
+                let sl = &sl.screen_lines();
                 if let Some(info) = sl.iter_line_info().find(|info| {
                     info.vline_y <= point.y && info.vline_y + line_height >= point.y
                 }) {
