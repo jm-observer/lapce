@@ -2111,14 +2111,13 @@ fn editor_content(
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> impl View {
-    let (cursor, scroll_delta, scroll_to, window_origin, config, editor) = e_data
+    let (cursor, scroll_delta, scroll_to, window_origin, editor) = e_data
         .with_untracked(|editor| {
             (
                 editor.cursor().read_only(),
                 editor.scroll_delta().read_only(),
                 editor.scroll_to(),
                 editor.window_origin(),
-                editor.common.config,
                 editor.editor.clone(),
             )
         });
@@ -2223,22 +2222,27 @@ fn editor_content(
                 cursor.affinity,
             );
         if let Some(offset_line_from_top) = offset_line_from_top {
-            let height = offset_line_from_top as f64 * line_height;
+            // from jump
+            let height = offset_line_from_top.unwrap_or(5) as f64 * line_height;
             let scroll = current_scroll.get_untracked();
-            if origin_point.y < scroll.y0 {
-                origin_point.y -= height
-            } else if origin_point.y > scroll.y1 {
-                origin_point.y += (scroll.height() - height)
+            let backup_point = origin_point;
+            if scroll != Rect::ZERO {
+                if origin_point.y < scroll.y0 {
+                    origin_point.y -= height
+                } else if origin_point.y > scroll.y1 {
+                    origin_point.y += (scroll.height() - height).max(0.0)
+                }
+            } else {
+                origin_point.y += height
             }
             let rect =
-                Rect::from_origin_size(origin_point, (line_height as f64, 0.0));
-            log::info!(
-            "offset_line_from_top {:?} visual_line_index={visual_line_index} {rect:?} offset={offset} offset_line_from_top={offset_line_from_top} height={height} ",
-            e_data.doc().content.get_untracked().path()
+                Rect::from_origin_size(origin_point, (line_height, 0.0));
+            log::info!("offset_line_from_top visual_line_index={visual_line_index} {scroll:?} {rect:?} backup_point={backup_point:?} offset={offset} offset_line_from_top={offset_line_from_top:?} height={height} ",
         );
             rect
         } else {
-            let rect = Rect::from_origin_size(origin_point, (line_height as f64, 0.0));
+            // from click maybe
+            let rect = Rect::from_origin_size(origin_point, (line_height, 0.0));
             log::info!(
                 "{:?} visual_line_index={visual_line_index} {rect:?} offset={offset}",
                 e_data.doc().content.get_untracked().path()

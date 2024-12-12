@@ -224,7 +224,7 @@ pub struct EditorData {
     pub sticky_header_height: RwSignal<f64>,
     pub common: Rc<CommonData>,
     pub sticky_header_info: RwSignal<StickyHeaderInfo>,
-    pub offset_line_from_top: RwSignal<Option<usize>>,
+    pub offset_line_from_top: RwSignal<Option<Option<usize>>>,
 }
 
 impl PartialEq for EditorData {
