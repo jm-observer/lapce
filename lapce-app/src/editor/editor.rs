@@ -800,7 +800,7 @@ impl Editor {
     }
 
     /// 该原始偏移字符所在的视觉行，以及在视觉行的偏移
-    pub fn cursor_position_of_buffer_offset(
+    fn cursor_position_of_buffer_offset(
         &self,
         offset: usize,
         affinity: CursorAffinity,
@@ -812,6 +812,7 @@ impl Editor {
         // Point,
         Option<Point>,
         f64,
+        Point,
     ) {
         self.doc()
             .lines
@@ -1579,43 +1580,36 @@ pub fn cursor_caret_v2(
         point,
         // screen,
         line_height,
+        _origin_point,
     ) = ed.cursor_position_of_buffer_offset(offset, affinity);
-
-    // let doc = ed.doc();
-    // let preedit_start = doc
-    //     .preedit()
-    //     .preedit
-    //     .with_untracked(|preedit| {
-    //         preedit.as_ref().and_then(|preedit| {
-    //             // todo?
-    //             let preedit_line =
-    //                 ed.visual_line_of_offset(preedit.offset, affinity).0;
-    //             preedit.cursor.map(|x| (preedit_line, x))
-    //         })
-    //     })
-    //     .filter(|(preedit_line, _)| *preedit_line == info)
-    //     .map(|(_, (start, _))| start);
-    //
-    // let rvline = if preedit_start.is_some() {
-    //     // If there's an IME edit, then we need to use the point's y to get the actual y position
-    //     // that the IME cursor is at. Since it could be in the middle of the IME phantom text
-    //     let y = point.y;
-    //
-    //     // TODO: I don't think this is handling varying line heights properly
-    //     let line_height = ed.line_height(info.origin_line);
-    //
-    //     let line_index = (y / f64::from(line_height)).floor() as usize;
-    //     RVLine::new(info.origin_line, line_index)
-    // } else {
-    //     info.rvline
-    // };
-    // error!("offset={offset} block={block}, point={point:?} rvline={rvline:?} info={info:?} col={col} after_last_char={after_last_char}");
-
-    // let x0 = point.x;
     if block {
         panic!("block");
     } else {
         point.map(|point| (point.x - 1.0, point.y, 2.0, line_height))
+    }
+}
+
+pub fn cursor_origin_position(
+    ed: &Editor,
+    offset: usize,
+    block: bool,
+    affinity: CursorAffinity,
+) -> (Point, f64, usize) {
+    let (
+        _info,
+        _col_visual,
+        _offset_folded,
+        _after_last_char,
+        _point,
+        // screen,
+        line_height,
+        mut origin_point,
+    ) = ed.cursor_position_of_buffer_offset(offset, affinity);
+    if block {
+        panic!("block");
+    } else {
+        origin_point.x -= 1.0;
+        (origin_point, line_height, _info.line_index)
     }
 }
 

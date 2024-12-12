@@ -56,7 +56,10 @@ use doc::lines::{
 use lapce_rpc::{dap_types::DapId, plugin::PluginId};
 
 use crate::debug::update_breakpoints;
-use crate::editor::editor::{cursor_caret, paint_selection, paint_text, Editor};
+use crate::editor::editor::{
+    cursor_caret, cursor_caret_v2, cursor_origin_position, paint_selection,
+    paint_text, Editor,
+};
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
@@ -2130,14 +2133,19 @@ fn editor_content(
     }
     let current_scroll = create_rw_signal(Rect::ZERO);
     scroll({
-        let editor_content_view =
-            editor_view(e_data.get_untracked(), debug_breakline, is_active, false, "editor")
-                .style(move |s| {
-                    s.absolute()
-                        .margin_left(1.0)
-                        .min_size_full()
-                        .cursor(CursorStyle::Text)
-                });
+        let editor_content_view = editor_view(
+            e_data.get_untracked(),
+            debug_breakline,
+            is_active,
+            false,
+            "editor",
+        )
+        .style(move |s| {
+            s.absolute()
+                .margin_left(1.0)
+                .min_size_full()
+                .cursor(CursorStyle::Text)
+        });
 
         let id = editor_content_view.id();
         editor.editor_view_id.set(Some(id));
@@ -2174,7 +2182,8 @@ fn editor_content(
     })
     .on_move(move |point| {
         window_origin.set(point);
-    }).on_resize(|size| {
+    })
+    .on_resize(|size| {
         log::info!("on_resize rect={size:?}");
     })
     .on_scroll(move |rect| {
@@ -2185,7 +2194,11 @@ fn editor_content(
             e_data.cancel_completion();
             e_data.cancel_inline_completion();
         }
-        e_data.editor.doc().lines.update(|x| x.update_viewport_by_scroll(rect));
+        e_data
+            .editor
+            .doc()
+            .lines
+            .update(|x| x.update_viewport_by_scroll(rect));
         e_data.common.hover.active.set(false);
         current_scroll.set(rect);
     })
@@ -2195,37 +2208,43 @@ fn editor_content(
         let e_data = e_data.get_untracked();
         let cursor = cursor.get();
         let offset = cursor.offset();
-        log::info!("ensure_visible offset={offset}");
-        let offset_line_from_top = e_data.offset_line_from_top.get();
+        let offset_line_from_top = e_data
+            .offset_line_from_top
+            .try_update(|x| x.take())
+            .flatten();
         e_data.doc_signal().track();
         e_data.kind().track();
 
-        let LineRegion { x, width, rvline } = cursor_caret(
-            &e_data.editor,
-            offset,
-            !cursor.is_insert(),
-            cursor.affinity,
-        );
-        let config = config.get_untracked();
-        let line_height = config.editor.line_height();
-        // TODO: is there a good way to avoid the calculation of the vline here?
-        let vline = e_data.editor.vline_of_rvline(rvline);
-        let vline = e_data.visual_line(vline.get());
-        let mut rect = Rect::from_origin_size(
-            (x, (vline * line_height) as f64),
-            (width, line_height as f64),
-        )
-        .inflate(10.0, 0.0);
+        let (mut origin_point, line_height, visual_line_index) =
+            cursor_origin_position(
+                &e_data.editor,
+                offset,
+                !cursor.is_insert(),
+                cursor.affinity,
+            );
         if let Some(offset_line_from_top) = offset_line_from_top {
-            let offset_height = (offset_line_from_top * line_height) as f64;
-            rect.y0 -= offset_height;
-            rect.y1 -= offset_height;
-        }
-        log::info!(
-            "{:?} {rect:?} offset_line_from_top={offset_line_from_top:?} vline={vline} offset={offset}",
+            let height = offset_line_from_top as f64 * line_height;
+            let scroll = current_scroll.get_untracked();
+            if origin_point.y < scroll.y0 {
+                origin_point.y -= height
+            } else if origin_point.y > scroll.y1 {
+                origin_point.y += (scroll.height() - height)
+            }
+            let rect =
+                Rect::from_origin_size(origin_point, (line_height as f64, 0.0));
+            log::info!(
+            "offset_line_from_top {:?} visual_line_index={visual_line_index} {rect:?} offset={offset} offset_line_from_top={offset_line_from_top} height={height} ",
             e_data.doc().content.get_untracked().path()
         );
-        rect
+            rect
+        } else {
+            let rect = Rect::from_origin_size(origin_point, (line_height as f64, 0.0));
+            log::info!(
+                "{:?} visual_line_index={visual_line_index} {rect:?} offset={offset}",
+                e_data.doc().content.get_untracked().path()
+            );
+            rect
+        }
     })
     .style(|s| s.size_full().set(PropagatePointerWheel, false))
     .debug_name("Editor Content")
