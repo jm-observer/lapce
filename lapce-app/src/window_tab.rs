@@ -2201,28 +2201,37 @@ impl WindowTabData {
                         .update_document_completion(&editor_data, cursor_offset);
                 }
             }
-            CoreNotification::PublishDiagnostics { diagnostics } => {
-                let path = path_from_url(&diagnostics.uri);
-                let diagnostics: im::Vector<Diagnostic> = diagnostics
+            CoreNotification::PublishDiagnostics {
+                diagnostics: diagnostic_params,
+            } => {
+                let path = path_from_url(&diagnostic_params.uri);
+                let diagnostics: im::Vector<Diagnostic> = diagnostic_params
                     .diagnostics
                     .clone()
                     .into_iter()
                     .sorted_by_key(|d| d.range.start)
                     .collect();
 
+                if !diagnostics.is_empty() {
+                    info!(
+                        "PublishDiagnostics {:?} {}",
+                        path,
+                        serde_json::to_string(diagnostic_params).unwrap()
+                    );
+                }
+
                 self.main_split
                     .get_diagnostic_data(&path)
                     .diagnostics
                     .set(diagnostics);
 
-                warn!("PublishDiagnostics {:?}", path);
                 // inform the document about the diagnostics
                 if let Some(doc) = self
                     .main_split
                     .docs
                     .with_untracked(|docs| docs.get(&path).cloned())
                 {
-                    warn!("PublishDiagnostics docs {:?}", path);
+                    // warn!("PublishDiagnostics docs {:?}", path);
                     doc.init_diagnostics();
                 }
             }

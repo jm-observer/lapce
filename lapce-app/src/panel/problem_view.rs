@@ -252,6 +252,7 @@ fn file_view(
             .flex_col()
             .apply_if(diagnostics.with(|d| d.is_empty()), |s| s.hide())
     })
+    .debug_name("diagnostic file view")
 }
 
 fn item_view(

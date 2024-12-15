@@ -69,7 +69,7 @@ use lapce_xi_rope::{
     spans::{Spans, SpansBuilder},
     Interval, Rope, RopeDelta, Transformer,
 };
-use log::error;
+use log::{error, info};
 use lsp_types::{
     CodeActionOrCommand, CodeLens, Diagnostic, DocumentSymbolResponse, TextEdit,
 };
@@ -839,7 +839,7 @@ impl Doc {
             if let Some(styles) = styles {
                 // error!("{:?}", styles);
                 if let Some(true) = doc.lines.try_update(|x| {
-                    x.update_semantic_styles((result_id, styles), rev)
+                    x.update_semantic_styles_from_lsp((result_id, styles), rev)
                 }) {
                     doc.clear_style_cache();
                 }
@@ -859,6 +859,11 @@ impl Doc {
                         send((None, result_id));
                         return;
                     }
+
+                    info!(
+                        "get_semantic_full_styles {}",
+                        serde_json::to_string(&styles).unwrap()
+                    );
                     std::thread::spawn(move || {
                         let mut styles_span = SpansBuilder::new(len);
                         for style in styles.styles {

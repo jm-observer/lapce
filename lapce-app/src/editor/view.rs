@@ -1325,10 +1325,10 @@ fn get_sticky_header_info(
             layout.line_count() as f64 * line_height
         })
         .sum();
-    info!(
-        "sticky_header_height={sticky_header_height} len={} y_diff={y_diff} last_sticky_should_scroll={last_sticky_should_scroll}",
-        sticky_lines.len()
-    );
+    // info!(
+    //     "sticky_header_height={sticky_header_height} len={} y_diff={y_diff} last_sticky_should_scroll={last_sticky_should_scroll}",
+    //     sticky_lines.len()
+    // );
     sticky_header_height_signal.set(sticky_header_height);
     StickyHeaderInfo {
         sticky_lines,
@@ -2182,11 +2182,11 @@ fn editor_content(
     .on_move(move |point| {
         window_origin.set(point);
     })
-    .on_resize(|size| {
-        log::info!("on_resize rect={size:?}");
+    .on_resize(|_size| {
+        // log::info!("on_resize rect={size:?}");
     })
     .on_scroll(move |rect| {
-        log::info!("on_scroll rect{rect:?}");
+        // log::info!("on_scroll rect{rect:?}");
         let e_data = e_data.get_untracked();
         if rect.y0 != current_scroll.get_untracked().y0 {
             // only cancel completion if scrolled vertically
