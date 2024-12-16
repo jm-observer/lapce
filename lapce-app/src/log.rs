@@ -11,7 +11,7 @@ pub fn log(window: &WindowTabData) {
 pub fn print_screen_lines(window: &WindowTabData) {
     for (_, editor) in &window.main_split.editors.0.get_untracked() {
         if let Some(path) = editor.doc().content.get_untracked().path() {
-            warn!("{:?}", path);
+            warn!("{:?} {:?}", path, editor.editor.cursor.get_untracked());
             editor.doc().lines.with_untracked(|x| x.log());
             warn!("");
         }

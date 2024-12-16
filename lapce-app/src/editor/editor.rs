@@ -441,9 +441,10 @@ impl Editor {
 
     pub fn double_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.mode().clone());
+
         let (mouse_offset, _) = self.offset_of_point(&mode, pointer_event.pos);
         let (start, end) = self.select_word(mouse_offset);
-
+        info!("double_click {:?} {:?} mouse_offset={mouse_offset},  start={start} end={end}", pointer_event.pos, mode);
         self.cursor.update(|cursor| {
             cursor.add_region(
                 start,
@@ -926,22 +927,14 @@ impl Editor {
         affinity: CursorAffinity,
         _force_affinity: bool,
     ) -> Point {
-        let text_layout = self.text_layout_of_visual_line(visual_line);
-        // let index = if force_affinity {
-        //     text_layout
-        //         .phantom_text
-        //         .col_after_force(visual_line, col, affinity == CursorAffinity::Forward)
-        // } else {
-        //     text_layout
-        //         .phantom_text
-        //         .col_after(visual_line, col, affinity == CursorAffinity::Forward)
-        // };
-        hit_position_aff(
-            &text_layout.text,
-            col,
-            affinity == CursorAffinity::Backward,
-        )
-        .point
+        self.doc().lines.with_untracked(|x| {
+            x.line_point_of_visual_line_col(
+                visual_line,
+                col,
+                affinity,
+                _force_affinity,
+            )
+        })
     }
 
     /// Get the (point above, point below) of a particular offset within the editor.
@@ -993,68 +986,68 @@ impl Editor {
         // (self.offset_of_line_col(line, col), is_inside)
     }
 
-    /// 获取该坐标所在的视觉行和行偏离
-    pub fn line_col_of_point_with_phantom(
-        &self,
-        point: Point,
-    ) -> (usize, usize, Arc<TextLayoutLine>) {
-        let line_height = f64::from(self.doc().line_height(0));
-        let y = point.y.max(0.0);
-        let visual_line = (y / line_height) as usize;
-        let text_layout = self.text_layout_of_visual_line(visual_line);
-        let hit_point = text_layout.text.hit_point(Point::new(point.x, y));
-        (visual_line, hit_point.index, text_layout)
-    }
+    // /// 获取该坐标所在的视觉行和行偏离
+    // pub fn line_col_of_point_with_phantom(
+    //     &self,
+    //     point: Point,
+    // ) -> (usize, usize, TextLayoutLine) {
+    //     let line_height = f64::from(self.doc().line_height(0));
+    //     let y = point.y.max(0.0);
+    //     let visual_line = (y / line_height) as usize;
+    //     let text_layout = self.text_layout_of_visual_line(visual_line);
+    //     let hit_point = text_layout.text.hit_point(Point::new(point.x, y));
+    //     (visual_line, hit_point.index, text_layout)
+    // }
 
-    /// Get the (line, col) of a particular point within the editor.
-    /// The boolean indicates whether the point is within the text bounds.
-    /// Points outside of vertical bounds will return the last line.
-    /// Points outside of horizontal bounds will return the last column on the line.
-    pub fn line_col_of_point(
-        &self,
-        _mode: &CursorMode,
-        point: Point,
-        _tracing: bool,
-    ) -> ((usize, usize), bool) {
-        // TODO: this assumes that line height is constant!
-        let line_height = f64::from(self.doc().line_height(0));
-        let info = if point.y <= 0.0 {
-            self.first_rvline_info()
-        } else {
-            self.doc().lines.with_untracked(|sl| {
-                let sl = &sl.screen_lines();
-                if let Some(info) = sl.iter_line_info().find(|info| {
-                    info.vline_y <= point.y && info.vline_y + line_height >= point.y
-                }) {
-                    info.vline_info
-                } else {
-                    if sl.lines.last().is_none() {
-                        panic!("point: {point:?} {:?} {:?}", sl.lines, sl.info);
-                    }
-                    let info = sl.info(*sl.lines.last().unwrap());
-                    if info.is_none() {
-                        panic!("point: {point:?} {:?} {:?}", sl.lines, sl.info);
-                    }
-                    info.unwrap().vline_info
-                }
-            })
-        };
-
-        let rvline = info.rvline;
-        let line = rvline.line;
-        let text_layout = self.text_layout_of_visual_line(line);
-
-        let y = text_layout.get_layout_y(rvline.line_index).unwrap_or(0.0);
-
-        let hit_point = text_layout.text.hit_point(Point::new(point.x, y as f64));
-        // We have to unapply the phantom text shifting in order to get back to the column in
-        // the actual buffer
-        let (line, col, _) = text_layout
-            .phantom_text
-            .cursor_position_of_final_col(hit_point.index);
-
-        ((line, col), hit_point.is_inside)
-    }
+    // /// Get the (line, col) of a particular point within the editor.
+    // /// The boolean indicates whether the point is within the text bounds.
+    // /// Points outside of vertical bounds will return the last line.
+    // /// Points outside of horizontal bounds will return the last column on the line.
+    // pub fn line_col_of_point(
+    //     &self,
+    //     _mode: &CursorMode,
+    //     point: Point,
+    //     _tracing: bool,
+    // ) -> ((usize, usize), bool) {
+    //     // TODO: this assumes that line height is constant!
+    //     let line_height = f64::from(self.doc().line_height(0));
+    //     let info = if point.y <= 0.0 {
+    //         self.first_rvline_info()
+    //     } else {
+    //         self.doc().lines.with_untracked(|sl| {
+    //             let sl = &sl.screen_lines();
+    //             if let Some(info) = sl.iter_line_info().find(|info| {
+    //                 info.vline_y <= point.y && info.vline_y + line_height >= point.y
+    //             }) {
+    //                 info.vline_info
+    //             } else {
+    //                 if sl.lines.last().is_none() {
+    //                     panic!("point: {point:?} {:?} {:?}", sl.lines, sl.info);
+    //                 }
+    //                 let info = sl.info(*sl.lines.last().unwrap());
+    //                 if info.is_none() {
+    //                     panic!("point: {point:?} {:?} {:?}", sl.lines, sl.info);
+    //                 }
+    //                 info.unwrap().vline_info
+    //             }
+    //         })
+    //     };
+    //
+    //     let rvline = info.rvline;
+    //     let line = rvline.line;
+    //     let text_layout = self.text_layout_of_visual_line(line);
+    //
+    //     let y = text_layout.get_layout_y(rvline.line_index).unwrap_or(0.0);
+    //
+    //     let hit_point = text_layout.text.hit_point(Point::new(point.x, y as f64));
+    //     // We have to unapply the phantom text shifting in order to get back to the column in
+    //     // the actual buffer
+    //     let (line, col, _) = text_layout
+    //         .phantom_text
+    //         .cursor_position_of_final_col(hit_point.index);
+    //
+    //     ((line, col), hit_point.is_inside)
+    // }
 
     // pub fn line_horiz_col(
     //     &self,
@@ -1079,51 +1072,51 @@ impl Editor {
     //     }
     // }
 
-    /// Advance to the right in the manner of the given mode.
-    /// Get the column from a horizontal at a specific line index (in a text layout)
-    pub fn rvline_horiz_col(
-        &self,
-        // RVLine { line, line_index }: RVLine,
-        horiz: &ColPosition,
-        _caret: bool,
-        visual_line: &VisualLine,
-    ) -> usize {
-        match *horiz {
-            ColPosition::Col(x) => {
-                let text_layout = &visual_line.text_layout;
-                let y_pos = text_layout
-                    .text
-                    .layout_runs()
-                    .nth(visual_line.origin_folded_line_sub_index)
-                    .map(|run| run.line_y)
-                    .or_else(|| {
-                        text_layout.text.layout_runs().last().map(|run| run.line_y)
-                    })
-                    .unwrap_or(0.0);
-                let hit_point =
-                    text_layout.text.hit_point(Point::new(x, y_pos as f64));
-                let n = hit_point.index;
-                let rs = text_layout.phantom_text.cursor_position_of_final_col(n);
-                rs.2 + rs.1
-            }
-            ColPosition::End => visual_line.origin_interval.end,
-            ColPosition::Start => visual_line.origin_interval.start,
-            ColPosition::FirstNonBlank => {
-                let final_offset = visual_line.text_layout.text.line().text()
-                    [visual_line.visual_interval.start
-                        ..visual_line.visual_interval.end]
-                    .char_indices()
-                    .find(|(_, c)| !c.is_whitespace())
-                    .map(|(idx, _)| visual_line.visual_interval.start + idx)
-                    .unwrap_or(visual_line.visual_interval.end);
-                let rs = visual_line
-                    .text_layout
-                    .phantom_text
-                    .cursor_position_of_final_col(final_offset);
-                rs.2 + rs.1
-            }
-        }
-    }
+    // /// Advance to the right in the manner of the given mode.
+    // /// Get the column from a horizontal at a specific line index (in a text layout)
+    // pub fn rvline_horiz_col(
+    //     &self,
+    //     // RVLine { line, line_index }: RVLine,
+    //     horiz: &ColPosition,
+    //     _caret: bool,
+    //     visual_line: &VisualLine,
+    // ) -> usize {
+    //     match *horiz {
+    //         ColPosition::Col(x) => {
+    //             let text_layout = &visual_line.text_layout;
+    //             let y_pos = text_layout
+    //                 .text
+    //                 .layout_runs()
+    //                 .nth(visual_line.origin_folded_line_sub_index)
+    //                 .map(|run| run.line_y)
+    //                 .or_else(|| {
+    //                     text_layout.text.layout_runs().last().map(|run| run.line_y)
+    //                 })
+    //                 .unwrap_or(0.0);
+    //             let hit_point =
+    //                 text_layout.text.hit_point(Point::new(x, y_pos as f64));
+    //             let n = hit_point.index;
+    //             let rs = text_layout.phantom_text.cursor_position_of_final_col(n);
+    //             rs.2 + rs.1
+    //         }
+    //         ColPosition::End => visual_line.origin_interval.end,
+    //         ColPosition::Start => visual_line.origin_interval.start,
+    //         ColPosition::FirstNonBlank => {
+    //             let final_offset = visual_line.text_layout.text.line().text()
+    //                 [visual_line.visual_interval.start
+    //                     ..visual_line.visual_interval.end]
+    //                 .char_indices()
+    //                 .find(|(_, c)| !c.is_whitespace())
+    //                 .map(|(idx, _)| visual_line.visual_interval.start + idx)
+    //                 .unwrap_or(visual_line.visual_interval.end);
+    //             let rs = visual_line
+    //                 .text_layout
+    //                 .phantom_text
+    //                 .cursor_position_of_final_col(final_offset);
+    //             rs.2 + rs.1
+    //         }
+    //     }
+    // }
 
     /// Advance to the right in the manner of the given mode.  
     /// This is not the same as the [`Movement::Right`] command.
@@ -1138,10 +1131,10 @@ impl Editor {
     }
 
     /// ~~视觉~~行的text_layout信息
-    pub fn text_layout_of_visual_line(&self, line: usize) -> Arc<TextLayoutLine> {
+    pub fn text_layout_of_visual_line(&self, line: usize) -> TextLayoutLine {
         self.doc()
             .lines
-            .with_untracked(|x| x.text_layout_of_visual_line(line))
+            .with_untracked(|x| x.text_layout_of_visual_line(line).clone())
     }
 
     // pub fn lines(&self) -> DocLinesManager {
@@ -1856,6 +1849,7 @@ fn paint_normal_selection(
     end_offset: usize,
     affinity: CursorAffinity,
 ) {
+    info!("paint_normal_selection start_offset={start_offset} end_offset={end_offset} affinity={affinity:?}");
     // TODO: selections should have separate start/end affinity
     let (start_rvline, start_col, _) =
         ed.visual_line_of_offset(start_offset, affinity);

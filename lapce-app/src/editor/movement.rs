@@ -340,31 +340,11 @@ fn move_up(
     _mode: Mode,
     _count: usize,
 ) -> (usize, ColPosition) {
-    let (visual_line, line_offset, ..) =
-        view.visual_line_of_offset_v2(offset, *affinity);
-    let (previous_visual_line, line_offset, ..) =
-        view.previous_visual_line(visual_line.line_index, line_offset, *affinity);
-    let horiz = horiz.unwrap_or_else(|| {
-        ColPosition::Col(
-            view.line_point_of_visual_line_col(
-                visual_line.line_index,
-                line_offset,
-                *affinity,
-                false,
-            )
-            .x,
-        )
-    });
-
-    let offset_of_buffer =
-        view.rvline_horiz_col(&horiz, _mode != Mode::Normal, &previous_visual_line);
-
-    // TODO: this should maybe be doing `new_offset == info.interval.start`?
-    *affinity = if line_offset == 0 {
-        CursorAffinity::Forward
-    } else {
-        CursorAffinity::Backward
-    };
+    let (offset_of_buffer, horiz, new_affinity) = view
+        .doc()
+        .lines
+        .with_untracked(|x| x.move_up(offset, *affinity, horiz, _mode, _count));
+    *affinity = new_affinity;
     (offset_of_buffer, horiz)
 }
 
@@ -443,30 +423,11 @@ fn move_down(
     _mode: Mode,
     _count: usize,
 ) -> (usize, ColPosition) {
-    let (visual_line, line_offset, ..) =
-        view.visual_line_of_offset_v2(offset, *affinity);
-    let (next_visual_line, next_line_offset, ..) =
-        view.next_visual_line(visual_line.line_index, line_offset, *affinity);
-    let horiz = horiz.unwrap_or_else(|| {
-        ColPosition::Col(
-            view.line_point_of_visual_line_col(
-                visual_line.line_index,
-                line_offset,
-                *affinity,
-                false,
-            )
-            .x,
-        )
-    });
-    let offset_of_buffer =
-        view.rvline_horiz_col(&horiz, _mode != Mode::Normal, &next_visual_line);
-    *affinity = if next_line_offset == 0 {
-        CursorAffinity::Forward
-    } else {
-        CursorAffinity::Backward
-    };
-    warn!("offset_of_buffer={offset_of_buffer} horiz={horiz:?}");
-
+    let (offset_of_buffer, horiz, new_affinity) = view
+        .doc()
+        .lines
+        .with_untracked(|x| x.move_down(offset, *affinity, horiz, _mode, _count));
+    *affinity = new_affinity;
     (offset_of_buffer, horiz)
 }
 
