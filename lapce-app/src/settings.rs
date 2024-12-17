@@ -606,7 +606,7 @@ fn settings_item_view(
                                 if timer == token {
                                     let value = doc
                                         .lines
-                                        .with_untracked(|x| x.buffer.to_string());
+                                        .with_untracked(|x| x.buffer().to_string());
                                     let value = match &item_value {
                                         SettingsValue::Float(_) => {
                                             value.parse::<f64>().ok().and_then(|v| {
@@ -856,7 +856,7 @@ fn color_section_list(
                         let doc = doc.get_untracked();
                         let config = config.get();
                         let current =
-                            doc.lines.with_untracked(|x| x.buffer.to_string());
+                            doc.lines.with_untracked(|x| x.buffer().to_string());
 
                         let value = match kind.as_str() {
                             "base" => config.color_theme.base.get(&key),
@@ -896,7 +896,7 @@ fn color_section_list(
                                 if let Some(timer) = timer.try_get_untracked() {
                                     if timer == token {
                                         let value = doc.lines.with_untracked(|x| {
-                                            x.buffer.to_string()
+                                            x.buffer().to_string()
                                         });
 
                                         let config = config.get_untracked();

@@ -105,7 +105,7 @@ pub fn editor_style(
     s.set(
         IndentStyleProp,
         doc.lines
-            .with_untracked(|x| Buffer::indent_style(&x.buffer)),
+            .with_untracked(|x| Buffer::indent_style(&x.buffer())),
     )
     .set(CursorColor, config.color(LapceColor::EDITOR_CARET))
     .set(SelectionColor, config.color(LapceColor::EDITOR_SELECTION))
@@ -795,7 +795,7 @@ impl EditorView {
         }
 
         let doc = self.editor.doc();
-        let total_len = doc.lines.with_untracked(|x| x.buffer.last_line());
+        let total_len = doc.lines.with_untracked(|x| x.buffer().last_line());
         let changes = doc.head_changes().get_untracked();
         let total_height = viewport.height();
         let total_width = viewport.width();
@@ -958,7 +958,7 @@ impl EditorView {
                 // The vertical line should be drawn to the left of any non-whitespace characters
                 // in the enclosed section.
                 let min_text_x = doc.lines.with_untracked(|x| {
-                    let buffer = &x.buffer;
+                    let buffer = &x.buffer();
                     ((start.line + 1)..=end.line)
                         .filter(|&line| !buffer.is_line_whitespace(line))
                         .map(|line| {
@@ -1498,7 +1498,9 @@ fn editor_gutter_breakpoint_view(
         //     .floor() as usize
         //     + i;
         let doc = doc.get_untracked();
-        let offset = doc.lines.with_untracked(|x| x.buffer.offset_of_line(line));
+        let offset = doc
+            .lines
+            .with_untracked(|x| x.buffer().offset_of_line(line));
         // let offset = doc.buffer.with_untracked(|b| b.offset_of_line(line));
         log::info!("click breakpoint line={line}");
         if let Some(path) = doc.content.get_untracked().path() {
@@ -2542,7 +2544,7 @@ fn find_view(
                         let text = replace_doc
                             .get_untracked()
                             .lines
-                            .with_untracked(|x| x.buffer.to_string());
+                            .with_untracked(|x| x.buffer().to_string());
                         editor.get_untracked().replace_next(&text);
                     },
                     move || false,
@@ -2557,7 +2559,7 @@ fn find_view(
                         let text = replace_doc
                             .get_untracked()
                             .lines
-                            .with_untracked(|x| x.buffer.to_string());
+                            .with_untracked(|x| x.buffer().to_string());
                         editor.get_untracked().replace_all(&text);
                     },
                     move || false,

@@ -211,12 +211,10 @@ impl EditorTabChild {
                 let editor_data = editors.editor(editor_id);
                 let path = if let Some(editor_data) = editor_data {
                     let doc = editor_data.doc_signal().get();
-                    let buffer = doc.lines.with_untracked(|x| x.signal_buffer());
-                    let (content, is_pristine, confirmed) = (
-                        doc.content.get(),
-                        buffer.with(|b| b.is_pristine()),
-                        editor_data.confirmed,
-                    );
+                    let is_pristine =
+                        doc.lines.with_untracked(|x| x.buffer().is_pristine());
+                    let (content, confirmed) =
+                        (doc.content.get(), editor_data.confirmed);
                     match content {
                         DocContent::File { path, .. } => {
                             Some((path, confirmed, is_pristine))

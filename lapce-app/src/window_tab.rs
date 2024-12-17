@@ -1518,7 +1518,7 @@ impl WindowTabData {
                     let offset = editor_data.cursor().with_untracked(|c| c.offset());
                     let doc = editor_data.doc();
                     let line = doc.lines.with_untracked(|x| {
-                        let (line, _) = x.buffer.offset_to_line_col(offset);
+                        let (line, _) = x.buffer().offset_to_line_col(offset);
                         line
                     });
                     let rs = doc.document_symbol_data.virtual_list.with_untracked(|x| {
@@ -1539,7 +1539,7 @@ impl WindowTabData {
                     if let DocContent::File {path, ..} = editor_data.doc().content.get_untracked() {
                         let offset = editor_data.cursor().with_untracked(|c| c.offset());
                         let line = editor_data.doc()
-                            .lines.with_untracked(|x| x.buffer.line_of_offset(offset));
+                            .lines.with_untracked(|x| x.buffer().line_of_offset(offset));
                         self.common.proxy.git_get_remote_file_url(
                             path,
                             create_ext_action(self.scope, move | (_, result)| {

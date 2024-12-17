@@ -669,7 +669,7 @@ impl View for TextInput {
                     let (start, end) = self
                         .doc()
                         .lines
-                        .with_untracked(|x| x.buffer.select_word(offset));
+                        .with_untracked(|x| x.buffer().select_word(offset));
                     self.cursor().update(|cursor| {
                         cursor.set_insert(Selection::region(start, end));
                     });

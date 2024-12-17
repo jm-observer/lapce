@@ -1028,7 +1028,7 @@ impl PaletteData {
             let (doc, new_doc) =
                 self.main_split.get_doc(run_toml.clone(), None, false);
             if !new_doc {
-                let content = doc.lines.with_untracked(|x| x.buffer.to_string());
+                let content = doc.lines.with_untracked(|x| x.buffer().to_string());
                 self.set_run_configs(content);
             } else {
                 let loaded = doc.loaded;
@@ -1041,7 +1041,7 @@ impl PaletteData {
                     let loaded = loaded.get();
                     if loaded {
                         let content =
-                            doc.lines.with_untracked(|x| x.buffer.to_string());
+                            doc.lines.with_untracked(|x| x.buffer().to_string());
                         if content.is_empty() {
                             doc.reload(Rope::from(DEFAULT_RUN_TOML), false);
                         }

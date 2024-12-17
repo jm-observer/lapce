@@ -59,7 +59,7 @@ impl InlineCompletionItem {
         match text_format {
             InsertTextFormat::PLAIN_TEXT => editor.do_edit(
                 &selection,
-                &[(selection.clone(), self.insert_text.as_str())],
+                &[(&selection, self.insert_text.as_str())],
                 false,
             ),
             InsertTextFormat::SNIPPET => {
@@ -184,7 +184,7 @@ impl InlineCompletionData {
         let offset = item.range.as_ref().map(|r| r.start).unwrap_or(offset);
         let (line, col) = doc
             .lines
-            .with_untracked(|x| x.buffer.offset_to_line_col(offset));
+            .with_untracked(|x| x.buffer().offset_to_line_col(offset));
         doc.set_inline_completion(text, line, col);
     }
 
@@ -199,7 +199,7 @@ impl InlineCompletionData {
             return;
         }
 
-        let text = doc.lines.with_untracked(|x| x.buffer.text().clone());
+        let text = doc.lines.with_untracked(|x| x.buffer().text().clone());
         let text = RopeTextRef::new(&text);
         let Some(item) = self.current_item() else {
             // TODO(minor): should we cancel completion

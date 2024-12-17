@@ -257,14 +257,14 @@ impl DiffEditorData {
             let (left_editor_view, left_doc) = (left.kind_rw(), left.doc());
             let (left_atomic_rev, left_rope) =
                 left_doc.lines.with_untracked(|buffer| {
-                    (buffer.buffer.atomic_rev(), buffer.buffer.text().clone())
+                    (buffer.buffer().atomic_rev(), buffer.buffer().text().clone())
                 });
 
             let (_, right_rev) = right_doc_rev.get();
             let (right_editor_view, right_doc) = (right.kind_rw(), right.doc());
             let (right_atomic_rev, right_rope) =
                 right_doc.lines.with_untracked(|buffer| {
-                    (buffer.buffer.atomic_rev(), buffer.buffer.text().clone())
+                    (buffer.buffer().atomic_rev(), buffer.buffer().text().clone())
                 });
 
             let send = {

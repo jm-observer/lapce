@@ -931,7 +931,7 @@ impl MainSplitData {
                                 same_path
                                     || doc
                                         .lines
-                                        .with_untracked(|x| x.buffer.is_pristine())
+                                        .with_untracked(|x| x.buffer().is_pristine())
                             } else {
                                 false
                             }
@@ -2370,7 +2370,7 @@ impl MainSplitData {
                 let (path, position) = (
                     doc.content.get_untracked().path().cloned(),
                     doc.lines
-                        .with_untracked(|b| b.buffer.offset_to_position(offset)),
+                        .with_untracked(|b| b.buffer().offset_to_position(offset)),
                 );
                 path.map(|path| (path, offset, position))
             });
@@ -2501,7 +2501,7 @@ impl MainSplitData {
             .find_editor
             .doc()
             .lines
-            .with_untracked(|x| x.buffer.len());
+            .with_untracked(|x| x.buffer().len());
         self.find_editor
             .cursor()
             .update(|cursor| cursor.set_insert(Selection::region(0, pattern_len)));
@@ -2536,12 +2536,13 @@ impl MainSplitData {
             doc.buffer_id,
             doc.content.get_untracked(),
             doc.rev(),
-            doc.lines.with_untracked(|x| x.buffer.to_string()),
+            doc.lines.with_untracked(|x| x.buffer().to_string()),
         );
         match doc_content {
             DocContent::Scratch { .. } => {
                 let send = {
                     let path = path.clone();
+
                     create_ext_action(self.scope, move |result| {
                         if let Err(err) = result {
                             warn!("Failed to save as a file: {:?}", err);
@@ -2560,7 +2561,7 @@ impl MainSplitData {
                                 read_only: false,
                             });
                             doc.lines.update(|lines| {
-                                lines.buffer.set_pristine();
+                                lines.set_pristine(rev);
                             });
                             doc.set_syntax(syntax);
                             doc.trigger_syntax_change(None);
@@ -2595,7 +2596,7 @@ impl MainSplitData {
             doc.buffer_id,
             doc.content.get_untracked(),
             doc.rev(),
-            doc.lines.with_untracked(|x| x.buffer.to_string()),
+            doc.lines.with_untracked(|x| x.buffer().to_string()),
         );
         match doc_content {
             DocContent::Scratch { .. } => {
@@ -2611,7 +2612,7 @@ impl MainSplitData {
                                 read_only: false,
                             });
                             doc.lines.update(|lines| {
-                                lines.buffer.set_pristine();
+                                lines.set_pristine(rev);
                             });
                             // doc.set_syntax(syntax);
                             doc.trigger_syntax_change(None);

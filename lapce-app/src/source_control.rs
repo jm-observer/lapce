@@ -100,7 +100,7 @@ impl SourceControlData {
             .editor
             .doc()
             .lines
-            .with_untracked(|x| x.buffer.to_string());
+            .with_untracked(|x| x.buffer().to_string());
         let message = message.trim();
         if message.is_empty() {
             return;

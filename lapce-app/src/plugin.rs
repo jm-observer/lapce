@@ -226,7 +226,7 @@ impl PluginData {
                     .doc_signal()
                     .get()
                     .lines
-                    .with_untracked(|x| x.buffer.to_string());
+                    .with_untracked(|x| x.buffer().to_string());
                 if s.as_ref() == Some(&query) {
                     return query;
                 }
@@ -490,7 +490,7 @@ impl PluginData {
             .query_editor
             .doc()
             .lines
-            .with_untracked(|x| x.buffer.to_string());
+            .with_untracked(|x| x.buffer().to_string());
         let offset = self.available.volts.with_untracked(|v| v.len());
         self.load_available_volts(&query, offset, core_rpc);
     }

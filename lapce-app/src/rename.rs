@@ -129,7 +129,7 @@ impl RenameData {
             .editor
             .doc()
             .lines
-            .with_untracked(|x| x.buffer.to_string());
+            .with_untracked(|x| x.buffer().to_string());
         let new_name = new_name.trim();
         if !new_name.is_empty() {
             let path = self.path.get_untracked();

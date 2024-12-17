@@ -542,8 +542,8 @@ impl Doc {
     //// Initialize the content with some text, this marks the document as loaded.
     pub fn init_content(&self, content: Rope) {
         batch(|| {
-            self.lines.update(|buffer| {
-                buffer.init_buffer(content);
+            self.lines.update(|lines| {
+                lines.init_buffer(content);
             });
             self.loaded.set(true);
             log::error!("init_content");
@@ -607,7 +607,7 @@ impl Doc {
 
     pub fn do_raw_edit(
         &self,
-        edits: &[(impl AsRef<Selection>, &str)],
+        edits: &[(Selection, &str)],
         edit_type: EditType,
     ) -> Option<(Rope, RopeDelta, InvalLines)> {
         if self.content.with_untracked(|c| c.read_only()) {
@@ -677,19 +677,19 @@ impl Doc {
     }
 
     pub fn is_pristine(&self) -> bool {
-        self.lines.with_untracked(|b| b.buffer.is_pristine())
+        self.lines.with_untracked(|b| b.buffer().is_pristine())
     }
 
     /// Get the buffer's current revision. This is used to track whether the buffer has changed.
     pub fn rev(&self) -> u64 {
-        self.lines.with_untracked(|b| b.buffer.rev())
+        self.lines.with_untracked(|b| b.buffer().rev())
     }
 
     /// Get the buffer's line-ending.
     /// Note: this may not be the same as what the actual line endings in the file are, rather this
     /// is what the line-ending is set to (and what it will be saved as).
     pub fn line_ending(&self) -> LineEnding {
-        self.lines.with_untracked(|b| b.buffer.line_ending())
+        self.lines.with_untracked(|b| b.buffer().line_ending())
     }
 
     fn on_update(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
@@ -747,7 +747,7 @@ impl Doc {
     pub fn trigger_syntax_change(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
         let (rev, text) = self
             .lines
-            .with_untracked(|b| (b.buffer.rev(), b.buffer.text().clone()));
+            .with_untracked(|b| (b.buffer().rev(), b.buffer().text().clone()));
 
         let doc = self.clone();
         let send = create_ext_action(self.scope, move |syntax| {
@@ -831,7 +831,7 @@ impl Doc {
             };
 
         let (atomic_rev, rev, len) = self.lines.with_untracked(|b| {
-            (b.buffer.atomic_rev(), b.buffer.rev(), b.buffer.len())
+            (b.buffer().atomic_rev(), b.buffer().rev(), b.buffer().len())
         });
 
         let doc = self.clone();
@@ -982,7 +982,7 @@ impl Doc {
                                     (
                                         plugin_id,
                                         doc.lines.with_untracked(|b| {
-                                            b.buffer.offset_of_line(
+                                            b.buffer().offset_of_line(
                                                 codelens.range.start.line as usize,
                                             )
                                         }),
@@ -1055,14 +1055,14 @@ impl Doc {
                 return;
             };
 
-        let (buffer, rev, len) = self
-            .lines
-            .with_untracked(|b| (b.buffer.clone(), b.buffer.rev(), b.buffer.len()));
+        let (buffer, rev, len) = self.lines.with_untracked(|b| {
+            (b.buffer().clone(), b.buffer().rev(), b.buffer().len())
+        });
 
         let doc = self.clone();
         let send = create_ext_action(self.scope, move |hints| {
             if let Some(true) = doc.lines.try_update(|x| {
-                if x.buffer.rev() == rev {
+                if x.buffer().rev() == rev {
                     x.set_inlay_hints(hints);
                     true
                 } else {
@@ -1179,7 +1179,7 @@ impl Doc {
                 if let Some(path_breakpoints) = breakpoints.get_mut(path) {
                     let mut transformer = Transformer::new(delta);
                     self.lines.with_untracked(|buffer| {
-                        let buffer = &buffer.buffer;
+                        let buffer = buffer.buffer();
                         *path_breakpoints = path_breakpoints
                             .clone()
                             .into_values()
@@ -1276,7 +1276,7 @@ impl Doc {
             find_result.progress.set(FindProgress::Ready);
         });
 
-        let text = self.lines.with_untracked(|b| b.buffer.text().clone());
+        let text = self.lines.with_untracked(|b| b.buffer().text().clone());
         let case_matching = self.common.find.case_matching.get_untracked();
         let whole_words = self.common.find.whole_words.get_untracked();
         rayon::spawn(move || {
@@ -1301,7 +1301,7 @@ impl Doc {
             return lines.clone();
         }
         let lines = self.lines.with_untracked(|buffer| {
-            let buffer = &buffer.buffer;
+            let buffer = buffer.buffer();
             let offset = buffer.offset_of_line(line + 1);
             self.syntax().sticky_headers(offset).map(|offsets| {
                 offsets
@@ -1378,9 +1378,9 @@ impl Doc {
 
         let rev = self.rev();
         let left_rope = history;
-        let (atomic_rev, right_rope) = self
-            .lines
-            .with_untracked(|b| (b.buffer.atomic_rev(), b.buffer.text().clone()));
+        let (atomic_rev, right_rope) = self.lines.with_untracked(|b| {
+            (b.buffer().atomic_rev(), b.buffer().text().clone())
+        });
 
         let send = {
             let atomic_rev = atomic_rev.clone();
@@ -1416,14 +1416,7 @@ impl Doc {
 
             let send = create_ext_action(self.scope, move |result| {
                 if let Ok(ProxyResponse::SaveResponse {}) = result {
-                    if let Some(true) = lines.try_update(|x| {
-                        if x.buffer.rev() == rev {
-                            x.buffer.set_pristine();
-                            true
-                        } else {
-                            false
-                        }
-                    }) {
+                    if let Some(true) = lines.try_update(|x| x.set_pristine(rev)) {
                         after_action();
                     }
                 }
@@ -1479,7 +1472,7 @@ impl Doc {
             // Try a language unaware search for enclosing brackets in case it is the latter.
             .unwrap_or_else(|| {
                 self.lines.with_untracked(|buffer| {
-                    WordCursor::new(buffer.buffer.text(), offset)
+                    WordCursor::new(buffer.buffer().text(), offset)
                         .find_enclosing_pair()
                 })
             })
@@ -1488,7 +1481,7 @@ impl Doc {
 impl Doc {
     pub fn text(&self) -> Rope {
         self.lines
-            .with_untracked(|buffer| buffer.buffer.text().clone())
+            .with_untracked(|buffer| buffer.buffer().text().clone())
     }
 
     // pub fn lines(&self) -> DocLinesManager {

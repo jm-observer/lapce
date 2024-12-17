@@ -533,7 +533,7 @@ impl TerminalPanelData {
             let (doc, new_doc) =
                 self.main_split.get_doc(run_toml.clone(), None, false);
             if !new_doc {
-                let content = doc.lines.with_untracked(|x| x.buffer.to_string());
+                let content = doc.lines.with_untracked(|x| x.buffer().to_string());
                 match toml::from_str::<RunDebugConfigs>(&content) {
                     Ok(configs) => {
                         return configs.configs.into_iter().find(|x| x.name == name);

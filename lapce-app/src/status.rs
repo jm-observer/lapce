@@ -328,7 +328,7 @@ pub fn status(
                         .doc_signal()
                         .get()
                         .lines
-                        .with_untracked(|x| cursor.get_line_col_char(&x.buffer))
+                        .with_untracked(|x| cursor.get_line_col_char(x.buffer()))
                     {
                         status = format!(
                             "Ln {}, Col {}, Char {}",
@@ -361,7 +361,7 @@ pub fn status(
                 if let Some(editor) = editor.get() {
                     let doc = editor.doc_signal().get();
                     doc.lines
-                        .with_untracked(|x| x.buffer.line_ending())
+                        .with_untracked(|x| x.buffer().line_ending())
                         .as_str()
                 } else {
                     ""
