@@ -46,7 +46,7 @@ use lapce_core::{
 };
 use lapce_rpc::{buffer::BufferId, plugin::PluginId, proxy::ProxyResponse};
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
-use log::warn;
+use log::{error, warn};
 use lsp_types::{
     CodeActionResponse, CompletionItem, CompletionTextEdit, GotoDefinitionResponse,
     HoverContents, InlayHintLabel, InlineCompletionTriggerKind, Location,
@@ -660,7 +660,12 @@ impl EditorData {
                     cursor.set_insert(selection);
                 }
             }
-            _ => do_multi_selection(&self.editor, &mut cursor, cmd),
+            _ => {
+                if let Err(err) = do_multi_selection(&self.editor, &mut cursor, cmd)
+                {
+                    error!("{err:?}");
+                }
+            }
         };
 
         self.editor.cursor.set(cursor);
@@ -700,7 +705,7 @@ impl EditorData {
 
         let mut cursor = self.cursor().get_untracked();
         self.common.register.update(|register| {
-            move_cursor(
+            if let Err(err) = move_cursor(
                 &self.editor,
                 &*self.doc(),
                 &mut cursor,
@@ -708,7 +713,9 @@ impl EditorData {
                 count.unwrap_or(1),
                 mods.shift(),
                 register,
-            )
+            ) {
+                error!("{:?}", err);
+            }
         });
 
         self.editor.cursor.set(cursor);

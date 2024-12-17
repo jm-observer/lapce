@@ -49,8 +49,8 @@ use lapce_rpc::{
     file::PathObject,
     RpcMessage,
 };
-use log::trace;
 use log::LevelFilter::Info;
+use log::{error, trace};
 use lsp_types::{CompletionItemKind, MessageType, ShowMessageParams};
 use notify::Watcher;
 use parking_lot::RwLock;
@@ -3179,7 +3179,13 @@ fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
     .on_event_stop(EventListener::PointerMove, |_| {})
     .style(move |s| {
         let config = config.get();
-        let origin = window_tab_data.completion_origin();
+        let origin = match window_tab_data.completion_origin() {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return s;
+            }
+        };
         s.position(Position::Absolute)
             .width(config.editor.completion_width as i32)
             .max_height(400.0)
@@ -3264,7 +3270,13 @@ fn code_action(window_tab_data: Rc<WindowTabData>) -> impl View {
     })
     .on_event_stop(EventListener::PointerMove, |_| {})
     .style(move |s| {
-        let origin = window_tab_data.code_action_origin();
+        let origin = match window_tab_data.code_action_origin() {
+            Ok(origin) => origin,
+            Err(err) => {
+                error!("{err:?}");
+                return s;
+            }
+        };
         s.display(match status.get() {
             CodeActionStatus::Inactive => Display::None,
             CodeActionStatus::Active => Display::Flex,
@@ -3309,7 +3321,13 @@ fn rename(window_tab_data: Rc<WindowTabData>) -> impl View {
     .on_event_stop(EventListener::PointerMove, |_| {})
     .on_event_stop(EventListener::PointerDown, |_| {})
     .style(move |s| {
-        let origin = window_tab_data.rename_origin();
+        let origin = match window_tab_data.rename_origin() {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return s;
+            }
+        };
         s.position(Position::Absolute)
             .apply_if(!active.get(), |s| s.hide())
             .margin_left(origin.x as f32)

@@ -1,15 +1,5 @@
-use std::{
-    collections::{BTreeMap, HashSet},
-    env,
-    fmt::Debug,
-    path::{Path, PathBuf},
-    rc::Rc,
-    sync::Arc,
-    time::Instant,
-};
-
 use alacritty_terminal::vte::ansi::Handler;
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
 use doc::config::EditorConfig;
 use doc::lines::buffer::rope_text::RopeText;
@@ -52,6 +42,15 @@ use lsp_types::{
     ProgressToken, ShowMessageParams,
 };
 use serde_json::Value;
+use std::{
+    collections::{BTreeMap, HashSet},
+    env,
+    fmt::Debug,
+    path::{Path, PathBuf},
+    rc::Rc,
+    sync::Arc,
+    time::Instant,
+};
 
 use crate::debug::DapData;
 use crate::id::TerminalTabId;
@@ -2536,10 +2535,12 @@ impl WindowTabData {
         );
 
         // TODO(minor): affinity should be gotten from where the hover was started at.
-        let (point_above, point_below) = editor.points_of_offset(
-            self.common.hover.offset.get_untracked(),
-            CursorAffinity::Forward,
-        );
+        let (point_above, point_below) = editor
+            .points_of_offset(
+                self.common.hover.offset.get_untracked(),
+                CursorAffinity::Forward,
+            )
+            .ok()?;
 
         let window_origin =
             window_origin.get() - self.common.window_origin.get().to_vec2();
@@ -2569,17 +2570,17 @@ impl WindowTabData {
         Some(origin)
     }
 
-    pub fn completion_origin(&self) -> Point {
+    pub fn completion_origin(&self) -> Result<Point> {
         let completion = self.common.completion.get();
         if completion.status == CompletionStatus::Inactive {
-            return Point::ZERO;
+            return Ok(Point::ZERO);
         }
         let config = self.common.config.get();
         let editor_data =
             if let Some(editor) = self.main_split.active_editor.get_untracked() {
                 editor
             } else {
-                return Point::ZERO;
+                return Ok(Point::ZERO);
             };
 
         let (window_origin, viewport, editor) = (
@@ -2591,7 +2592,7 @@ impl WindowTabData {
         // TODO(minor): What affinity should we use for this? Probably just use the cursor's
         // original affinity..
         let (point_above, point_below) =
-            editor.points_of_offset(completion.offset, CursorAffinity::Forward);
+            editor.points_of_offset(completion.offset, CursorAffinity::Forward)?;
 
         let window_origin =
             window_origin.get() - self.common.window_origin.get().to_vec2();
@@ -2618,14 +2619,14 @@ impl WindowTabData {
             origin.x = 0.0;
         }
 
-        origin
+        Ok(origin)
     }
 
-    pub fn code_action_origin(&self) -> Point {
+    pub fn code_action_origin(&self) -> Result<Point> {
         let code_action = self.code_action.get();
         let config = self.common.config.get();
         if code_action.status.get_untracked() == CodeActionStatus::Inactive {
-            return Point::ZERO;
+            return Ok(Point::ZERO);
         }
 
         let tab_size = self.layout_rect.get().size();
@@ -2635,7 +2636,7 @@ impl WindowTabData {
             if let Some(editor) = self.main_split.active_editor.get_untracked() {
                 editor
             } else {
-                return Point::ZERO;
+                return Ok(Point::ZERO);
             };
 
         let (window_origin, viewport, editor) = (
@@ -2646,7 +2647,7 @@ impl WindowTabData {
 
         // TODO(minor): What affinity should we use for this?
         let (_point_above, point_below) =
-            editor.points_of_offset(code_action.offset, CursorAffinity::Forward);
+            editor.points_of_offset(code_action.offset, CursorAffinity::Forward)?;
 
         let window_origin =
             window_origin.get() - self.common.window_origin.get().to_vec2();
@@ -2674,13 +2675,13 @@ impl WindowTabData {
             origin.x = 0.0;
         }
 
-        origin
+        Ok(origin)
     }
 
-    pub fn rename_origin(&self) -> Point {
+    pub fn rename_origin(&self) -> Result<Point> {
         let config = self.common.config.get();
         if !self.rename.active.get() {
-            return Point::ZERO;
+            return Ok(Point::ZERO);
         }
 
         let tab_size = self.layout_rect.get().size();
@@ -2690,7 +2691,7 @@ impl WindowTabData {
             if let Some(editor) = self.main_split.active_editor.get_untracked() {
                 editor
             } else {
-                return Point::ZERO;
+                return Ok(Point::ZERO);
             };
 
         let (window_origin, viewport, editor) = (
@@ -2703,7 +2704,7 @@ impl WindowTabData {
         let (_point_above, point_below) = editor.points_of_offset(
             self.rename.start.get_untracked(),
             CursorAffinity::Forward,
-        );
+        )?;
 
         let window_origin =
             window_origin.get() - self.common.window_origin.get().to_vec2();
@@ -2723,7 +2724,7 @@ impl WindowTabData {
             origin.x = 0.0;
         }
 
-        origin
+        Ok(origin)
     }
 
     /// Get the mode for the current editor or terminal

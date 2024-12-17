@@ -8,7 +8,7 @@ use floem::{
     Renderer, View, ViewId,
 };
 use im::HashMap;
-use log::debug;
+use log::{debug, error};
 use lsp_types::Position;
 use serde::{Deserialize, Serialize};
 
@@ -156,9 +156,15 @@ impl View for EditorGutterView {
         //     .with_untracked(|buffer| buffer.line_of_offset(offset));
 
         let (current_visual_line, _line_offset, _, _) =
-            doc.lines.with_untracked(|x| {
+            match doc.lines.with_untracked(|x| {
                 x.visual_line_of_offset(offset, CursorAffinity::Forward)
-            });
+            }) {
+                Ok(rs) => rs,
+                Err(err) => {
+                    error!("{err:?}");
+                    return;
+                }
+            };
 
         let family: Vec<FamilyOwned> =
             FamilyOwned::parse_list(&config.editor.font_family).collect();

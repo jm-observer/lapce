@@ -1,3 +1,4 @@
+use anyhow::Result;
 use doc::lines::fold::{FoldingDisplayItem, FoldingDisplayType};
 use doc::lines::screen_lines::ScreenLines;
 use std::collections::HashSet;
@@ -44,7 +45,7 @@ use floem::{
     Renderer, View, ViewId,
 };
 use lapce_xi_rope::find::CaseMatching;
-use log::{error, info};
+use log::{error, info, warn};
 use lsp_types::CodeLens;
 
 use doc::lines::selection::SelRegion;
@@ -269,7 +270,14 @@ pub fn editor_view(
                 let doc = ed1.doc.get_untracked();
 
                 if doc.loaded() {
-                    let (_, point_below) = ed1.points_of_offset(offset, affinity);
+                    let (_, point_below) =
+                        match ed1.points_of_offset(offset, affinity) {
+                            Ok(rs) => rs,
+                            Err(err) => {
+                                error!("{err:?}");
+                                return;
+                            }
+                        };
                     let window_origin = editor_window_origin.get();
                     let viewport = editor_viewport.get();
                     let pos = window_origin
@@ -490,7 +498,13 @@ impl EditorView {
                     for (_, end) in cursor.regions_iter() {
                         // TODO: unsure if this is correct for wrapping lines
                         let rvline =
-                            ed.visual_line_of_offset(end, cursor.affinity).0.rvline;
+                            match ed.visual_line_of_offset(end, cursor.affinity) {
+                                Ok(rs) => rs.0.rvline,
+                                Err(err) => {
+                                    error!("{err:?}");
+                                    continue;
+                                }
+                            };
 
                         if let Some(info) = screen_lines
                             .info(rvline)
@@ -579,15 +593,15 @@ impl EditorView {
         color: Color,
         screen_lines: &ScreenLines,
         line_height: f64,
-    ) {
+    ) -> Result<()> {
         let start = region.min();
         let end = region.max();
 
         // TODO(minor): the proper affinity here should probably be tracked by selregion
         let (start_rvline, start_col, _) =
-            ed.visual_line_of_offset(start, CursorAffinity::Forward);
+            ed.visual_line_of_offset(start, CursorAffinity::Forward)?;
         let (end_rvline, end_col, _) =
-            ed.visual_line_of_offset(end, CursorAffinity::Backward);
+            ed.visual_line_of_offset(end, CursorAffinity::Backward)?;
         let start_rvline = start_rvline.rvline;
         let end_rvline = end_rvline.rvline;
 
@@ -637,6 +651,7 @@ impl EditorView {
                 cx.stroke(&rect, color, 1.0);
             }
         }
+        Ok(())
     }
 
     fn paint_sticky_headers(
@@ -1000,7 +1015,7 @@ impl EditorView {
         cx: &mut PaintCx,
         viewport: Rect,
         screen_lines: &ScreenLines,
-    ) {
+    ) -> Option<()> {
         let config = self.editor.common.config.get_untracked();
 
         if config.editor.highlight_matching_brackets
@@ -1010,39 +1025,56 @@ impl EditorView {
             let ed = &e_data.editor;
             let offset = ed.cursor.with_untracked(|cursor| cursor.mode().offset());
 
-            let bracket_offsets = e_data
-                .doc_signal()
-                .with_untracked(|doc| doc.find_enclosing_brackets(offset))
-                .map(|(start, end)| [start, end]);
-
-            let bracket_line_cols = bracket_offsets.map(|bracket_offsets| {
-                bracket_offsets.map(|offset| {
-                    let (rvline, col, _) =
-                        ed.visual_line_of_offset(offset, CursorAffinity::Forward);
-                    (rvline.rvline, col)
-                })
-            });
+            let (bracket_offsets_start, bracket_offsets_end) =
+                e_data
+                    .doc_signal()
+                    .with_untracked(|doc| doc.find_enclosing_brackets(offset))?;
+            let bracket_line_cols = match (
+                ed.visual_line_of_offset(
+                    bracket_offsets_start,
+                    CursorAffinity::Forward,
+                ),
+                ed.visual_line_of_offset(
+                    bracket_offsets_end,
+                    CursorAffinity::Forward,
+                ),
+            ) {
+                (Ok(bracket_offsets_start), Ok(bracket_offsets_end)) => [
+                    (bracket_offsets_start.0.rvline, bracket_offsets_start.1),
+                    (bracket_offsets_end.0.rvline, bracket_offsets_end.1),
+                ],
+                _ => {
+                    warn!("bracket_offsets_start {bracket_offsets_start} bracket_offsets_end {bracket_offsets_end} visual_line_of_offset empty");
+                    return None;
+                }
+            };
+            // let bracket_line_cols = bracket_offsets?.map(|offset| {
+            //     let Ok(rvline, col, _) =
+            //         ed.visual_line_of_offset(offset, CursorAffinity::Forward) else {
+            //
+            //     }
+            //     (rvline.rvline, col)
+            // });
 
             if config.editor.highlight_matching_brackets {
                 self.paint_char_highlights(
                     cx,
                     screen_lines,
-                    bracket_line_cols.into_iter().flatten(),
+                    bracket_line_cols.into_iter(),
                 );
             }
 
             if config.editor.highlight_scope_lines {
-                if let Some([start_line_col, end_line_col]) = bracket_line_cols {
-                    self.paint_scope_lines(
-                        cx,
-                        viewport,
-                        screen_lines,
-                        start_line_col,
-                        end_line_col,
-                    );
-                }
+                self.paint_scope_lines(
+                    cx,
+                    viewport,
+                    screen_lines,
+                    bracket_line_cols[0],
+                    bracket_line_cols[1],
+                );
             }
         }
+        None
     }
 }
 
@@ -1853,8 +1885,13 @@ fn editor_gutter_code_actions(
             .code_actions()
             .with(|c| c.get(&offset).map(|c| !c.1.is_empty()).unwrap_or(false));
         if has_code_actions {
-            let vline = ed.vline_of_offset(offset, affinity);
-            Some(vline)
+            match ed.vline_of_offset(offset, affinity) {
+                Ok(vline) => Some(vline),
+                Err(err) => {
+                    error!("{:?}", err);
+                    None
+                }
+            }
         } else {
             None
         }
@@ -2214,13 +2251,15 @@ fn editor_content(
         e_data.doc_signal().track();
         e_data.kind().track();
 
-        let (mut origin_point, line_height, visual_line_index) =
+        let Ok((mut origin_point, line_height, visual_line_index)) =
             cursor_origin_position(
                 &e_data.editor,
                 offset,
                 !cursor.is_insert(),
                 cursor.affinity,
-            );
+            ) else {
+            return Rect::ZERO
+        };
         if let Some(offset_line_from_top) = offset_line_from_top {
             // from jump
             let height = offset_line_from_top.unwrap_or(5) as f64 * line_height;

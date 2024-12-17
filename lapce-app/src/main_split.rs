@@ -1,3 +1,4 @@
+use anyhow::Result;
 use doc::syntax::Syntax;
 use doc::DiagnosticData;
 use std::{
@@ -710,7 +711,7 @@ impl MainSplitData {
         &self,
         location: EditorLocation,
         edits: Option<Vec<TextEdit>>,
-    ) {
+    ) -> Result<()> {
         log::debug!("go_to_location {:?}", location);
         if self.common.focus.get_untracked() != Focus::Workbench {
             self.common.focus.set(Focus::Workbench);
@@ -731,7 +732,7 @@ impl MainSplitData {
                 .editor
                 .doc()
                 .lines
-                .lines_of_origin_offset(cursor.offset());
+                .lines_of_origin_offset(cursor.offset())?;
             if min_visual_line.visual_line.line_index <= lines.visual_line.line_index
                 && lines.visual_line.line_index
                     <= max_visual_line.visual_line.line_index
@@ -775,6 +776,7 @@ impl MainSplitData {
                 });
             }
         }
+        Ok(())
     }
 
     pub fn open_file_changes(&self, path: PathBuf) {

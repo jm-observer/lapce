@@ -22,6 +22,7 @@ use floem_editor_core::{
 };
 
 use crate::doc::Doc;
+use anyhow::Result;
 use doc::lines::layout::{LineExtraStyle, TextLayoutLine};
 use doc::lines::phantom_text::PhantomTextMultiLine;
 use doc::lines::{
@@ -458,7 +459,13 @@ impl Editor {
     pub fn triple_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.mode().clone());
         let (mouse_offset, _) = self.offset_of_point(&mode, pointer_event.pos);
-        let lines = self.doc().lines.lines_of_origin_offset(mouse_offset);
+        let lines = match self.doc().lines.lines_of_origin_offset(mouse_offset) {
+            Ok(lines) => lines,
+            Err(err) => {
+                error!("{}", err);
+                return;
+            }
+        };
         // let vline = self
         //     .visual_line_of_offset(mouse_offset, CursorAffinity::Backward)
         //     .0;
@@ -737,7 +744,11 @@ impl Editor {
     /// previous line or the next line.  
     /// If `affinity` is `CursorAffinity::Forward` and is at the very end of the wrapped line, then
     /// the offset is considered to be on the next line.
-    pub fn vline_of_offset(&self, offset: usize, affinity: CursorAffinity) -> VLine {
+    pub fn vline_of_offset(
+        &self,
+        offset: usize,
+        affinity: CursorAffinity,
+    ) -> Result<VLine> {
         let (origin_line, offset_of_line) = self.doc.with_untracked(|x| {
             let text = x.text();
             let origin_line = text.line_of_offset(offset);
@@ -746,9 +757,12 @@ impl Editor {
         });
         let offset = offset - offset_of_line;
         self.doc().lines.with_untracked(|x| {
-            x.visual_line_of_origin_line_offset(origin_line, offset, affinity)
-                .0
-                .vline
+            let rs =
+                x.visual_line_of_origin_line_offset(origin_line, offset, affinity);
+            if rs.is_err() {
+                x.log();
+            }
+            rs.map(|x| x.0.vline)
         })
     }
 
@@ -760,13 +774,13 @@ impl Editor {
     //     self.lines.rvline_of_line(self.text_prov(), line)
     // }
 
-    pub fn vline_of_rvline(&self, rvline: RVLine) -> VLine {
+    pub fn vline_of_rvline(&self, rvline: RVLine) -> Result<VLine> {
         self.doc().lines.with_untracked(|x| {
             x.visual_line_of_folded_line_and_sub_index(
                 rvline.line,
                 rvline.line_index,
             )
-            .into()
+            .map(|x| x.into())
         })
     }
 
@@ -787,7 +801,7 @@ impl Editor {
         &self,
         offset: usize,
         affinity: CursorAffinity,
-    ) -> (VLineInfo, usize, bool) {
+    ) -> Result<(VLineInfo, usize, bool)> {
         let (origin_line, offset_of_line) = self.doc.with_untracked(|x| {
             let text = x.text();
             let origin_line = text.line_of_offset(offset);
@@ -805,7 +819,7 @@ impl Editor {
         &self,
         offset: usize,
         affinity: CursorAffinity,
-    ) -> (
+    ) -> Result<(
         VisualLine,
         usize,
         usize,
@@ -814,7 +828,7 @@ impl Editor {
         Option<Point>,
         f64,
         Point,
-    ) {
+    )> {
         self.doc()
             .lines
             .with_untracked(|x| x.cursor_position_of_buffer_offset(offset, affinity))
@@ -826,7 +840,7 @@ impl Editor {
         &self,
         offset: usize,
         affinity: CursorAffinity,
-    ) -> (VisualLine, usize, usize, bool) {
+    ) -> Result<(VisualLine, usize, usize, bool)> {
         self.doc()
             .lines
             .with_untracked(|x| x.visual_line_of_offset(offset, affinity))
@@ -856,23 +870,23 @@ impl Editor {
         })
     }
 
-    pub fn folded_line_of_offset(
-        &self,
-        offset: usize,
-        _affinity: CursorAffinity,
-    ) -> OriginFoldedLine {
-        let line = self.visual_line_of_offset(offset, _affinity).0.rvline.line;
-        self.doc()
-            .lines
-            .with_untracked(|x| x.folded_line_of_origin_line(line).clone())
-    }
+    // pub fn folded_line_of_offset(
+    //     &self,
+    //     offset: usize,
+    //     _affinity: CursorAffinity,
+    // ) -> OriginFoldedLine {
+    //     let line = self.visual_line_of_offset(offset, _affinity).0.rvline.line;
+    //     self.doc()
+    //         .lines
+    //         .with_untracked(|x| x.folded_line_of_origin_line(line).clone())
+    // }
 
     pub fn rvline_info_of_offset(
         &self,
         offset: usize,
         affinity: CursorAffinity,
-    ) -> VLineInfo<VLine> {
-        self.visual_line_of_offset(offset, affinity).0
+    ) -> Result<VLineInfo<VLine>> {
+        self.visual_line_of_offset(offset, affinity).map(|x| x.0)
     }
 
     /// Get the first column of the overall line of the visual line
@@ -942,9 +956,9 @@ impl Editor {
         &self,
         offset: usize,
         affinity: CursorAffinity,
-    ) -> (Point, Point) {
+    ) -> Result<(Point, Point)> {
         let (line_info, line_offset, _) =
-            self.visual_line_of_offset(offset, affinity);
+            self.visual_line_of_offset(offset, affinity)?;
         let line = line_info.vline.0;
         let line_height = f64::from(self.doc().line_height(line));
 
@@ -958,7 +972,7 @@ impl Editor {
             // TODO: We could do a smarter method where we get the approximate y position
             // because, for example, this spot could be folded away, and so it would be better to
             // supply the *nearest* position on the screen.
-            return (Point::new(0.0, 0.0), Point::new(0.0, 0.0));
+            return Ok((Point::new(0.0, 0.0), Point::new(0.0, 0.0)));
         };
 
         let y = info.vline_y;
@@ -967,7 +981,7 @@ impl Editor {
             .line_point_of_visual_line_col(line, line_offset, affinity, false)
             .x;
 
-        (Point::new(x, y), Point::new(x, y + line_height))
+        Ok((Point::new(x, y), Point::new(x, y + line_height)))
     }
 
     /// Get the offset of a particular point within the editor.
@@ -1477,8 +1491,8 @@ pub fn cursor_caret(
     offset: usize,
     block: bool,
     affinity: CursorAffinity,
-) -> LineRegion {
-    let (info, col, after_last_char) = ed.visual_line_of_offset(offset, affinity);
+) -> Result<LineRegion> {
+    let (info, col, after_last_char) = ed.visual_line_of_offset(offset, affinity)?;
 
     let doc = ed.doc();
     let preedit_start = doc
@@ -1488,7 +1502,7 @@ pub fn cursor_caret(
             preedit.as_ref().and_then(|preedit| {
                 // todo?
                 let preedit_line =
-                    ed.visual_line_of_offset(preedit.offset, affinity).0;
+                    ed.visual_line_of_offset(preedit.offset, affinity).ok()?.0;
                 preedit.cursor.map(|x| (preedit_line, x))
             })
         })
@@ -1518,7 +1532,7 @@ pub fn cursor_caret(
     // error!("offset={offset} block={block}, point={point:?} rvline={rvline:?} info={info:?} col={col} after_last_char={after_last_char}");
 
     let x0 = point.x;
-    if block {
+    Ok(if block {
         let x0 = ed
             .line_point_of_visual_line_col(
                 info.origin_line,
@@ -1555,7 +1569,7 @@ pub fn cursor_caret(
             width: 2.0,
             rvline,
         }
-    }
+    })
 }
 
 /// (x, y, line_height, width)
@@ -1574,7 +1588,13 @@ pub fn cursor_caret_v2(
         // screen,
         line_height,
         _origin_point,
-    ) = ed.cursor_position_of_buffer_offset(offset, affinity);
+    ) = match ed.cursor_position_of_buffer_offset(offset, affinity) {
+        Ok(rs) => rs,
+        Err(err) => {
+            error!("{err:?}");
+            return None;
+        }
+    };
     if block {
         panic!("block");
     } else {
@@ -1587,7 +1607,7 @@ pub fn cursor_origin_position(
     offset: usize,
     block: bool,
     affinity: CursorAffinity,
-) -> (Point, f64, usize) {
+) -> Result<(Point, f64, usize)> {
     let (
         _info,
         _col_visual,
@@ -1597,12 +1617,12 @@ pub fn cursor_origin_position(
         // screen,
         line_height,
         mut origin_point,
-    ) = ed.cursor_position_of_buffer_offset(offset, affinity);
+    ) = ed.cursor_position_of_buffer_offset(offset, affinity)?;
     if block {
         panic!("block");
     } else {
         origin_point.x -= 1.0;
-        (origin_point, line_height, _info.line_index)
+        Ok((origin_point, line_height, _info.line_index))
     }
 }
 
@@ -1747,10 +1767,10 @@ pub fn paint_blockwise_selection(
     end_offset: usize,
     affinity: CursorAffinity,
     horiz: Option<ColPosition>,
-) {
+) -> Result<()> {
     let (start_rvline, start_col, _) =
-        ed.visual_line_of_offset(start_offset, affinity);
-    let (end_rvline, end_col, _) = ed.visual_line_of_offset(end_offset, affinity);
+        ed.visual_line_of_offset(start_offset, affinity)?;
+    let (end_rvline, end_col, _) = ed.visual_line_of_offset(end_offset, affinity)?;
     let start_rvline = start_rvline.rvline;
     let end_rvline = end_rvline.rvline;
     let left_col = start_col.min(end_col);
@@ -1796,9 +1816,14 @@ pub fn paint_blockwise_selection(
         );
         cx.fill(&rect, color, 0.0);
     }
+    Ok(())
 }
 
-fn paint_cursor(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines) {
+fn paint_cursor(
+    cx: &mut PaintCx,
+    ed: &Editor,
+    screen_lines: &ScreenLines,
+) -> Result<()> {
     let cursor = ed.cursor;
 
     let viewport = ed.viewport();
@@ -1806,37 +1831,36 @@ fn paint_cursor(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines) {
     let current_line_color =
         ed.doc().lines.with_untracked(|es| es.current_line_color());
 
-    cursor.with_untracked(|cursor| {
-        let highlight_current_line = match cursor.mode() {
-            // TODO: check if shis should be 0 or 1
-            CursorMode::Normal(size) => *size == 0,
-            CursorMode::Insert(ref sel) => sel.is_caret(),
-            CursorMode::Visual { .. } => false,
-        };
+    let cursor = cursor.get_untracked();
+    let highlight_current_line = match cursor.mode() {
+        // TODO: check if shis should be 0 or 1
+        CursorMode::Normal(size) => *size == 0,
+        CursorMode::Insert(ref sel) => sel.is_caret(),
+        CursorMode::Visual { .. } => false,
+    };
 
-        if let Some(current_line_color) = current_line_color {
-            // Highlight the current line
-            if highlight_current_line {
-                for (_, end) in cursor.regions_iter() {
-                    // TODO: unsure if this is correct for wrapping lines
-                    let rvline = ed.visual_line_of_offset(end, cursor.affinity);
+    if let Some(current_line_color) = current_line_color {
+        // Highlight the current line
+        if highlight_current_line {
+            for (_, end) in cursor.regions_iter() {
+                // TODO: unsure if this is correct for wrapping lines
+                let rvline = ed.visual_line_of_offset(end, cursor.affinity)?;
 
-                    if let Some(info) = screen_lines.info(rvline.0.rvline) {
-                        let line_height =
-                            ed.line_height(info.vline_info.origin_line);
-                        let rect = Rect::from_origin_size(
-                            (viewport.x0, info.vline_y),
-                            (viewport.width(), f64::from(line_height)),
-                        );
+                if let Some(info) = screen_lines.info(rvline.0.rvline) {
+                    let line_height = ed.line_height(info.vline_info.origin_line);
+                    let rect = Rect::from_origin_size(
+                        (viewport.x0, info.vline_y),
+                        (viewport.width(), f64::from(line_height)),
+                    );
 
-                        cx.fill(&rect, current_line_color, 0.0);
-                    }
+                    cx.fill(&rect, current_line_color, 0.0);
                 }
             }
         }
+    }
 
-        paint_selection(cx, ed, screen_lines);
-    });
+    paint_selection(cx, ed, screen_lines);
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1848,12 +1872,12 @@ fn paint_normal_selection(
     start_offset: usize,
     end_offset: usize,
     affinity: CursorAffinity,
-) {
+) -> Result<()> {
     info!("paint_normal_selection start_offset={start_offset} end_offset={end_offset} affinity={affinity:?}");
     // TODO: selections should have separate start/end affinity
     let (start_rvline, start_col, _) =
-        ed.visual_line_of_offset(start_offset, affinity);
-    let (end_rvline, end_col, _) = ed.visual_line_of_offset(end_offset, affinity);
+        ed.visual_line_of_offset(start_offset, affinity)?;
+    let (end_rvline, end_col, _) = ed.visual_line_of_offset(end_offset, affinity)?;
     let start_rvline = start_rvline.rvline;
     let end_rvline = end_rvline.rvline;
 
@@ -1923,6 +1947,7 @@ fn paint_normal_selection(
             Rect::from_origin_size((x0, vline_y), (width, f64::from(line_height)));
         cx.fill(&rect, color, 0.0);
     }
+    Ok(())
 }
 
 pub fn paint_text(
@@ -2099,11 +2124,11 @@ pub fn paint_linewise_selection(
     start_offset: usize,
     end_offset: usize,
     affinity: CursorAffinity,
-) {
+) -> Result<()> {
     let viewport = ed.viewport();
 
-    let (start_rvline, _, _) = ed.visual_line_of_offset(start_offset, affinity);
-    let (end_rvline, _, _) = ed.visual_line_of_offset(end_offset, affinity);
+    let (start_rvline, _, _) = ed.visual_line_of_offset(start_offset, affinity)?;
+    let (end_rvline, _, _) = ed.visual_line_of_offset(end_offset, affinity)?;
     let start_rvline = start_rvline.rvline;
     let end_rvline = end_rvline.rvline;
     // Linewise selection is by *line* so we move to the start/end rvlines of the line
@@ -2142,4 +2167,5 @@ pub fn paint_linewise_selection(
         );
         cx.fill(&rect, color, 0.0);
     }
+    Ok(())
 }
