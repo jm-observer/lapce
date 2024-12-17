@@ -1894,7 +1894,9 @@ impl WindowTabData {
                 self.common.proxy.duplicate_path(source, path, send);
             }
             InternalCommand::GoToLocation { location } => {
-                self.main_split.go_to_location(location, None);
+                if let Err(err) = self.main_split.go_to_location(location, None) {
+                    error!("{err:?}");
+                }
             }
             InternalCommand::JumpToLocation { location } => {
                 self.main_split.jump_to_location(location, None);

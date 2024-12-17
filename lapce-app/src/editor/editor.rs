@@ -1698,7 +1698,7 @@ pub fn paint_selection(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines
             let start_offset = start.min(end);
             let end_offset = ed.move_right(*start.max(end), Mode::Insert, 1);
 
-            paint_normal_selection(
+            if let Err(err) = paint_normal_selection(
                 cx,
                 ed,
                 selection_color,
@@ -1706,14 +1706,16 @@ pub fn paint_selection(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines
                 *start_offset,
                 end_offset,
                 cursor.affinity,
-            );
+            ) {
+                error!("{err:?}");
+            }
         }
         CursorMode::Visual {
             start,
             end,
             mode: VisualMode::Linewise,
         } => {
-            paint_linewise_selection(
+            if let Err(err) = paint_linewise_selection(
                 cx,
                 ed,
                 selection_color,
@@ -1721,14 +1723,16 @@ pub fn paint_selection(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines
                 *start.min(end),
                 *start.max(end),
                 cursor.affinity,
-            );
+            ) {
+                error!("{err:?}");
+            }
         }
         CursorMode::Visual {
             start,
             end,
             mode: VisualMode::Blockwise,
         } => {
-            paint_blockwise_selection(
+            if let Err(err) = paint_blockwise_selection(
                 cx,
                 ed,
                 selection_color,
@@ -1737,13 +1741,15 @@ pub fn paint_selection(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines
                 *start.max(end),
                 cursor.affinity,
                 cursor.horiz,
-            );
+            ) {
+                error!("{err:?}");
+            }
         }
         CursorMode::Insert(_) => {
             for (start, end) in
                 cursor.regions_iter().filter(|(start, end)| start != end)
             {
-                paint_normal_selection(
+                if let Err(err) = paint_normal_selection(
                     cx,
                     ed,
                     selection_color,
@@ -1751,7 +1757,9 @@ pub fn paint_selection(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines
                     start.min(end),
                     start.max(end),
                     cursor.affinity,
-                );
+                ) {
+                    error!("{err:?}");
+                }
             }
         }
     });

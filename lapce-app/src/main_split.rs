@@ -33,7 +33,7 @@ use lapce_rpc::{
     proxy::ProxyResponse,
 };
 use lapce_xi_rope::{spans::SpansBuilder, Rope};
-use log::{warn, Level};
+use log::{error, warn, Level};
 use lsp_types::{
     CodeAction, CodeActionOrCommand, DiagnosticSeverity, DocumentChangeOperation,
     DocumentChanges, OneOf, Position, TextEdit, Url, WorkspaceEdit,
@@ -640,7 +640,9 @@ impl MainSplitData {
         edits: Option<Vec<TextEdit>>,
     ) {
         self.save_current_jump_location();
-        self.go_to_location(location, edits);
+        if let Err(err) = self.go_to_location(location, edits) {
+            error!("{err:?}");
+        }
     }
 
     pub fn get_doc(
@@ -1481,7 +1483,9 @@ impl MainSplitData {
         // because we only jump on the same split
         location.same_editor_tab = local;
 
-        self.go_to_location(location, None);
+        if let Err(err) = self.go_to_location(location, None) {
+            error!("{err:?}");
+        }
     }
 
     pub fn jump_location_forward(&self, local: bool) {
@@ -1517,7 +1521,9 @@ impl MainSplitData {
         // for local jumps, we keep on the same editor tab
         // because we only jump on the same split
         location.same_editor_tab = local;
-        self.go_to_location(location, None);
+        if let Err(err) = self.go_to_location(location, None) {
+            error!("{err:?}");
+        }
     }
 
     pub fn split(

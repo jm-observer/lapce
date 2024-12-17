@@ -558,28 +558,32 @@ impl EditorView {
             for region in occurrences.with_untracked(|selection| {
                 selection.regions_in_range(start, end).to_vec()
             }) {
-                self.paint_find_region(
+                if let Err(err) = self.paint_find_region(
                     cx,
                     ed,
                     &region,
                     color,
                     screen_lines,
                     line_height,
-                );
+                ) {
+                    error!("{err:?}");
+                }
             }
         }
 
         self.editor.on_screen_find.with_untracked(|find| {
             if find.active {
                 for region in &find.regions {
-                    self.paint_find_region(
+                    if let Err(err) = self.paint_find_region(
                         cx,
                         ed,
                         region,
                         color,
                         screen_lines,
                         line_height,
-                    );
+                    ) {
+                        error!("{err:?}");
+                    }
                 }
             }
         });
