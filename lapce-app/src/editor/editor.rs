@@ -1729,7 +1729,6 @@ pub fn paint_selection(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines
                 cx,
                 ed,
                 selection_color,
-                screen_lines,
                 *start_offset,
                 end_offset,
                 cursor.affinity,
@@ -1780,7 +1779,6 @@ pub fn paint_selection(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines
                     cx,
                     ed,
                     selection_color,
-                    screen_lines,
                     start.min(end),
                     start.max(end),
                     cursor.affinity,
@@ -1803,6 +1801,7 @@ pub fn paint_blockwise_selection(
     affinity: CursorAffinity,
     horiz: Option<ColPosition>,
 ) -> Result<()> {
+    error!("todo replace paint_blockwise_selection start_offset={start_offset} end_offset={end_offset}");
     let (start_rvline, start_col, _) =
         ed.visual_line_of_offset(start_offset, affinity)?;
     let (end_rvline, end_col, _) = ed.visual_line_of_offset(end_offset, affinity)?;
@@ -1903,85 +1902,93 @@ fn paint_normal_selection(
     cx: &mut PaintCx,
     ed: &Editor,
     color: Color,
-    screen_lines: &ScreenLines,
     start_offset: usize,
     end_offset: usize,
     affinity: CursorAffinity,
 ) -> Result<()> {
-    info!("paint_normal_selection start_offset={start_offset} end_offset={end_offset} affinity={affinity:?}");
-    // TODO: selections should have separate start/end affinity
-    let (start_rvline, start_col, _) =
-        ed.visual_line_of_offset(start_offset, affinity)?;
-    let (end_rvline, end_col, _) = ed.visual_line_of_offset(end_offset, affinity)?;
-    let start_rvline = start_rvline.rvline;
-    let end_rvline = end_rvline.rvline;
+    error!("todo replace paint_normal_selection start_offset={start_offset} end_offset={end_offset} affinity={affinity:?}");
 
-    for LineInfo {
-        vline_y,
-        vline_info: info,
-        ..
-    } in screen_lines.iter_line_info_r(start_rvline..=end_rvline)
-    {
-        let rvline = info.rvline;
-        let line = rvline.line;
-
-        let left_col = if rvline == start_rvline {
-            start_col
-        } else {
-            ed.first_col(info)
-        };
-        let right_col = if rvline == end_rvline {
-            end_col
-        } else {
-            ed.last_col(info, true)
-        };
-
-        // Skip over empty selections
-        if !info.is_empty_phantom() && left_col == right_col {
-            continue;
-        }
-
-        // TODO: What affinity should these use?
-        let x0 = ed
-            .line_point_of_visual_line_col(
-                line,
-                left_col,
-                CursorAffinity::Forward,
-                true,
-            )
-            .x;
-        let x1 = ed
-            .line_point_of_visual_line_col(
-                line,
-                right_col,
-                CursorAffinity::Backward,
-                true,
-            )
-            .x;
-        // TODO(minor): Should this be line != end_line?
-        let x1 = if rvline != end_rvline {
-            x1 + CHAR_WIDTH
-        } else {
-            x1
-        };
-
-        let (x0, width) = if info.is_empty_phantom() {
-            let text_layout = ed.text_layout_of_visual_line(line);
-            let width = text_layout
-                .get_layout_x(rvline.line_index)
-                .map(|(_, x1)| x1)
-                .unwrap_or(0.0)
-                .into();
-            (0.0, width)
-        } else {
-            (x0, x1 - x0)
-        };
-
-        let line_height = ed.line_height(line);
-        let rect =
-            Rect::from_origin_size((x0, vline_y), (width, f64::from(line_height)));
+    let rs = ed
+        .doc()
+        .lines
+        .with_untracked(|x| x.normal_selection(start_offset, end_offset));
+    for line in rs {
+        let rect = Rect::from(line);
         cx.fill(&rect, color, 0.0);
     }
+    // TODO: selections should have separate start/end affinity
+    // let (start_rvline, start_col, _) =
+    //     ed.visual_line_of_offset(start_offset, affinity)?;
+    // let (end_rvline, end_col, _) = ed.visual_line_of_offset(end_offset, affinity)?;
+    // let start_rvline = start_rvline.rvline;
+    // let end_rvline = end_rvline.rvline;
+    //
+    // for LineInfo {
+    //     vline_y,
+    //     vline_info: info,
+    //     ..
+    // } in screen_lines.iter_line_info_r(start_rvline..=end_rvline)
+    // {
+    //     let rvline = info.rvline;
+    //     let line = rvline.line;
+    //
+    //     let left_col = if rvline == start_rvline {
+    //         start_col
+    //     } else {
+    //         ed.first_col(info)
+    //     };
+    //     let right_col = if rvline == end_rvline {
+    //         end_col
+    //     } else {
+    //         ed.last_col(info, true)
+    //     };
+    //
+    //     // Skip over empty selections
+    //     if !info.is_empty_phantom() && left_col == right_col {
+    //         continue;
+    //     }
+    //
+    //     // TODO: What affinity should these use?
+    //     let x0 = ed
+    //         .line_point_of_visual_line_col(
+    //             line,
+    //             left_col,
+    //             CursorAffinity::Forward,
+    //             true,
+    //         )
+    //         .x;
+    //     let x1 = ed
+    //         .line_point_of_visual_line_col(
+    //             line,
+    //             right_col,
+    //             CursorAffinity::Backward,
+    //             true,
+    //         )
+    //         .x;
+    //     // TODO(minor): Should this be line != end_line?
+    //     let x1 = if rvline != end_rvline {
+    //         x1 + CHAR_WIDTH
+    //     } else {
+    //         x1
+    //     };
+    //
+    //     let (x0, width) = if info.is_empty_phantom() {
+    //         let text_layout = ed.text_layout_of_visual_line(line);
+    //         let width = text_layout
+    //             .get_layout_x(rvline.line_index)
+    //             .map(|(_, x1)| x1)
+    //             .unwrap_or(0.0)
+    //             .into();
+    //         (0.0, width)
+    //     } else {
+    //         (x0, x1 - x0)
+    //     };
+    //
+    //     let line_height = ed.line_height(line);
+    //     let rect =
+    //         Rect::from_origin_size((x0, vline_y), (width, f64::from(line_height)));
+    //     cx.fill(&rect, color, 0.0);
+    // }
     Ok(())
 }
 
@@ -2161,7 +2168,7 @@ pub fn paint_linewise_selection(
     affinity: CursorAffinity,
 ) -> Result<()> {
     let viewport = ed.viewport();
-
+    error!("todo replace paint_linewise_selection start_offset={start_offset} end_offset={end_offset} affinity={affinity:?}");
     let (start_rvline, _, _) = ed.visual_line_of_offset(start_offset, affinity)?;
     let (end_rvline, _, _) = ed.visual_line_of_offset(end_offset, affinity)?;
     let start_rvline = start_rvline.rvline;

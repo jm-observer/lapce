@@ -659,7 +659,7 @@ impl EditorView {
                     true,
                 )
                 .x;
-
+            error!("todo replace paint_find_region start={start} end={end} left_col={left_col} x0={x0} right_col={right_col} x1={x1}");
             if !rvline_info.is_empty() && start != end && left_col != right_col {
                 let rect = Size::new(x1 - x0, line_height)
                     .to_rect()
