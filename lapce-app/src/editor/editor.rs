@@ -814,25 +814,25 @@ impl Editor {
         })
     }
 
-    /// 该原始偏移字符所在的视觉行，以及在视觉行的偏移
-    fn cursor_position_of_buffer_offset(
-        &self,
-        offset: usize,
-        affinity: CursorAffinity,
-    ) -> Result<(
-        VisualLine,
-        usize,
-        usize,
-        bool,
-        // Point,
-        Option<Point>,
-        f64,
-        Point,
-    )> {
-        self.doc()
-            .lines
-            .with_untracked(|x| x.cursor_position_of_buffer_offset(offset, affinity))
-    }
+    // /// 该原始偏移字符所在的视觉行，以及在视觉行的偏移
+    // fn cursor_position_of_buffer_offset(
+    //     &self,
+    //     offset: usize,
+    //     affinity: CursorAffinity,
+    // ) -> Result<(
+    //     VisualLine,
+    //     usize,
+    //     usize,
+    //     bool,
+    //     // Point,
+    //     Option<Point>,
+    //     f64,
+    //     Point,
+    // )> {
+    //     self.doc()
+    //         .lines
+    //         .with_untracked(|x| x.cursor_position_of_buffer_offset(offset, affinity))
+    // }
 
     /// return visual_line, offset_of_visual, offset_of_folded, last_char
     /// 该原始偏移字符所在的视觉行，以及在视觉行的偏移，是否是最后的字符
@@ -1588,13 +1588,18 @@ pub fn cursor_caret_v2(
         // screen,
         line_height,
         _origin_point,
-    ) = match ed.cursor_position_of_buffer_offset(offset, affinity) {
+    ) = match ed
+        .doc()
+        .lines
+        .with_untracked(|x| x.cursor_position_of_buffer_offset(offset, affinity))
+    {
         Ok(rs) => rs,
         Err(err) => {
             error!("{err:?}");
             return None;
         }
     };
+
     if block {
         panic!("block");
     } else {
@@ -1608,6 +1613,17 @@ pub fn cursor_origin_position(
     block: bool,
     affinity: CursorAffinity,
 ) -> Result<(Point, f64, usize)> {
+    // let (
+    //     _info,
+    //     _col_visual,
+    //     _offset_folded,
+    //     _after_last_char,
+    //     _point,
+    //     // screen,
+    //     line_height,
+    //     mut origin_point,
+    // ) = ed.cursor_position_of_buffer_offset(offset, affinity)?;
+
     let (
         _info,
         _col_visual,
@@ -1617,7 +1633,10 @@ pub fn cursor_origin_position(
         // screen,
         line_height,
         mut origin_point,
-    ) = ed.cursor_position_of_buffer_offset(offset, affinity)?;
+    ) = ed
+        .doc()
+        .lines
+        .with_untracked(|x| x.cursor_position_of_buffer_offset(offset, affinity))?;
     if block {
         panic!("block");
     } else {

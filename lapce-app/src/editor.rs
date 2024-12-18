@@ -1962,7 +1962,7 @@ impl EditorData {
         let buffer = doc.lines.with_untracked(|x| x.buffer().clone());
         let cursor = self.cursor().get_untracked();
         // Get all the edits which would be applied in places other than right where the cursor is
-        let additional_edit: Vec<_> = item
+        let mut additional_edit: Vec<_> = item
             .additional_text_edits
             .as_ref()
             .into_iter()
@@ -2004,9 +2004,13 @@ impl EditorData {
                             );
                             return Ok(());
                         }
+
                         lsp_types::InsertTextFormat::SNIPPET => {
+                            let snippet = Snippet::from_str(&edit.new_text)?;
+                            let text = snippet.text();
+                            additional_edit.push((selection.clone(), text.as_str()));
                             self.completion_apply_snippet(
-                                &edit.new_text,
+                                snippet,
                                 &selection,
                                 additional_edit,
                                 start_offset,
@@ -2043,21 +2047,20 @@ impl EditorData {
 
     pub fn completion_apply_snippet(
         &self,
-        snippet: &str,
+        snippet: Snippet,
         selection: &Selection,
-        additional_edit: Vec<(&Selection, &str)>,
+        additional_edit: Vec<(Selection, &str)>,
         start_offset: usize,
     ) -> anyhow::Result<()> {
-        let snippet = Snippet::from_str(snippet)?;
-        let text = snippet.text();
+        // let snippet = Snippet::from_str(snippet)?;
+        // let text = snippet.text();
         let mut cursor = self.cursor().get_untracked();
         let old_cursor = cursor.mode().clone();
+
+        // additional_edit.push((selection.clone(), text.as_str()));
         let (b_text, delta, inval_lines) = self
             .doc()
-            .do_raw_edit(
-                &[&[(selection, text.as_str())][..], &additional_edit[..]].concat(),
-                EditType::Completion,
-            )
+            .do_raw_edit(&additional_edit, EditType::Completion)
             .ok_or_else(|| anyhow::anyhow!("not edited"))?;
 
         let selection = selection.apply_delta(&delta, true, InsertDrift::Default);

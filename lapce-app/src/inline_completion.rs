@@ -59,14 +59,18 @@ impl InlineCompletionItem {
         match text_format {
             InsertTextFormat::PLAIN_TEXT => editor.do_edit(
                 &selection,
-                &[(&selection, self.insert_text.as_str())],
+                &[(selection.clone(), self.insert_text.as_str())],
                 false,
             ),
             InsertTextFormat::SNIPPET => {
+                let snippet = Snippet::from_str(&self.insert_text)?;
+                let text = snippet.text();
+                let additional_edit = vec![(selection.clone(), text.as_str())];
+
                 editor.completion_apply_snippet(
-                    &self.insert_text,
+                    snippet,
                     &selection,
-                    Vec::new(),
+                    additional_edit,
                     start_offset,
                 )?;
             }

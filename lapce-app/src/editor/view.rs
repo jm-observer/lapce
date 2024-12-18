@@ -105,7 +105,7 @@ pub fn editor_style(
     s.set(
         IndentStyleProp,
         doc.lines
-            .with_untracked(|x| Buffer::indent_style(&x.buffer())),
+            .with_untracked(|x| Buffer::indent_style(x.buffer())),
     )
     .set(CursorColor, config.color(LapceColor::EDITOR_CARET))
     .set(SelectionColor, config.color(LapceColor::EDITOR_SELECTION))
