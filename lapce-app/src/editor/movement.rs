@@ -18,9 +18,10 @@ use crate::editor::editor::{CommonAction, Editor};
 use floem::views::editor::text::Styling;
 use floem::views::editor::visual_line::RVLine;
 use floem_editor_core::word::WordCursor;
-use log::{error, warn};
+use log::{error, info, warn};
 
 use anyhow::Result;
+use floem::reactive::SignalGet;
 
 /// Move a selection region by a given movement.
 /// Much of the time, this will just be a matter of moving the cursor, but
@@ -142,12 +143,12 @@ pub fn move_offset(
         }
         Movement::StartOfLine => {
             let (new_offset, horiz) = start_of_line(view, affinity, offset)?;
-
+            info!("StartOfLine offset={offset} new_offset={new_offset}");
             (new_offset, Some(horiz))
         }
         Movement::EndOfLine => {
             let (new_offset, horiz) = end_of_line(view, affinity, offset, mode)?;
-
+            info!("EndOfLine offset={offset} new_offset={new_offset}");
             (new_offset, Some(horiz))
         }
         Movement::Line(position) => {
@@ -278,7 +279,7 @@ fn move_right(
     mode: Mode,
     count: usize,
 ) -> Result<usize> {
-    error!("_offset={offset} _affinity={affinity:?} _mode={mode:?} _count={count}");
+    // error!("_offset={offset} _affinity={affinity:?} _mode={mode:?} _count={count}");
     let rope_text = view.rope_text();
     let mut new_offset = rope_text.move_right(offset, mode, count);
 
@@ -498,29 +499,10 @@ fn end_of_line(
     offset: usize,
     mode: Mode,
 ) -> Result<(usize, ColPosition)> {
-    let info = view.rvline_info_of_offset(offset, *affinity)?;
-    // let new_col = info.last_col(view.text_prov(), mode != Mode::Normal);
-
-    let vline_end = info.interval.end;
-    let start_offset = view.text().offset_of_line(info.origin_line);
-    // If these subtractions crash, then it is likely due to a bad vline being kept around
-    // somewhere
-    let new_col = if mode == Mode::Normal && !info.is_empty() {
-        let vline_pre_end = view.rope_text().prev_grapheme_offset(vline_end, 1, 0);
-        vline_pre_end - start_offset
-    } else {
-        vline_end - start_offset
-    };
-
-    *affinity = if new_col == 0 {
-        CursorAffinity::Forward
-    } else {
-        CursorAffinity::Backward
-    };
-
-    let new_offset = view.offset_of_line_col(info.origin_line, new_col);
-
-    Ok((new_offset, ColPosition::End))
+    view.doc
+        .get_untracked()
+        .lines
+        .with_untracked(|x| x.end_of_line(affinity, offset, mode))
 }
 #[allow(unused_variables)]
 fn to_line(
