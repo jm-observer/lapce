@@ -740,31 +740,31 @@ impl Editor {
         self.rope_text().select_word(offset)
     }
 
-    /// `affinity` decides whether an offset at a soft line break is considered to be on the
-    /// previous line or the next line.  
-    /// If `affinity` is `CursorAffinity::Forward` and is at the very end of the wrapped line, then
-    /// the offset is considered to be on the next line.
-    pub fn vline_of_offset(
-        &self,
-        offset: usize,
-        affinity: CursorAffinity,
-    ) -> Result<VLine> {
-        let (origin_line, offset_of_line) = self.doc.with_untracked(|x| {
-            let text = x.text();
-            let origin_line = text.line_of_offset(offset);
-            let origin_line_start_offset = text.offset_of_line(origin_line);
-            (origin_line, origin_line_start_offset)
-        });
-        let offset = offset - offset_of_line;
-        self.doc().lines.with_untracked(|x| {
-            let rs =
-                x.visual_line_of_origin_line_offset(origin_line, offset, affinity);
-            if rs.is_err() {
-                x.log();
-            }
-            rs.map(|x| x.0.vline)
-        })
-    }
+    // /// `affinity` decides whether an offset at a soft line break is considered to be on the
+    // /// previous line or the next line.
+    // /// If `affinity` is `CursorAffinity::Forward` and is at the very end of the wrapped line, then
+    // /// the offset is considered to be on the next line.
+    // pub fn vline_of_offset(
+    //     &self,
+    //     offset: usize,
+    //     affinity: CursorAffinity,
+    // ) -> Result<VLine> {
+    //     let (origin_line, offset_of_line) = self.doc.with_untracked(|x| {
+    //         let text = x.text();
+    //         let origin_line = text.line_of_offset(offset);
+    //         let origin_line_start_offset = text.offset_of_line(origin_line);
+    //         (origin_line, origin_line_start_offset)
+    //     });
+    //     let offset = offset - offset_of_line;
+    //     self.doc().lines.with_untracked(|x| {
+    //         let rs =
+    //             x.visual_line_of_origin_line_offset(origin_line, offset, affinity);
+    //         if rs.is_err() {
+    //             x.log();
+    //         }
+    //         rs.map(|x| x.0.vline)
+    //     })
+    // }
 
     // pub fn vline_of_line(&self, line: usize) -> VLine {
     //     self.lines.vline_of_line(self.text_prov(), line)
@@ -957,31 +957,36 @@ impl Editor {
         offset: usize,
         affinity: CursorAffinity,
     ) -> Result<(Point, Point)> {
-        let (line_info, line_offset, _) =
-            self.visual_line_of_offset(offset, affinity)?;
-        let line = line_info.vline.0;
-        let line_height = f64::from(self.doc().line_height(line));
+        let (_, _, _, _, point, _, _, line_height) =
+            self.doc.get_untracked().lines.with_untracked(|x| {
+                x.cursor_position_of_buffer_offset(offset, affinity)
+            })?;
+        // let (line_info, line_offset, _) =
+        //     self.visual_line_of_offset(offset, affinity)?;
+        // let line = line_info.vline.0;
+        // let line_height = f64::from(self.doc().line_height(line_info.origin_line));
 
-        let info = self.doc().lines.with_untracked(|sl| {
-            sl.screen_lines().iter_line_info().find(|info| {
-                info.vline_info.interval.start <= offset
-                    && offset <= info.vline_info.interval.end
-            })
-        });
-        let Some(info) = info else {
+        // let info = self.doc().lines.with_untracked(|sl| {
+        //     sl.screen_lines().iter_line_info().find(|info| {
+        //         info.vline_info.interval.start <= offset
+        //             && offset <= info.vline_info.interval.end
+        //     })
+        // });
+        let Some(info) = point else {
             // TODO: We could do a smarter method where we get the approximate y position
             // because, for example, this spot could be folded away, and so it would be better to
             // supply the *nearest* position on the screen.
             return Ok((Point::new(0.0, 0.0), Point::new(0.0, 0.0)));
         };
 
-        let y = info.vline_y;
-
-        let x = self
-            .line_point_of_visual_line_col(line, line_offset, affinity, false)
-            .x;
-
-        Ok((Point::new(x, y), Point::new(x, y + line_height)))
+        // let y = info.vline_y;
+        //
+        // let x = self
+        //     .line_point_of_visual_line_col(line, line_offset, affinity, false)
+        //     .x;
+        let mut low_point = info;
+        low_point.y += line_height as f64;
+        Ok((info, low_point))
     }
 
     /// Get the offset of a particular point within the editor.
@@ -1588,6 +1593,7 @@ pub fn cursor_caret_v2(
         // screen,
         line_height,
         _origin_point,
+        _,
     ) = match ed
         .doc()
         .lines
@@ -1633,6 +1639,7 @@ pub fn cursor_origin_position(
         // screen,
         line_height,
         mut origin_point,
+        _,
     ) = ed
         .doc()
         .lines
