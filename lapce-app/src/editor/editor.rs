@@ -392,12 +392,12 @@ impl Editor {
         self.doc().receive_char(self, c)
     }
 
-    fn compute_screen_lines(&self, base: RwSignal<ScreenLinesBase>) -> ScreenLines {
-        // This function *cannot* access `ScreenLines` with how it is currently implemented.
-        // This is being called from within an update to screen lines.
-
-        self.doc().compute_screen_lines(self, base)
-    }
+    // fn compute_screen_lines(&self, base: RwSignal<ScreenLinesBase>) -> ScreenLines {
+    //     // This function *cannot* access `ScreenLines` with how it is currently implemented.
+    //     // This is being called from within an update to screen lines.
+    //
+    //     self.doc().compute_screen_lines(self, base)
+    // }
 
     /// Default handler for `PointerDown` event
     pub fn pointer_down(&self, pointer_event: &PointerInputEvent) {
@@ -1187,19 +1187,19 @@ impl std::fmt::Debug for Editor {
 //         line_content_original.to_string()
 //     }
 // }
-
-fn push_strip_suffix(line_content_original: &str, rs: &mut String) {
-    if let Some(s) = line_content_original.strip_suffix("\r\n") {
-        rs.push_str(s);
-        rs.push_str("  ");
-        // format!("{s}  ")
-    } else if let Some(s) = line_content_original.strip_suffix('\n') {
-        rs.push_str(s);
-        rs.push(' ');
-    } else {
-        rs.push_str(line_content_original);
-    }
-}
+//
+// fn push_strip_suffix(line_content_original: &str, rs: &mut String) {
+//     if let Some(s) = line_content_original.strip_suffix("\r\n") {
+//         rs.push_str(s);
+//         rs.push_str("  ");
+//         // format!("{s}  ")
+//     } else if let Some(s) = line_content_original.strip_suffix('\n') {
+//         rs.push_str(s);
+//         rs.push(' ');
+//     } else {
+//         rs.push_str(line_content_original);
+//     }
+// }
 
 // impl TextLayoutProvider for Editor {
 //     // TODO: should this just return a `Rope`?
@@ -1236,26 +1236,26 @@ pub struct EditorFontSizes {
     doc: ReadSignal<Rc<Doc>>,
 }
 impl EditorFontSizes {
-    fn font_size(&self, line: usize) -> usize {
-        self.style.with_untracked(|style| style.font_size(line))
-    }
+    // fn font_size(&self, line: usize) -> usize {
+    //     self.style.with_untracked(|style| style.font_size(line))
+    // }
 
-    fn cache_id(&self) -> FontSizeCacheId {
-        let mut hasher = DefaultHasher::new();
-
-        // TODO: is this actually good enough for comparing cache state?
-        // We could just have it return an arbitrary type that impl's Eq?
-        self.style
-            .with_untracked(|style| style.id().hash(&mut hasher));
-        self.doc
-            .with_untracked(|doc| doc.cache_rev().get_untracked().hash(&mut hasher));
-
-        hasher.finish()
-    }
+    // fn cache_id(&self) -> FontSizeCacheId {
+    //     let mut hasher = DefaultHasher::new();
+    //
+    //     // TODO: is this actually good enough for comparing cache state?
+    //     // We could just have it return an arbitrary type that impl's Eq?
+    //     self.style
+    //         .with_untracked(|style| style.id().hash(&mut hasher));
+    //     self.doc
+    //         .with_untracked(|doc| doc.cache_rev().get_untracked().hash(&mut hasher));
+    //
+    //     hasher.finish()
+    // }
 }
 
-/// Minimum width that we'll allow the view to be wrapped at.
-const MIN_WRAPPED_WIDTH: f32 = 100.0;
+// /// Minimum width that we'll allow the view to be wrapped at.
+// const MIN_WRAPPED_WIDTH: f32 = 100.0;
 
 /// Create various reactive effects to update the screen lines whenever relevant parts of the view,
 /// doc, text layouts, viewport, etc. change.
@@ -1846,49 +1846,49 @@ pub fn paint_blockwise_selection(
     Ok(())
 }
 
-fn paint_cursor(
-    cx: &mut PaintCx,
-    ed: &Editor,
-    screen_lines: &ScreenLines,
-) -> Result<()> {
-    let cursor = ed.cursor;
-
-    let viewport = ed.viewport();
-
-    let current_line_color =
-        ed.doc().lines.with_untracked(|es| es.current_line_color());
-
-    let cursor = cursor.get_untracked();
-    let highlight_current_line = match cursor.mode() {
-        // TODO: check if shis should be 0 or 1
-        CursorMode::Normal(size) => *size == 0,
-        CursorMode::Insert(ref sel) => sel.is_caret(),
-        CursorMode::Visual { .. } => false,
-    };
-
-    if let Some(current_line_color) = current_line_color {
-        // Highlight the current line
-        if highlight_current_line {
-            for (_, end) in cursor.regions_iter() {
-                // TODO: unsure if this is correct for wrapping lines
-                let rvline = ed.visual_line_of_offset(end, cursor.affinity)?;
-
-                if let Some(info) = screen_lines.info(rvline.0.rvline) {
-                    let line_height = ed.line_height(info.vline_info.origin_line);
-                    let rect = Rect::from_origin_size(
-                        (viewport.x0, info.vline_y),
-                        (viewport.width(), f64::from(line_height)),
-                    );
-
-                    cx.fill(&rect, current_line_color, 0.0);
-                }
-            }
-        }
-    }
-
-    paint_selection(cx, ed, screen_lines);
-    Ok(())
-}
+// fn paint_cursor(
+//     cx: &mut PaintCx,
+//     ed: &Editor,
+//     screen_lines: &ScreenLines,
+// ) -> Result<()> {
+//     let cursor = ed.cursor;
+//
+//     let viewport = ed.viewport();
+//
+//     let current_line_color =
+//         ed.doc().lines.with_untracked(|es| es.current_line_color());
+//
+//     let cursor = cursor.get_untracked();
+//     let highlight_current_line = match cursor.mode() {
+//         // TODO: check if shis should be 0 or 1
+//         CursorMode::Normal(size) => *size == 0,
+//         CursorMode::Insert(ref sel) => sel.is_caret(),
+//         CursorMode::Visual { .. } => false,
+//     };
+//
+//     if let Some(current_line_color) = current_line_color {
+//         // Highlight the current line
+//         if highlight_current_line {
+//             for (_, end) in cursor.regions_iter() {
+//                 // TODO: unsure if this is correct for wrapping lines
+//                 let rvline = ed.visual_line_of_offset(end, cursor.affinity)?;
+//
+//                 if let Some(info) = screen_lines.info(rvline.0.rvline) {
+//                     let line_height = ed.line_height(info.vline_info.origin_line);
+//                     let rect = Rect::from_origin_size(
+//                         (viewport.x0, info.vline_y),
+//                         (viewport.width(), f64::from(line_height)),
+//                     );
+//
+//                     cx.fill(&rect, current_line_color, 0.0);
+//                 }
+//             }
+//         }
+//     }
+//
+//     paint_selection(cx, ed, screen_lines);
+//     Ok(())
+// }
 
 #[allow(clippy::too_many_arguments)]
 fn paint_normal_selection(

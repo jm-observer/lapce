@@ -227,6 +227,6 @@ impl View for EditorGutterView {
     }
 }
 
-fn get_offset(buffer: &Buffer, positon: Position) -> usize {
-    buffer.offset_of_line(positon.line as usize) + positon.character as usize
-}
+// fn get_offset(buffer: &Buffer, positon: Position) -> usize {
+//     buffer.offset_of_line(positon.line as usize) + positon.character as usize
+// }

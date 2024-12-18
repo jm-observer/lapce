@@ -154,14 +154,14 @@ pub struct EditorView {
     // viewport: RwSignal<Rect>,
     // lines: DocLinesManager,
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
-    tracing: bool,
+    // tracing: bool,
 }
 
 pub fn editor_view(
     e_data: EditorData,
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
-    tracing: bool,
+    // tracing: bool,
     name: &'static str,
 ) -> EditorView {
     let id = ViewId::new();
@@ -297,7 +297,7 @@ pub fn editor_view(
         inner_node: None,
         // viewport: viewport_rw,
         debug_breakline,
-        tracing,
+        // tracing,
     }
     .on_event(EventListener::ImePreedit, move |event| {
         if !is_active.get_untracked() {
@@ -2179,7 +2179,6 @@ fn editor_content(
             e_data.get_untracked(),
             debug_breakline,
             is_active,
-            false,
             "editor",
         )
         .style(move |s| {

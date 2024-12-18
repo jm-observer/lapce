@@ -1917,19 +1917,19 @@ impl std::fmt::Debug for Doc {
     }
 }
 
-/// Get the previous unmatched character `c` from the `offset` using `syntax` if applicable
-fn syntax_prev_unmatched(
-    buffer: &Buffer,
-    syntax: &Syntax,
-    c: char,
-    offset: usize,
-) -> Option<usize> {
-    if syntax.layers.is_some() {
-        syntax.find_tag(offset, true, &CharBuffer::new(c))
-    } else {
-        WordCursor::new(buffer.text(), offset).previous_unmatched(c)
-    }
-}
+// /// Get the previous unmatched character `c` from the `offset` using `syntax` if applicable
+// fn syntax_prev_unmatched(
+//     buffer: &Buffer,
+//     syntax: &Syntax,
+//     c: char,
+//     offset: usize,
+// ) -> Option<usize> {
+//     if syntax.layers.is_some() {
+//         syntax.find_tag(offset, true, &CharBuffer::new(c))
+//     } else {
+//         WordCursor::new(buffer.text(), offset).previous_unmatched(c)
+//     }
+// }
 
 fn should_blink(
     _focus: SignalManager<Focus>,

@@ -1,5 +1,5 @@
 use lapce_core::directory::Directory;
-use log::trace;
+use log::{error, trace};
 
 use crate::log::*;
 
@@ -17,7 +17,7 @@ pub(super) fn panic_hook() {
 
         match info.location() {
             Some(loc) => {
-                trace!(
+                error!(
                     target: "lapce_app::panic_hook",
 
                     "thread {thread} panicked at {} | file://./{}:{}:{}\n{:?}",
@@ -27,7 +27,7 @@ pub(super) fn panic_hook() {
                 );
             }
             None => {
-                trace!(
+                error!(
                     target: "lapce_app::panic_hook",
 
                     "thread {thread} panicked at {}\n{:?}",

@@ -68,7 +68,6 @@ pub fn source_control_panel(
                             editor.get_untracked(),
                             debug_breakline,
                             is_active,
-                            false,
                             "source control",
                         )
                         .style(|x| x.width_pct(100.0).min_width(100.0)),
