@@ -1873,90 +1873,90 @@ fn editor_gutter_folding_range(
     .debug_name("Folding Range Stack")
 }
 
-fn editor_gutter_code_actions(
-    e_data: RwSignal<EditorData>,
-    gutter_width: Memo<f64>,
-    icon_padding: f32,
-) -> impl View {
-    let (ed, doc, config) = e_data
-        .with_untracked(|e| (e.editor.clone(), e.doc_signal(), e.common.config));
-    let viewport = ed.doc().lines.with_untracked(|x| x.signal_viewport());
-    let cursor = ed.cursor;
-
-    let code_action_vline = create_memo(move |_| {
-        let doc = doc.get();
-        let (offset, affinity) =
-            cursor.with(|cursor| (cursor.offset(), cursor.affinity));
-        let has_code_actions = doc
-            .code_actions()
-            .with(|c| c.get(&offset).map(|c| !c.1.is_empty()).unwrap_or(false));
-        if has_code_actions {
-            match ed.vline_of_offset(offset, affinity) {
-                Ok(vline) => Some(vline),
-                Err(err) => {
-                    error!("{:?}", err);
-                    None
-                }
-            }
-        } else {
-            None
-        }
-    });
-
-    container(
-        container(
-            svg(move || config.get().ui_svg(LapceIcons::LIGHTBULB)).style(
-                move |s| {
-                    let config = config.get();
-                    let size = config.ui.icon_size() as f32;
-                    s.size(size, size)
-                        .color(config.color(LapceColor::LAPCE_WARN))
-                },
-            ),
-        )
-        .on_click_stop(move |_| {
-            e_data.get_untracked().show_code_actions(true);
-        })
-        .style(move |s| {
-            let config = config.get();
-            s.padding(4.0)
-                .border_radius(6.0)
-                .hover(|s| {
-                    s.cursor(CursorStyle::Pointer).background(
-                        config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                    )
-                })
-                .active(|s| {
-                    s.background(
-                        config.color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
-                    )
-                })
-        }),
-    )
-    .style(move |s| {
-        let config = config.get();
-        let viewport = viewport.get();
-        let gutter_width = gutter_width.get();
-        let code_action_vline = code_action_vline.get();
-        let size = config.ui.icon_size() as f32;
-        let line_height = config.editor.line_height();
-        let margin_top = if let Some(vline) = code_action_vline {
-            (vline.get() * line_height) as f32 - viewport.y0 as f32
-        } else {
-            0.0
-        };
-        let width = size + icon_padding * 2.0;
-        s.absolute()
-            .items_center()
-            .justify_center()
-            .margin_left(gutter_width as f32 - width + 1.0)
-            .margin_top(margin_top)
-            .width(width)
-            .height(line_height as f32)
-            .apply_if(code_action_vline.is_none(), |s| s.hide())
-    })
-    .debug_name("Code Action LightBulb")
-}
+// fn editor_gutter_code_actions(
+//     e_data: RwSignal<EditorData>,
+//     gutter_width: Memo<f64>,
+//     icon_padding: f32,
+// ) -> impl View {
+//     let (ed, doc, config) = e_data
+//         .with_untracked(|e| (e.editor.clone(), e.doc_signal(), e.common.config));
+//     let viewport = ed.doc().lines.with_untracked(|x| x.signal_viewport());
+//     let cursor = ed.cursor;
+//
+//     let code_action_vline = create_memo(move |_| {
+//         let doc = doc.get();
+//         let (offset, affinity) =
+//             cursor.with(|cursor| (cursor.offset(), cursor.affinity));
+//         let has_code_actions = doc
+//             .code_actions()
+//             .with(|c| c.get(&offset).map(|c| !c.1.is_empty()).unwrap_or(false));
+//         if has_code_actions {
+//             match ed.vline_of_offset(offset, affinity) {
+//                 Ok(vline) => Some(vline),
+//                 Err(err) => {
+//                     error!("{:?}", err);
+//                     None
+//                 }
+//             }
+//         } else {
+//             None
+//         }
+//     });
+//
+//     container(
+//         container(
+//             svg(move || config.get().ui_svg(LapceIcons::LIGHTBULB)).style(
+//                 move |s| {
+//                     let config = config.get();
+//                     let size = config.ui.icon_size() as f32;
+//                     s.size(size, size)
+//                         .color(config.color(LapceColor::LAPCE_WARN))
+//                 },
+//             ),
+//         )
+//         .on_click_stop(move |_| {
+//             e_data.get_untracked().show_code_actions(true);
+//         })
+//         .style(move |s| {
+//             let config = config.get();
+//             s.padding(4.0)
+//                 .border_radius(6.0)
+//                 .hover(|s| {
+//                     s.cursor(CursorStyle::Pointer).background(
+//                         config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
+//                     )
+//                 })
+//                 .active(|s| {
+//                     s.background(
+//                         config.color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
+//                     )
+//                 })
+//         }),
+//     )
+//     .style(move |s| {
+//         let config = config.get();
+//         let viewport = viewport.get();
+//         let gutter_width = gutter_width.get();
+//         let code_action_vline = code_action_vline.get();
+//         let size = config.ui.icon_size() as f32;
+//         let line_height = config.editor.line_height();
+//         let margin_top = if let Some(vline) = code_action_vline {
+//             (vline.get() * line_height) as f32 - viewport.y0 as f32
+//         } else {
+//             0.0
+//         };
+//         let width = size + icon_padding * 2.0;
+//         s.absolute()
+//             .items_center()
+//             .justify_center()
+//             .margin_left(gutter_width as f32 - width + 1.0)
+//             .margin_top(margin_top)
+//             .width(width)
+//             .height(line_height as f32)
+//             .apply_if(code_action_vline.is_none(), |s| s.hide())
+//     })
+//     .debug_name("Code Action LightBulb")
+// }
 
 fn editor_gutter(
     window_tab_data: Rc<WindowTabData>,
@@ -1973,7 +1973,7 @@ fn editor_gutter(
     let scroll_delta = ed.scroll_delta;
 
     let gutter_rect = create_rw_signal(Rect::ZERO);
-    let gutter_width = create_memo(move |_| gutter_rect.get().width());
+    // let gutter_width = create_memo(move |_| gutter_rect.get().width());
 
     let icon_total_width = move || {
         let icon_size = config.get().ui.icon_size() as f32;
@@ -2019,7 +2019,7 @@ fn editor_gutter(
                     })
                     .style(|s| s.size_pct(100.0, 100.0))
                     .debug_name("line number"),
-                editor_gutter_code_actions(e_data, gutter_width, icon_padding),
+                // editor_gutter_code_actions(e_data, gutter_width, icon_padding),
             ))
             .style(|s| s.size_pct(100.0, 100.0)),
         )
