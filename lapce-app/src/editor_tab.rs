@@ -212,7 +212,7 @@ impl EditorTabChild {
                 let path = if let Some(editor_data) = editor_data {
                     let doc = editor_data.doc_signal().get();
                     let is_pristine =
-                        doc.lines.with_untracked(|x| x.buffer().is_pristine());
+                        doc.lines.with_untracked(|x| x.signal_pristine()).get();
                     let (content, confirmed) =
                         (doc.content.get(), editor_data.confirmed);
                     match content {
