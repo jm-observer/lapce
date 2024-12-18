@@ -455,26 +455,10 @@ fn first_non_blank(
     affinity: &mut CursorAffinity,
     offset: usize,
 ) -> Result<(usize, ColPosition)> {
-    let info = view.rvline_info_of_offset(offset, *affinity)?;
-    let non_blank_offset =
-        WordCursor::new(&view.text(), info.interval.start).next_non_blank_char();
-
-    let start_line_offset = info.interval.start;
-    // TODO: is this always the correct affinity? It might be desirable for the very first character on a wrapped line?
-    *affinity = CursorAffinity::Forward;
-
-    Ok(if offset > non_blank_offset {
-        // Jump to the first non-whitespace character if we're strictly after it
-        (non_blank_offset, ColPosition::FirstNonBlank)
-    } else {
-        // If we're at the start of the line, also jump to the first not blank
-        if start_line_offset == offset {
-            (non_blank_offset, ColPosition::FirstNonBlank)
-        } else {
-            // Otherwise, jump to the start of the line
-            (start_line_offset, ColPosition::Start)
-        }
-    })
+    view.doc
+        .get_untracked()
+        .lines
+        .with_untracked(|x| x.first_non_blank(affinity, offset))
 }
 
 fn start_of_line(
@@ -482,13 +466,6 @@ fn start_of_line(
     _affinity: &mut CursorAffinity,
     offset: usize,
 ) -> Result<(usize, ColPosition)> {
-    // let folded_line = view.folded_line_of_offset(offset, *affinity);
-    // let new_offset = view.offset_of_line(folded_line.origin_line_start);
-    // // let new_offset = view.offset_of_rvline(rvline);
-    // // TODO(minor): if the line has zero characters, it should probably be forward affinity but
-    // // other cases might be better as backwards?
-    // *affinity = CursorAffinity::Forward;
-    //
     let lines = view.doc().lines.lines_of_origin_offset(offset)?;
     Ok((lines.origin_line.start_offset, ColPosition::Start))
 }

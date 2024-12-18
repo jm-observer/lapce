@@ -158,6 +158,7 @@ impl View for EditorGutterView {
         let (current_visual_line, _line_offset, _, _) =
             match doc.lines.with_untracked(|x| {
                 x.visual_line_of_offset(offset, CursorAffinity::Forward)
+                    .map(|x| (x.0, x.1, x.2, x.3))
             }) {
                 Ok(rs) => rs,
                 Err(err) => {

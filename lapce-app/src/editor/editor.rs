@@ -341,11 +341,11 @@ impl Editor {
         self.doc().rope_text()
     }
 
-    pub fn vline_infos(&self, start: usize, end: usize) -> Vec<VLineInfo<VLine>> {
-        self.doc()
-            .lines
-            .with_untracked(|x| x.vline_infos(start, end))
-    }
+    // pub fn vline_infos(&self, start: usize, end: usize) -> Vec<VLineInfo<VLine>> {
+    //     self.doc()
+    //         .lines
+    //         .with_untracked(|x| x.vline_infos(start, end))
+    // }
 
     pub fn text_prov(&self) -> &Self {
         self
@@ -676,10 +676,10 @@ impl Editor {
     // }
 
     // ==== Position Information ====
-
-    pub fn first_rvline_info(&self) -> VLineInfo<VLine> {
-        self.doc().lines.with_untracked(|x| x.first_vline_info())
-    }
+    //
+    // pub fn first_rvline_info(&self) -> VLineInfo<VLine> {
+    //     self.doc().lines.with_untracked(|x| x.first_vline_info())
+    // }
 
     /// The number of lines in the document.
     pub fn num_lines(&self) -> usize {
@@ -841,9 +841,10 @@ impl Editor {
         offset: usize,
         affinity: CursorAffinity,
     ) -> Result<(VisualLine, usize, usize, bool)> {
-        self.doc()
-            .lines
-            .with_untracked(|x| x.visual_line_of_offset(offset, affinity))
+        self.doc().lines.with_untracked(|x| {
+            x.visual_line_of_offset(offset, affinity)
+                .map(|x| (x.0, x.1, x.2, x.3))
+        })
     }
 
     /// 视觉行的偏移位置，对应的上一行的偏移位置（原始文本）和是否为最后一个字符
@@ -881,13 +882,13 @@ impl Editor {
     //         .with_untracked(|x| x.folded_line_of_origin_line(line).clone())
     // }
 
-    pub fn rvline_info_of_offset(
-        &self,
-        offset: usize,
-        affinity: CursorAffinity,
-    ) -> Result<VLineInfo<VLine>> {
-        self.visual_line_of_offset(offset, affinity).map(|x| x.0)
-    }
+    // pub fn rvline_info_of_offset(
+    //     &self,
+    //     offset: usize,
+    //     affinity: CursorAffinity,
+    // ) -> Result<VLineInfo<VLine>> {
+    //     self.visual_line_of_offset(offset, affinity).map(|x| x.0)
+    // }
 
     /// Get the first column of the overall line of the visual line
     pub fn first_col<T: std::fmt::Debug>(&self, info: VLineInfo<T>) -> usize {
@@ -1490,92 +1491,92 @@ impl CursorInfo {
     }
 }
 
-/// Get the render information for a caret cursor at the given `offset`.
-pub fn cursor_caret(
-    ed: &Editor,
-    offset: usize,
-    block: bool,
-    affinity: CursorAffinity,
-) -> Result<LineRegion> {
-    let (info, col, after_last_char) = ed.visual_line_of_offset(offset, affinity)?;
-
-    let doc = ed.doc();
-    let preedit_start = doc
-        .preedit()
-        .preedit
-        .with_untracked(|preedit| {
-            preedit.as_ref().and_then(|preedit| {
-                // todo?
-                let preedit_line =
-                    ed.visual_line_of_offset(preedit.offset, affinity).ok()?.0;
-                preedit.cursor.map(|x| (preedit_line, x))
-            })
-        })
-        .filter(|(preedit_line, _)| *preedit_line == info)
-        .map(|(_, (start, _))| start);
-
-    let point = ed.line_point_of_visual_line_col(
-        info.origin_line,
-        col,
-        CursorAffinity::Forward,
-        false,
-    );
-
-    let rvline = if preedit_start.is_some() {
-        // If there's an IME edit, then we need to use the point's y to get the actual y position
-        // that the IME cursor is at. Since it could be in the middle of the IME phantom text
-        let y = point.y;
-
-        // TODO: I don't think this is handling varying line heights properly
-        let line_height = ed.line_height(info.origin_line);
-
-        let line_index = (y / f64::from(line_height)).floor() as usize;
-        RVLine::new(info.origin_line, line_index)
-    } else {
-        info.rvline
-    };
-    // error!("offset={offset} block={block}, point={point:?} rvline={rvline:?} info={info:?} col={col} after_last_char={after_last_char}");
-
-    let x0 = point.x;
-    Ok(if block {
-        let x0 = ed
-            .line_point_of_visual_line_col(
-                info.origin_line,
-                col,
-                CursorAffinity::Forward,
-                true,
-            )
-            .x;
-        let new_offset = ed.move_right(offset, Mode::Insert, 1);
-        let (_, new_col) = ed.offset_to_line_col(new_offset);
-
-        let width = if after_last_char {
-            CHAR_WIDTH
-        } else {
-            let x1 = ed
-                .line_point_of_visual_line_col(
-                    info.origin_line,
-                    new_col,
-                    CursorAffinity::Backward,
-                    true,
-                )
-                .x;
-            x1 - x0
-        };
-
-        LineRegion {
-            x: x0,
-            width,
-            rvline,
-        }
-    } else {
-        LineRegion {
-            x: x0 - 1.0,
-            width: 2.0,
-            rvline,
-        }
-    })
-}
+// /// Get the render information for a caret cursor at the given `offset`.
+// pub fn cursor_caret(
+//     ed: &Editor,
+//     offset: usize,
+//     block: bool,
+//     affinity: CursorAffinity,
+// ) -> Result<LineRegion> {
+//     let (info, col, after_last_char) = ed.visual_line_of_offset(offset, affinity)?;
+//
+//     let doc = ed.doc();
+//     let preedit_start = doc
+//         .preedit()
+//         .preedit
+//         .with_untracked(|preedit| {
+//             preedit.as_ref().and_then(|preedit| {
+//                 // todo?
+//                 let preedit_line =
+//                     ed.visual_line_of_offset(preedit.offset, affinity).ok()?.0;
+//                 preedit.cursor.map(|x| (preedit_line, x))
+//             })
+//         })
+//         .filter(|(preedit_line, _)| *preedit_line == info)
+//         .map(|(_, (start, _))| start);
+//
+//     let point = ed.line_point_of_visual_line_col(
+//         info.origin_line,
+//         col,
+//         CursorAffinity::Forward,
+//         false,
+//     );
+//
+//     let rvline = if preedit_start.is_some() {
+//         // If there's an IME edit, then we need to use the point's y to get the actual y position
+//         // that the IME cursor is at. Since it could be in the middle of the IME phantom text
+//         let y = point.y;
+//
+//         // TODO: I don't think this is handling varying line heights properly
+//         let line_height = ed.line_height(info.origin_line);
+//
+//         let line_index = (y / f64::from(line_height)).floor() as usize;
+//         RVLine::new(info.origin_line, line_index)
+//     } else {
+//         info.rvline
+//     };
+//     // error!("offset={offset} block={block}, point={point:?} rvline={rvline:?} info={info:?} col={col} after_last_char={after_last_char}");
+//
+//     let x0 = point.x;
+//     Ok(if block {
+//         let x0 = ed
+//             .line_point_of_visual_line_col(
+//                 info.origin_line,
+//                 col,
+//                 CursorAffinity::Forward,
+//                 true,
+//             )
+//             .x;
+//         let new_offset = ed.move_right(offset, Mode::Insert, 1);
+//         let (_, new_col) = ed.offset_to_line_col(new_offset);
+//
+//         let width = if after_last_char {
+//             CHAR_WIDTH
+//         } else {
+//             let x1 = ed
+//                 .line_point_of_visual_line_col(
+//                     info.origin_line,
+//                     new_col,
+//                     CursorAffinity::Backward,
+//                     true,
+//                 )
+//                 .x;
+//             x1 - x0
+//         };
+//
+//         LineRegion {
+//             x: x0,
+//             width,
+//             rvline,
+//         }
+//     } else {
+//         LineRegion {
+//             x: x0 - 1.0,
+//             width: 2.0,
+//             rvline,
+//         }
+//     })
+// }
 
 /// (x, y, line_height, width)
 pub fn cursor_caret_v2(

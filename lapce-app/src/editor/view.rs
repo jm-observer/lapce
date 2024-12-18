@@ -58,8 +58,7 @@ use lapce_rpc::{dap_types::DapId, plugin::PluginId};
 
 use crate::debug::update_breakpoints;
 use crate::editor::editor::{
-    cursor_caret, cursor_caret_v2, cursor_origin_position, paint_selection,
-    paint_text, Editor,
+    cursor_caret_v2, cursor_origin_position, paint_selection, paint_text, Editor,
 };
 use crate::{
     app::clickable_icon,
@@ -443,7 +442,7 @@ impl EditorView {
         cx: &mut PaintCx,
         is_local: bool,
         screen_lines: &ScreenLines,
-    ) {
+    ) -> Option<()> {
         let e_data = self.editor.clone();
         let ed = e_data.editor.clone();
         let doc = e_data.doc();
@@ -452,11 +451,14 @@ impl EditorView {
         let lines = ed.doc().lines;
 
         let config = config.get_untracked();
-        let line_height = config.editor.line_height() as f64;
-        let viewport = self.editor.doc().lines.with_untracked(|x| x.viewport());
+        // let line_height = config.editor.line_height() as f64;
+        // let viewport = lines.with_untracked(|x| );
 
-        let current_line_color = lines.with_untracked(|x| x.current_line_color());
-
+        let (current_line_color, viewport, line_height) =
+            lines.with_untracked(|x| {
+                (x.current_line_color(), x.viewport(), x.line_height as f64)
+            });
+        let current_line_color = current_line_color?;
         let breakline = self.debug_breakline.get_untracked().and_then(
             |(breakline, breakline_path)| {
                 if doc
@@ -468,22 +470,20 @@ impl EditorView {
                     None
                 }
             },
-        );
+        )?;
 
         // TODO: check if this is correct
-        if let Some(breakline) = breakline {
-            if let Some(info) = screen_lines.info_for_line(breakline) {
-                let rect = Rect::from_origin_size(
-                    (viewport.x0, info.vline_y),
-                    (viewport.width(), line_height),
-                );
+        if let Some(info) = screen_lines.visual_line_info_of_origin_line(breakline) {
+            let rect = Rect::from_origin_size(
+                (viewport.x0, info.vline_y),
+                (viewport.width(), line_height),
+            );
 
-                cx.fill(
-                    &rect,
-                    config.color(LapceColor::EDITOR_DEBUG_BREAK_LINE),
-                    0.0,
-                );
-            }
+            cx.fill(
+                &rect,
+                config.color(LapceColor::EDITOR_DEBUG_BREAK_LINE),
+                0.0,
+            );
         }
 
         cursor.with_untracked(|cursor| {
@@ -492,35 +492,47 @@ impl EditorView {
                 CursorMode::Visual { .. } => false,
             };
 
-            if let Some(current_line_color) = current_line_color {
-                // Highlight the current line
-                if !is_local && highlight_current_line {
-                    for (_, end) in cursor.regions_iter() {
-                        // TODO: unsure if this is correct for wrapping lines
-                        let rvline =
-                            match ed.visual_line_of_offset(end, cursor.affinity) {
-                                Ok(rs) => rs.0.rvline,
-                                Err(err) => {
-                                    error!("{err:?}");
-                                    continue;
-                                }
-                            };
+            // Highlight the current line
+            if !is_local && highlight_current_line {
+                for (_, end) in cursor.regions_iter() {
+                    // // TODO: unsure if this is correct for wrapping lines
+                    // let rvline = match ed.visual_line_of_offset(end, cursor.affinity)
+                    // {
+                    //     Ok(rs) => rs.0.rvline,
+                    //     Err(err) => {
+                    //         error!("{err:?}");
+                    //         continue;
+                    //     }
+                    // };
+                    let origin_folded_line =
+                        match ed.doc.get_untracked().lines.with_untracked(|x| {
+                            x.cursor_position_of_buffer_offset(end, cursor.affinity)
+                        }) {
+                            Ok(rs) => rs.0,
+                            Err(err) => {
+                                error!("{err:?}");
+                                continue;
+                            }
+                        };
+                    if origin_folded_line.origin_line == breakline
+                        && origin_folded_line.origin_folded_line_sub_index == 0
+                    {
+                        continue;
+                    }
+                    if let Some(info) = screen_lines
+                        .visual_line_info_of_visual_line(&origin_folded_line)
+                    {
+                        let rect = Rect::from_origin_size(
+                            (viewport.x0, info.vline_y),
+                            (viewport.width(), line_height),
+                        );
 
-                        if let Some(info) = screen_lines
-                            .info(rvline)
-                            .filter(|_| Some(rvline.line) != breakline)
-                        {
-                            let rect = Rect::from_origin_size(
-                                (viewport.x0, info.vline_y),
-                                (viewport.width(), line_height),
-                            );
-
-                            cx.fill(&rect, current_line_color, 0.0);
-                        }
+                        cx.fill(&rect, current_line_color, 0.0);
                     }
                 }
             }
         });
+        None
     }
 
     fn paint_find(&self, cx: &mut PaintCx, screen_lines: &ScreenLines) {
@@ -822,204 +834,199 @@ impl EditorView {
         }
     }
 
-    /// Paint a highlight around the characters at the given positions.
-    fn paint_char_highlights(
-        &self,
-        cx: &mut PaintCx,
-        screen_lines: &ScreenLines,
-        highlight_line_cols: impl Iterator<Item = (RVLine, usize)>,
-    ) {
-        let editor = &self.editor.editor;
-        let config = self.editor.common.config.get_untracked();
-        let line_height = config.editor.line_height() as f64;
+    // /// Paint a highlight around the characters at the given positions.
+    // fn paint_char_highlights(
+    //     &self,
+    //     cx: &mut PaintCx,
+    //     screen_lines: &ScreenLines,
+    //     highlight_line_cols: impl Iterator<Item = (RVLine, usize)>,
+    // ) {
+    //     let editor = &self.editor.editor;
+    //     let config = self.editor.common.config.get_untracked();
+    //     let line_height = config.editor.line_height() as f64;
+    //
+    //     for (rvline, col) in highlight_line_cols {
+    //         // Is the given line on screen?
+    //         if let Some(line_info) = screen_lines.info(rvline) {
+    //             let x0 = editor
+    //                 .line_point_of_visual_line_col(
+    //                     rvline.line,
+    //                     col,
+    //                     CursorAffinity::Forward,
+    //                     true,
+    //                 )
+    //                 .x;
+    //             let x1 = editor
+    //                 .line_point_of_visual_line_col(
+    //                     rvline.line,
+    //                     col + 1,
+    //                     CursorAffinity::Backward,
+    //                     true,
+    //                 )
+    //                 .x;
+    //
+    //             let y0 = line_info.vline_y;
+    //             let y1 = y0 + line_height;
+    //
+    //             let rect = Rect::new(x0, y0, x1, y1);
+    //
+    //             // cx.stroke(&rect, config.color(LapceColor::EDITOR_FOREGROUND), 6.0);
+    //             cx.fill(&rect, config.color(LapceColor::EDITOR_DIM), 0.0);
+    //         }
+    //     }
+    // }
 
-        for (rvline, col) in highlight_line_cols {
-            // Is the given line on screen?
-            if let Some(line_info) = screen_lines.info(rvline) {
-                let x0 = editor
-                    .line_point_of_visual_line_col(
-                        rvline.line,
-                        col,
-                        CursorAffinity::Forward,
-                        true,
-                    )
-                    .x;
-                let x1 = editor
-                    .line_point_of_visual_line_col(
-                        rvline.line,
-                        col + 1,
-                        CursorAffinity::Backward,
-                        true,
-                    )
-                    .x;
-
-                let y0 = line_info.vline_y;
-                let y1 = y0 + line_height;
-
-                let rect = Rect::new(x0, y0, x1, y1);
-
-                // cx.stroke(&rect, config.color(LapceColor::EDITOR_FOREGROUND), 6.0);
-                cx.fill(&rect, config.color(LapceColor::EDITOR_DIM), 0.0);
-            }
-        }
-    }
-
-    /// Paint scope lines between `(start_rvline, start_line, start_col)` and
-    /// `(end_rvline, end_line end_col)`.
-    fn paint_scope_lines(
-        &self,
-        cx: &mut PaintCx,
-        viewport: Rect,
-        screen_lines: &ScreenLines,
-        (start, start_col): (RVLine, usize),
-        (end, end_col): (RVLine, usize),
-    ) {
-        let editor = &self.editor.editor;
-        let doc = self.editor.doc();
-        let config = self.editor.common.config.get_untracked();
-        let line_height = config.editor.line_height() as f64;
-        let brush = config.color(LapceColor::EDITOR_FOREGROUND);
-
-        if start == end {
-            if let Some(line_info) = screen_lines.info(start) {
-                // TODO: Due to line wrapping the y positions of these two spots could be different, do we need to change it?
-                let x0 = editor
-                    .line_point_of_visual_line_col(
-                        start.line,
-                        start_col + 1,
-                        CursorAffinity::Forward,
-                        true,
-                    )
-                    .x;
-                let x1 = editor
-                    .line_point_of_visual_line_col(
-                        end.line,
-                        end_col,
-                        CursorAffinity::Backward,
-                        true,
-                    )
-                    .x;
-
-                if x0 < x1 {
-                    let y = line_info.vline_y + line_height;
-
-                    let p0 = Point::new(x0, y);
-                    let p1 = Point::new(x1, y);
-                    let line = Line::new(p0, p1);
-
-                    cx.stroke(&line, brush, 1.0);
-                }
-            }
-        } else {
-            // Are start_line and end_line on screen?
-            let start_line_y = screen_lines
-                .info(start)
-                .map(|line_info| line_info.vline_y + line_height);
-            let end_line_y = screen_lines
-                .info(end)
-                .map(|line_info| line_info.vline_y + line_height);
-
-            // We only need to draw anything if start_line is on or before the visible section and
-            // end_line is on or after the visible section.
-            let y0 = start_line_y.or_else(|| {
-                screen_lines
-                    .lines
-                    .first()
-                    .is_some_and(|&first_vline| first_vline > start)
-                    .then(|| viewport.min_y())
-            });
-            let y1 = end_line_y.or_else(|| {
-                screen_lines
-                    .lines
-                    .last()
-                    .is_some_and(|&last_line| last_line < end)
-                    .then(|| viewport.max_y())
-            });
-
-            if let [Some(y0), Some(y1)] = [y0, y1] {
-                let start_x = editor
-                    .line_point_of_visual_line_col(
-                        start.line,
-                        start_col + 1,
-                        CursorAffinity::Forward,
-                        true,
-                    )
-                    .x;
-                let end_x = editor
-                    .line_point_of_visual_line_col(
-                        end.line,
-                        end_col,
-                        CursorAffinity::Backward,
-                        true,
-                    )
-                    .x;
-
-                // TODO(minor): is this correct with line wrapping?
-                // The vertical line should be drawn to the left of any non-whitespace characters
-                // in the enclosed section.
-                let min_text_x = doc.lines.with_untracked(|x| {
-                    let buffer = &x.buffer();
-                    ((start.line + 1)..=end.line)
-                        .filter(|&line| !buffer.is_line_whitespace(line))
-                        .map(|line| {
-                            let non_blank_offset =
-                                buffer.first_non_blank_character_on_line(line);
-                            let (_, col) =
-                                editor.offset_to_line_col(non_blank_offset);
-
-                            editor
-                                .line_point_of_visual_line_col(
-                                    line,
-                                    col,
-                                    CursorAffinity::Backward,
-                                    true,
-                                )
-                                .x
-                        })
-                        .min_by(f64::total_cmp)
-                });
-
-                let min_x = min_text_x.map_or(start_x, |min_text_x| {
-                    cmp::min_by(min_text_x, start_x, f64::total_cmp)
-                });
-
-                // Is start_line on screen, and is the vertical line to the left of the opening
-                // bracket?
-                if let Some(y) = start_line_y.filter(|_| start_x > min_x) {
-                    let p0 = Point::new(min_x, y);
-                    let p1 = Point::new(start_x, y);
-                    let line = Line::new(p0, p1);
-
-                    cx.stroke(&line, brush, 1.0);
-                }
-
-                // Is end_line on screen, and is the vertical line to the left of the closing
-                // bracket?
-                if let Some(y) = end_line_y.filter(|_| end_x > min_x) {
-                    let p0 = Point::new(min_x, y);
-                    let p1 = Point::new(end_x, y);
-                    let line = Line::new(p0, p1);
-
-                    cx.stroke(&line, brush, 1.0);
-                }
-
-                let p0 = Point::new(min_x, y0);
-                let p1 = Point::new(min_x, y1);
-                let line = Line::new(p0, p1);
-
-                cx.stroke(&line, brush, 1.0);
-            }
-        }
-    }
+    // /// Paint scope lines between `(start_rvline, start_line, start_col)` and
+    // /// `(end_rvline, end_line end_col)`.
+    // fn paint_scope_lines(
+    //     &self,
+    //     cx: &mut PaintCx,
+    //     viewport: Rect,
+    //     screen_lines: &ScreenLines,
+    //     (start, start_col): (RVLine, usize),
+    //     (end, end_col): (RVLine, usize),
+    // ) {
+    //     let editor = &self.editor.editor;
+    //     let doc = self.editor.doc();
+    //     let config = self.editor.common.config.get_untracked();
+    //     let line_height = config.editor.line_height() as f64;
+    //     let brush = config.color(LapceColor::EDITOR_FOREGROUND);
+    //
+    //     if start == end {
+    //         if let Some(line_info) = screen_lines.info(start) {
+    //             // TODO: Due to line wrapping the y positions of these two spots could be different, do we need to change it?
+    //             let x0 = editor
+    //                 .line_point_of_visual_line_col(
+    //                     start.line,
+    //                     start_col + 1,
+    //                     CursorAffinity::Forward,
+    //                     true,
+    //                 )
+    //                 .x;
+    //             let x1 = editor
+    //                 .line_point_of_visual_line_col(
+    //                     end.line,
+    //                     end_col,
+    //                     CursorAffinity::Backward,
+    //                     true,
+    //                 )
+    //                 .x;
+    //
+    //             if x0 < x1 {
+    //                 let y = line_info.vline_y + line_height;
+    //
+    //                 let p0 = Point::new(x0, y);
+    //                 let p1 = Point::new(x1, y);
+    //                 let line = Line::new(p0, p1);
+    //
+    //                 cx.stroke(&line, brush, 1.0);
+    //             }
+    //         }
+    //     } else {
+    //         // Are start_line and end_line on screen?
+    //         let start_line_y = screen_lines
+    //             .info(start)
+    //             .map(|line_info| line_info.vline_y + line_height);
+    //         let end_line_y = screen_lines
+    //             .info(end)
+    //             .map(|line_info| line_info.vline_y + line_height);
+    //
+    //         // We only need to draw anything if start_line is on or before the visible section and
+    //         // end_line is on or after the visible section.
+    //         let y0 = start_line_y.or_else(|| {
+    //             screen_lines
+    //                 .lines
+    //                 .first()
+    //                 .is_some_and(|&first_vline| first_vline > start)
+    //                 .then(|| viewport.min_y())
+    //         });
+    //         let y1 = end_line_y.or_else(|| {
+    //             screen_lines
+    //                 .lines
+    //                 .last()
+    //                 .is_some_and(|&last_line| last_line < end)
+    //                 .then(|| viewport.max_y())
+    //         });
+    //
+    //         if let [Some(y0), Some(y1)] = [y0, y1] {
+    //             let start_x = editor
+    //                 .line_point_of_visual_line_col(
+    //                     start.line,
+    //                     start_col + 1,
+    //                     CursorAffinity::Forward,
+    //                     true,
+    //                 )
+    //                 .x;
+    //             let end_x = editor
+    //                 .line_point_of_visual_line_col(
+    //                     end.line,
+    //                     end_col,
+    //                     CursorAffinity::Backward,
+    //                     true,
+    //                 )
+    //                 .x;
+    //
+    //             // TODO(minor): is this correct with line wrapping?
+    //             // The vertical line should be drawn to the left of any non-whitespace characters
+    //             // in the enclosed section.
+    //             let min_text_x = doc.lines.with_untracked(|x| {
+    //                 let buffer = &x.buffer();
+    //                 ((start.line + 1)..=end.line)
+    //                     .filter(|&line| !buffer.is_line_whitespace(line))
+    //                     .map(|line| {
+    //                         let non_blank_offset =
+    //                             buffer.first_non_blank_character_on_line(line);
+    //                         let (_, col) =
+    //                             editor.offset_to_line_col(non_blank_offset);
+    //
+    //                         editor
+    //                             .line_point_of_visual_line_col(
+    //                                 line,
+    //                                 col,
+    //                                 CursorAffinity::Backward,
+    //                                 true,
+    //                             )
+    //                             .x
+    //                     })
+    //                     .min_by(f64::total_cmp)
+    //             });
+    //
+    //             let min_x = min_text_x.map_or(start_x, |min_text_x| {
+    //                 cmp::min_by(min_text_x, start_x, f64::total_cmp)
+    //             });
+    //
+    //             // Is start_line on screen, and is the vertical line to the left of the opening
+    //             // bracket?
+    //             if let Some(y) = start_line_y.filter(|_| start_x > min_x) {
+    //                 let p0 = Point::new(min_x, y);
+    //                 let p1 = Point::new(start_x, y);
+    //                 let line = Line::new(p0, p1);
+    //
+    //                 cx.stroke(&line, brush, 1.0);
+    //             }
+    //
+    //             // Is end_line on screen, and is the vertical line to the left of the closing
+    //             // bracket?
+    //             if let Some(y) = end_line_y.filter(|_| end_x > min_x) {
+    //                 let p0 = Point::new(min_x, y);
+    //                 let p1 = Point::new(end_x, y);
+    //                 let line = Line::new(p0, p1);
+    //
+    //                 cx.stroke(&line, brush, 1.0);
+    //             }
+    //
+    //             let p0 = Point::new(min_x, y0);
+    //             let p1 = Point::new(min_x, y1);
+    //             let line = Line::new(p0, p1);
+    //
+    //             cx.stroke(&line, brush, 1.0);
+    //         }
+    //     }
+    // }
 
     /// Paint enclosing bracket highlights and scope lines if the corresponding settings are
     /// enabled.
-    fn paint_bracket_highlights_scope_lines(
-        &self,
-        cx: &mut PaintCx,
-        viewport: Rect,
-        screen_lines: &ScreenLines,
-    ) -> Option<()> {
+    fn paint_bracket_highlights_scope_lines(&self, cx: &mut PaintCx) -> Option<()> {
         let config = self.editor.common.config.get_untracked();
 
         if config.editor.highlight_matching_brackets
@@ -1033,50 +1040,35 @@ impl EditorView {
                 e_data
                     .doc_signal()
                     .with_untracked(|doc| doc.find_enclosing_brackets(offset))?;
-            let bracket_line_cols = match (
-                ed.visual_line_of_offset(
-                    bracket_offsets_start,
-                    CursorAffinity::Forward,
-                ),
-                ed.visual_line_of_offset(
-                    bracket_offsets_end,
-                    CursorAffinity::Forward,
-                ),
-            ) {
-                (Ok(bracket_offsets_start), Ok(bracket_offsets_end)) => [
-                    (bracket_offsets_start.0.rvline, bracket_offsets_start.1),
-                    (bracket_offsets_end.0.rvline, bracket_offsets_end.1),
-                ],
-                _ => {
-                    warn!("bracket_offsets_start {bracket_offsets_start} bracket_offsets_end {bracket_offsets_end} visual_line_of_offset empty");
-                    return None;
-                }
-            };
-            // let bracket_line_cols = bracket_offsets?.map(|offset| {
-            //     let Ok(rvline, col, _) =
-            //         ed.visual_line_of_offset(offset, CursorAffinity::Forward) else {
-            //
-            //     }
-            //     (rvline.rvline, col)
-            // });
+
+            let bracket_offsets_start = ed.doc().lines.with_untracked(|x| {
+                x.char_rect_in_viewport(bracket_offsets_start)
+            })?;
+            let bracket_offsets_end = ed
+                .doc()
+                .lines
+                .with_untracked(|x| x.char_rect_in_viewport(bracket_offsets_end))?;
 
             if config.editor.highlight_matching_brackets {
-                self.paint_char_highlights(
-                    cx,
-                    screen_lines,
-                    bracket_line_cols.into_iter(),
+                let rect = Rect::from_points(
+                    bracket_offsets_start.0,
+                    bracket_offsets_start.1,
                 );
+                cx.fill(&rect, config.color(LapceColor::EDITOR_DIM), 0.0);
+                let rect =
+                    Rect::from_points(bracket_offsets_end.0, bracket_offsets_end.1);
+                cx.fill(&rect, config.color(LapceColor::EDITOR_DIM), 0.0);
             }
-
-            if config.editor.highlight_scope_lines {
-                self.paint_scope_lines(
-                    cx,
-                    viewport,
-                    screen_lines,
-                    bracket_line_cols[0],
-                    bracket_line_cols[1],
-                );
-            }
+            // todo
+            // if config.editor.highlight_scope_lines {
+            //     self.paint_scope_lines(
+            //         cx,
+            //         viewport,
+            //         screen_lines,
+            //         bracket_line_cols[0],
+            //         bracket_line_cols[1],
+            //     );
+            // }
         }
         None
     }
@@ -1239,7 +1231,7 @@ impl View for EditorView {
         // let screen_lines = ed.screen_lines.get_untracked();
         self.paint_find(cx, &screen_lines);
         // let screen_lines = ed.screen_lines.get_untracked();
-        self.paint_bracket_highlights_scope_lines(cx, viewport, &screen_lines);
+        self.paint_bracket_highlights_scope_lines(cx);
         // let screen_lines = ed.screen_lines.get_untracked();
 
         paint_text(
@@ -1679,7 +1671,7 @@ fn editor_gutter_breakpoints(
                             .with_untracked(|x| x.signal_screen_lines())
                             .get_untracked();
                         let line_y = screen_lines
-                            .info_for_line(line)
+                            .visual_line_info_of_origin_line(line)
                             .map(|l| l.y)
                             .unwrap_or_default();
                         s.absolute()
@@ -1740,8 +1732,12 @@ fn editor_gutter_code_lens_view(
         }
     });
     container(view).style(move |s| {
-        let line_info = screen_lines.with(|s| s.info_for_line(line));
-        let line_y = line_info.clone().map(|l| l.y).unwrap_or(-100.0);
+        let line_y = screen_lines.with(|s| {
+            s.visual_line_info_of_origin_line(line)
+                .map(|x| x.y)
+                .unwrap_or(-100.0)
+        });
+        // let line_y = line_info.clone().map(|l| l.y).unwrap_or(-100.0);
         let rect = viewport.get();
         let config = config.get();
         let icon_size = config.ui.icon_size();

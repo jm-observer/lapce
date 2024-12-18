@@ -21,7 +21,7 @@ use lapce_rpc::source_control::FileDiff;
 use log::error;
 
 use super::{data::PanelSection, kind::PanelKind, view::foldable_panel_section};
-use crate::editor::editor::cursor_caret;
+use crate::editor::editor::cursor_caret_v2;
 use crate::panel::position::PanelContainerPosition;
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand},
@@ -124,33 +124,47 @@ pub fn source_control_panel(
                     let e_data = editor.get_untracked();
                     e_data.doc_signal().track();
                     e_data.kind().track();
-                    let LineRegion { x, width, rvline } = match cursor_caret(
+
+                    if let Some((x, y, width, line_height)) = cursor_caret_v2(
                         &e_data.editor,
                         offset,
                         !cursor.is_insert(),
                         cursor.affinity,
                     ) {
-                        Ok(rs) => rs,
-                        Err(err) => {
-                            error!("{err:?}");
-                            return Rect::ZERO;
-                        }
-                    };
-                    let config = config.get_untracked();
-                    let line_height = config.editor.line_height();
-                    // TODO: is there a way to avoid the calculation of the vline here?
-                    let vline = match e_data.editor.vline_of_rvline(rvline) {
-                        Ok(vline) => vline,
-                        Err(err) => {
-                            error!("{:?}", err);
-                            return Rect::ZERO;
-                        }
-                    };
-                    Rect::from_origin_size(
-                        (x, (vline.get() * line_height) as f64),
-                        (width, line_height as f64),
-                    )
-                    .inflate(30.0, 10.0)
+                        let rect =
+                            Rect::from_origin_size((x, y), (width, line_height));
+                        rect.inflate(30.0, 10.0)
+                    } else {
+                        Rect::ZERO
+                    }
+                    //
+                    // let LineRegion { x, width, rvline } = match cursor_caret(
+                    //     &e_data.editor,
+                    //     offset,
+                    //     !cursor.is_insert(),
+                    //     cursor.affinity,
+                    // ) {
+                    //     Ok(rs) => rs,
+                    //     Err(err) => {
+                    //         error!("{err:?}");
+                    //         return Rect::ZERO;
+                    //     }
+                    // };
+                    // let config = config.get_untracked();
+                    // let line_height = config.editor.line_height();
+                    // // TODO: is there a way to avoid the calculation of the vline here?
+                    // let vline = match e_data.editor.vline_of_rvline(rvline) {
+                    //     Ok(vline) => vline,
+                    //     Err(err) => {
+                    //         error!("{:?}", err);
+                    //         return Rect::ZERO;
+                    //     }
+                    // };
+                    // Rect::from_origin_size(
+                    //     (x, (vline.get() * line_height) as f64),
+                    //     (width, line_height as f64),
+                    // )
+                    // .inflate(30.0, 10.0)
                 })
                 .style(|s| s.absolute().size_pct(100.0, 100.0))
             })
