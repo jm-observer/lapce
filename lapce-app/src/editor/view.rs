@@ -612,62 +612,71 @@ impl EditorView {
     ) -> Result<()> {
         let start = region.min();
         let end = region.max();
-
-        // TODO(minor): the proper affinity here should probably be tracked by selregion
-        let (start_rvline, start_col, _) =
-            ed.visual_line_of_offset(start, CursorAffinity::Forward)?;
-        let (end_rvline, end_col, _) =
-            ed.visual_line_of_offset(end, CursorAffinity::Backward)?;
-        let start_rvline = start_rvline.rvline;
-        let end_rvline = end_rvline.rvline;
-
-        for line_info in screen_lines.iter_line_info() {
-            let rvline_info = line_info.vline_info;
-            let rvline = rvline_info.rvline;
-            let line = rvline.line;
-
-            if rvline < start_rvline {
-                continue;
-            }
-
-            if rvline > end_rvline {
-                break;
-            }
-
-            let left_col = if rvline == start_rvline { start_col } else { 0 };
-            let (right_col, _vline_end) = if rvline == end_rvline {
-                let max_col = ed.last_col(rvline_info, true);
-                (end_col.min(max_col), false)
-            } else {
-                (ed.last_col(rvline_info, true), true)
-            };
-
-            // TODO(minor): sel region should have the affinity of the start/end
-            let x0 = ed
-                .line_point_of_visual_line_col(
-                    line,
-                    left_col,
-                    CursorAffinity::Forward,
-                    true,
-                )
-                .x;
-            let x1 = ed
-                .line_point_of_visual_line_col(
-                    line,
-                    right_col,
-                    CursorAffinity::Backward,
-                    true,
-                )
-                .x;
-            error!("todo replace paint_find_region start={start} end={end} left_col={left_col} x0={x0} right_col={right_col} x1={x1}");
-            if !rvline_info.is_empty() && start != end && left_col != right_col {
-                let rect = Size::new(x1 - x0, line_height)
-                    .to_rect()
-                    .with_origin(Point::new(x0, line_info.vline_y));
-                cx.stroke(&rect, color, 1.0);
-            }
+        let rs = ed
+            .doc()
+            .lines
+            .with_untracked(|x| x.normal_selection(start, end))?;
+        for rect in rs {
+            // cx.fill(&rect, color, 0.0);
+            cx.stroke(&rect, color, 1.0);
         }
         Ok(())
+
+        // // TODO(minor): the proper affinity here should probably be tracked by selregion
+        // let (start_rvline, start_col, _) =
+        //     ed.visual_line_of_offset(start, CursorAffinity::Forward)?;
+        // let (end_rvline, end_col, _) =
+        //     ed.visual_line_of_offset(end, CursorAffinity::Backward)?;
+        // let start_rvline = start_rvline.rvline;
+        // let end_rvline = end_rvline.rvline;
+        //
+        // for line_info in screen_lines.iter_line_info() {
+        //     let rvline_info = line_info.vline_info;
+        //     let rvline = rvline_info.rvline;
+        //     let line = rvline.line;
+        //
+        //     if rvline < start_rvline {
+        //         continue;
+        //     }
+        //
+        //     if rvline > end_rvline {
+        //         break;
+        //     }
+        //
+        //     let left_col = if rvline == start_rvline { start_col } else { 0 };
+        //     let (right_col, _vline_end) = if rvline == end_rvline {
+        //         let max_col = ed.last_col(rvline_info, true);
+        //         (end_col.min(max_col), false)
+        //     } else {
+        //         (ed.last_col(rvline_info, true), true)
+        //     };
+        //
+        //     // TODO(minor): sel region should have the affinity of the start/end
+        //     let x0 = ed
+        //         .line_point_of_visual_line_col(
+        //             line,
+        //             left_col,
+        //             CursorAffinity::Forward,
+        //             true,
+        //         )
+        //         .x;
+        //     let x1 = ed
+        //         .line_point_of_visual_line_col(
+        //             line,
+        //             right_col,
+        //             CursorAffinity::Backward,
+        //             true,
+        //         )
+        //         .x;
+        //     error!("todo replace paint_find_region start={start} end={end} left_col={left_col} x0={x0} right_col={right_col} x1={x1}");
+        //     if !rvline_info.is_empty() && start != end && left_col != right_col {
+        //         let rect = Size::new(x1 - x0, line_height)
+        //             .to_rect()
+        //             .with_origin(Point::new(x0, line_info.vline_y));
+        //         cx.stroke(&rect, color, 1.0);
+        //     }
+        // }
+        // Ok(())
     }
 
     fn paint_sticky_headers(
