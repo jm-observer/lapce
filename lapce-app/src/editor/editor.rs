@@ -796,23 +796,23 @@ impl Editor {
     //         .vline_col_of_offset(self.text_prov(), offset, affinity)
     // }
 
-    /// 该原始偏移字符所在的视觉行，以及在视觉行的偏移
-    pub fn visual_line_of_offset(
-        &self,
-        offset: usize,
-        affinity: CursorAffinity,
-    ) -> Result<(VLineInfo, usize, bool)> {
-        let (origin_line, offset_of_line) = self.doc.with_untracked(|x| {
-            let text = x.text();
-            let origin_line = text.line_of_offset(offset);
-            let origin_line_start_offset = text.offset_of_line(origin_line);
-            (origin_line, origin_line_start_offset)
-        });
-        let offset = offset - offset_of_line;
-        self.doc().lines.with_untracked(|x| {
-            x.visual_line_of_origin_line_offset(origin_line, offset, affinity)
-        })
-    }
+    // /// 该原始偏移字符所在的视觉行，以及在视觉行的偏移
+    // pub fn visual_line_of_offset(
+    //     &self,
+    //     offset: usize,
+    //     affinity: CursorAffinity,
+    // ) -> Result<(VLineInfo, usize, bool)> {
+    //     let (origin_line, offset_of_line) = self.doc.with_untracked(|x| {
+    //         let text = x.text();
+    //         let origin_line = text.line_of_offset(offset);
+    //         let origin_line_start_offset = text.offset_of_line(origin_line);
+    //         (origin_line, origin_line_start_offset)
+    //     });
+    //     let offset = offset - offset_of_line;
+    //     self.doc().lines.with_untracked(|x| {
+    //         x.visual_line_of_origin_line_offset(origin_line, offset, affinity)
+    //     })
+    // }
 
     // /// 该原始偏移字符所在的视觉行，以及在视觉行的偏移
     // fn cursor_position_of_buffer_offset(
