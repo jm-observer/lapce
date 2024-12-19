@@ -1203,8 +1203,11 @@ impl EditorData {
             .doc()
             .lines
             .with_untracked(|x| x.screen_lines().clone());
-        let lines: HashSet<usize> =
-            screen_lines.lines.iter().map(|l| l.line).collect();
+        let lines: HashSet<usize> = screen_lines
+            .visual_lines
+            .iter()
+            .map(|l| l.visual_line.origin_line)
+            .collect();
 
         let mut matcher = nucleo::Matcher::new(nucleo::Config::DEFAULT);
         let pattern = nucleo::pattern::Pattern::parse(

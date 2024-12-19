@@ -213,8 +213,8 @@ pub fn editor_view(
         let rect = viewport.get();
         let screen_lines = screen_lines.get();
         let (screen_lines_len, screen_lines_first) = (
-            screen_lines.lines.len(),
-            screen_lines.lines.first().copied(),
+            screen_lines.visual_lines.len(),
+            screen_lines.visual_lines.first().cloned(),
         );
         let buffer_rev = doc.lines.with_untracked(|x| x.signal_buffer_rev());
         let rev = (
@@ -544,7 +544,7 @@ impl EditorView {
         if !find_visual && self.editor.on_screen_find.with_untracked(|f| !f.active) {
             return Ok(());
         }
-        if screen_lines.lines.is_empty() {
+        if screen_lines.is_empty() {
             return Ok(());
         }
 
@@ -563,7 +563,6 @@ impl EditorView {
         let occurrences = doc.find_result.occurrences;
 
         let config = config.get_untracked();
-        let line_height = config.editor.line_height() as f64;
         let color = config.color(LapceColor::EDITOR_FOREGROUND);
 
         // let start = ed.offset_of_line(min_line);
@@ -1485,7 +1484,11 @@ fn editor_gutter_breakpoint_view(
     )
     .on_click_stop(move |_| {
         let line = doc.get_untracked().lines.with_untracked(|x| {
-            x.screen_lines().lines.get(i).map(|r| r.line).unwrap_or(0)
+            x.screen_lines()
+                .visual_lines
+                .get(i)
+                .map(|r| r.visual_line.origin_line)
+                .unwrap_or(0)
         });
         // let screen_lines = screen_lines.get_untracked();
         // let line = screen_lines;
@@ -1595,7 +1598,7 @@ fn editor_gutter_breakpoints(
         let screen_lines =
             doc.get().lines.with_untracked(|x| x.signal_screen_lines());
         let screen_lines = screen_lines.get();
-        screen_lines.lines.len()
+        screen_lines.visual_lines.len()
         // let viewport = viewport.get();
         // let line_height = config.get().editor.line_height() as f64;
         // (viewport.height() / line_height).ceil() as usize + 1
