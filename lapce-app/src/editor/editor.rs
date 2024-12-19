@@ -1904,91 +1904,15 @@ fn paint_normal_selection(
     color: Color,
     start_offset: usize,
     end_offset: usize,
-    affinity: CursorAffinity,
+    _affinity: CursorAffinity,
 ) -> Result<()> {
-    error!("todo replace paint_normal_selection start_offset={start_offset} end_offset={end_offset} affinity={affinity:?}");
-
     let rs = ed
         .doc()
         .lines
-        .with_untracked(|x| x.normal_selection(start_offset, end_offset));
-    for line in rs {
-        let rect = Rect::from(line);
+        .with_untracked(|x| x.normal_selection(start_offset, end_offset))?;
+    for rect in rs {
         cx.fill(&rect, color, 0.0);
     }
-    // TODO: selections should have separate start/end affinity
-    // let (start_rvline, start_col, _) =
-    //     ed.visual_line_of_offset(start_offset, affinity)?;
-    // let (end_rvline, end_col, _) = ed.visual_line_of_offset(end_offset, affinity)?;
-    // let start_rvline = start_rvline.rvline;
-    // let end_rvline = end_rvline.rvline;
-    //
-    // for LineInfo {
-    //     vline_y,
-    //     vline_info: info,
-    //     ..
-    // } in screen_lines.iter_line_info_r(start_rvline..=end_rvline)
-    // {
-    //     let rvline = info.rvline;
-    //     let line = rvline.line;
-    //
-    //     let left_col = if rvline == start_rvline {
-    //         start_col
-    //     } else {
-    //         ed.first_col(info)
-    //     };
-    //     let right_col = if rvline == end_rvline {
-    //         end_col
-    //     } else {
-    //         ed.last_col(info, true)
-    //     };
-    //
-    //     // Skip over empty selections
-    //     if !info.is_empty_phantom() && left_col == right_col {
-    //         continue;
-    //     }
-    //
-    //     // TODO: What affinity should these use?
-    //     let x0 = ed
-    //         .line_point_of_visual_line_col(
-    //             line,
-    //             left_col,
-    //             CursorAffinity::Forward,
-    //             true,
-    //         )
-    //         .x;
-    //     let x1 = ed
-    //         .line_point_of_visual_line_col(
-    //             line,
-    //             right_col,
-    //             CursorAffinity::Backward,
-    //             true,
-    //         )
-    //         .x;
-    //     // TODO(minor): Should this be line != end_line?
-    //     let x1 = if rvline != end_rvline {
-    //         x1 + CHAR_WIDTH
-    //     } else {
-    //         x1
-    //     };
-    //
-    //     let (x0, width) = if info.is_empty_phantom() {
-    //         let text_layout = ed.text_layout_of_visual_line(line);
-    //         let width = text_layout
-    //             .get_layout_x(rvline.line_index)
-    //             .map(|(_, x1)| x1)
-    //             .unwrap_or(0.0)
-    //             .into();
-    //         (0.0, width)
-    //     } else {
-    //         (x0, x1 - x0)
-    //     };
-    //
-    //     let line_height = ed.line_height(line);
-    //     let rect =
-    //         Rect::from_origin_size((x0, vline_y), (width, f64::from(line_height)));
-    //     cx.fill(&rect, color, 0.0);
-    // }
     Ok(())
 }
 
