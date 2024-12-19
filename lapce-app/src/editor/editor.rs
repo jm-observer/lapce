@@ -691,17 +691,17 @@ impl Editor {
         self.rope_text().last_line()
     }
 
-    pub fn last_vline(&self) -> VLine {
-        self.doc()
-            .lines
-            .with_untracked(|x| x.last_visual_line().into())
-    }
+    // pub fn last_vline(&self) -> VLine {
+    //     self.doc()
+    //         .lines
+    //         .with_untracked(|x| x.last_visual_line().into())
+    // }
 
-    pub fn last_rvline(&self) -> RVLine {
-        self.doc()
-            .lines
-            .with_untracked(|x| x.last_visual_line().into())
-    }
+    // pub fn last_rvline(&self) -> RVLine {
+    //     self.doc()
+    //         .lines
+    //         .with_untracked(|x| x.last_visual_line().into())
+    // }
 
     // pub fn last_rvline_info(&self) -> VLineInfo<()> {
     //     self.rvline_info(self.last_rvline())
@@ -774,15 +774,15 @@ impl Editor {
     //     self.lines.rvline_of_line(self.text_prov(), line)
     // }
 
-    pub fn vline_of_rvline(&self, rvline: RVLine) -> Result<VLine> {
-        self.doc().lines.with_untracked(|x| {
-            x.visual_line_of_folded_line_and_sub_index(
-                rvline.line,
-                rvline.line_index,
-            )
-            .map(|x| x.into())
-        })
-    }
+    // pub fn vline_of_rvline(&self, rvline: RVLine) -> Result<VLine> {
+    //     self.doc().lines.with_untracked(|x| {
+    //         x.visual_line_of_folded_line_and_sub_index(
+    //             rvline.line,
+    //             rvline.line_index,
+    //         )
+    //         .map(|x| x.into())
+    //     })
+    // }
 
     // /// Get the nearest offset to the start of the visual line.
     // pub fn offset_of_vline(&self, vline: VLine) -> usize {

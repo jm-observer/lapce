@@ -15,6 +15,7 @@ use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender, TryRecvError};
 use doc::language::LapceLanguage;
 use doc::lines::buffer::rope_text::RopeText;
+use doc::lines::line_ending::LineEnding;
 use doc::lines::selection::Selection;
 use doc::syntax::Syntax;
 use floem::{
@@ -28,9 +29,7 @@ use floem::{
 use im::Vector;
 use itertools::Itertools;
 use lapce_core::directory::Directory;
-use lapce_core::{
-    command::FocusCommand, line_ending::LineEnding, mode::Mode, movement::Movement,
-};
+use lapce_core::{command::FocusCommand, mode::Mode, movement::Movement};
 use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;
 use log::{error, info};

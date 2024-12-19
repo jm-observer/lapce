@@ -21,6 +21,8 @@ lapce-xi-rope     = { workspace = true }
 lapce-rpc         = { workspace = true }
 floem-editor-core = { workspace = true }
 log = { workspace = true }
+doc = {workspace = true}
+
 libloading  = "0.8.1"
 slotmap     = "1.0"
 arc-swap    = "1.6.0"

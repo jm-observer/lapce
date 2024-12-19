@@ -34,8 +34,9 @@ psp-types = { workspace = true }
 lapce-xi-rope     = { workspace = true }
 lapce-core        = { workspace = true }
 lapce-rpc         = { workspace = true }
-floem-editor-core = { workspace = true }
+#floem-editor-core = { workspace = true }
 log = { workspace = true }
+doc = { workspace = true }
 # proxy specific dependencies
 
 dyn-clone    = "1.0.16"

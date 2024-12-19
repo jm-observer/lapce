@@ -1,10 +1,12 @@
 use std::cmp::{max, min};
 
-use doc::lines::selection::{SelRegion, Selection};
+use doc::lines::{
+    selection::{SelRegion, Selection},
+    word::WordCursor,
+};
 use floem::reactive::{
     RwSignal, Scope, SignalGet, SignalTrack, SignalUpdate, SignalWith,
 };
-use lapce_core::word::WordCursor;
 use lapce_xi_rope::{
     find::{find, is_multiline_regex, CaseMatching},
     Cursor, Interval, Rope,

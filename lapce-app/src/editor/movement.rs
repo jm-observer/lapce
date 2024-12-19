@@ -5,7 +5,7 @@ use floem_editor_core::{
     mode::{Mode, MotionMode, VisualMode},
     movement::{LinePosition, Movement},
     register::Register,
-    soft_tab::{snap_to_soft_tab, SnapDirection},
+    soft_tab::SnapDirection,
 };
 
 use doc::lines::{
@@ -22,6 +22,7 @@ use log::{error, info, warn};
 
 use anyhow::Result;
 use floem::reactive::SignalGet;
+use lapce_xi_rope::Rope;
 
 /// Move a selection region by a given movement.
 /// Much of the time, this will just be a matter of moving the cursor, but
@@ -268,6 +269,68 @@ fn move_left(
     *affinity = CursorAffinity::Forward;
 
     new_offset
+}
+
+pub fn snap_to_soft_tab(
+    text: &Rope,
+    offset: usize,
+    direction: SnapDirection,
+    tab_width: usize,
+) -> usize {
+    // Fine which line we're on.
+    let line = text.line_of_offset(offset);
+    // Get the offset to the start of the line.
+    let start_line_offset = text.offset_of_line(line);
+    // And the offset within the lint.
+    let offset_within_line = offset - start_line_offset;
+
+    start_line_offset
+        + snap_to_soft_tab_logic(
+            text,
+            offset_within_line,
+            start_line_offset,
+            direction,
+            tab_width,
+        )
+}
+
+fn snap_to_soft_tab_logic(
+    text: &Rope,
+    offset_or_col: usize,
+    start_line_offset: usize,
+    direction: SnapDirection,
+    tab_width: usize,
+) -> usize {
+    assert!(tab_width >= 1);
+
+    // Number of spaces, ignoring incomplete soft tabs.
+    let space_count =
+        (count_spaces_from(text, start_line_offset) / tab_width) * tab_width;
+
+    // If we're past the soft tabs, we don't need to snap.
+    if offset_or_col >= space_count {
+        return offset_or_col;
+    }
+
+    let bias = match direction {
+        SnapDirection::Left => 0,
+        SnapDirection::Right => tab_width - 1,
+        SnapDirection::Nearest => tab_width / 2,
+    };
+
+    ((offset_or_col + bias) / tab_width) * tab_width
+}
+
+fn count_spaces_from(text: &Rope, from_offset: usize) -> usize {
+    let mut cursor = lapce_xi_rope::Cursor::new(text, from_offset);
+    let mut space_count = 0usize;
+    while let Some(next) = cursor.next_codepoint() {
+        if next != ' ' {
+            break;
+        }
+        space_count += 1;
+    }
+    space_count
 }
 
 /// Move the offset to the right by `count` amount.

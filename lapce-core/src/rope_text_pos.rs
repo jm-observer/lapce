@@ -1,4 +1,4 @@
-use floem_editor_core::buffer::rope_text::RopeText;
+use doc::lines::buffer::rope_text::RopeText;
 use lsp_types::Position;
 
 use crate::encoding::{offset_utf16_to_utf8, offset_utf8_to_utf16};

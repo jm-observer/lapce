@@ -20,6 +20,7 @@ use std::{
 
 use doc::lines::buffer::rope_text::RopeTextVal;
 use doc::lines::edit::EditType;
+use doc::lines::line_ending::LineEnding;
 use doc::lines::{
     buffer::{
         diff::{rope_diff, DiffLines},
@@ -55,8 +56,7 @@ use itertools::Itertools;
 use lapce_core::directory::Directory;
 use lapce_core::{
     char_buffer::CharBuffer, command::EditCommand, editor::Action,
-    indent::IndentStyle, line_ending::LineEnding, mode::MotionMode,
-    register::Register, style::line_styles,
+    indent::IndentStyle, mode::MotionMode, register::Register, style::line_styles,
 };
 
 use lapce_rpc::{

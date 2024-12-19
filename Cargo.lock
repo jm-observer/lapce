@@ -175,9 +175,9 @@ checksum = "1bec1de6f59aedf83baf9ff929c98f2ad654b97c9510f4e70cf6f661d49fd5b1"
 
 [[package]]
 name = "anyhow"
-version = "1.0.89"
+version = "1.0.94"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86fdf8605db99b54d3cd748a44c6d04df638eb5dafb219b135d0149bd0db01f6"
+checksum = "c1fd03a028ef38ba2276dce7e33fcd6369c158a1bca17946c4b1b701891c1ff7"
 
 [[package]]
 name = "arbitrary"
@@ -1483,10 +1483,11 @@ dependencies = [
  "hashbrown 0.14.5",
  "im",
  "itertools 0.12.1",
- "lapce-xi-rope",
+ "lapce-xi-rope 0.3.2",
  "libloading",
  "log",
  "lsp-types",
+ "memchr",
  "regex",
  "serde",
  "serde_json",
@@ -1785,7 +1786,7 @@ dependencies = [
  "im-rc",
  "image",
  "indexmap",
- "lapce-xi-rope",
+ "lapce-xi-rope 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot",
  "peniko",
  "raw-window-handle 0.6.2",
@@ -1811,7 +1812,7 @@ version = "0.1.1"
 dependencies = [
  "bitflags 2.6.0",
  "itertools 0.12.1",
- "lapce-xi-rope",
+ "lapce-xi-rope 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "memchr",
  "serde",
  "strum",
@@ -3056,7 +3057,7 @@ dependencies = [
  "lapce-core",
  "lapce-proxy",
  "lapce-rpc",
- "lapce-xi-rope",
+ "lapce-xi-rope 0.3.2",
  "log",
  "lsp-types",
  "notify 5.2.0",
@@ -3080,11 +3081,11 @@ dependencies = [
  "tar",
  "tempfile",
  "thiserror",
- "toml 0.5.11",
+ "toml 0.8.19",
  "toml_edit 0.20.7",
  "unicode-width",
  "url",
- "windows-sys 0.45.0",
+ "windows-sys 0.59.0",
  "zip",
  "zstd",
 ]
@@ -3097,13 +3098,14 @@ dependencies = [
  "anyhow",
  "arc-swap",
  "directories",
+ "doc",
  "floem-editor-core",
  "git2",
  "hashbrown 0.14.5",
  "include_dir",
  "itertools 0.12.1",
  "lapce-rpc",
- "lapce-xi-rope",
+ "lapce-xi-rope 0.3.2",
  "libloading",
  "log",
  "lsp-types",
@@ -3126,9 +3128,9 @@ dependencies = [
  "clap",
  "crossbeam-channel",
  "directories",
+ "doc",
  "dyn-clone",
  "flate2",
- "floem-editor-core",
  "git2",
  "globset",
  "grep-matcher",
@@ -3140,7 +3142,7 @@ dependencies = [
  "jsonrpc-lite",
  "lapce-core",
  "lapce-rpc",
- "lapce-xi-rope",
+ "lapce-xi-rope 0.3.2",
  "libc",
  "locale_config",
  "log",
@@ -3154,7 +3156,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tar",
- "toml 0.5.11",
+ "toml 0.8.19",
  "trash",
  "url",
  "walkdir",
@@ -3173,13 +3175,25 @@ dependencies = [
  "crossbeam-channel",
  "human-sort",
  "indexmap",
- "lapce-xi-rope",
+ "lapce-xi-rope 0.3.2",
  "log",
  "lsp-types",
  "parking_lot",
  "serde",
  "serde_json",
  "url",
+]
+
+[[package]]
+name = "lapce-xi-rope"
+version = "0.3.2"
+dependencies = [
+ "anyhow",
+ "bytecount",
+ "memchr",
+ "regex",
+ "serde",
+ "unicode-segmentation",
 ]
 
 [[package]]
