@@ -685,11 +685,11 @@ impl EditorView {
         }
 
         let line_height = config.editor.line_height();
-        let Some(start_vline) = screen_lines.lines.first() else {
+        let Some(start_vline) = screen_lines.visual_lines.first() else {
             return;
         };
-        let start_info = screen_lines.vline_info(*start_vline).unwrap();
-        let start_line = start_info.rvline.line;
+        // let start_info = screen_lines.vline_info(*start_vline).unwrap();
+        let start_line = start_vline.visual_line.origin_line;
 
         let sticky_header_info = self.editor.sticky_header_info.get_untracked();
         let total_sticky_lines = sticky_header_info.sticky_lines.len();

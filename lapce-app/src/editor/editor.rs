@@ -1945,8 +1945,8 @@ pub fn paint_text(
     let indent_text_width = indent_text.hit_position(indent_unit.len()).point.x;
 
     if show_indent_guide.0 {
-        for line_info in screen_lines.iter_line_info_y() {
-            let line = line_info.vline_info.vline.0;
+        for line_info in &screen_lines.visual_lines {
+            let line = line_info.visual_line.origin_line;
             let y = line_info.y;
             let text_layout = ed.text_layout_of_visual_line(line);
             let line_height = f64::from(ed.line_height(line));
@@ -1964,8 +1964,8 @@ pub fn paint_text(
 
     paint_cursor_caret(cx, ed, is_active, screen_lines);
 
-    for line_info in screen_lines.iter_line_info_y() {
-        let line = line_info.vline_info.vline.0;
+    for line_info in &screen_lines.visual_lines {
+        let line = line_info.visual_line.origin_line;
         let y = line_info.y;
         let text_layout = ed.text_layout_of_visual_line(line);
 
