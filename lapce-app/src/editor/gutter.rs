@@ -19,7 +19,7 @@ use crate::config::{color::LapceColor, LapceConfig};
 use crate::doc::Doc;
 
 use super::{view::changes_colors_screen, EditorData};
-
+use anyhow::Result;
 pub struct EditorGutterView {
     id: ViewId,
     editor: EditorData,
@@ -50,16 +50,16 @@ impl EditorGutterView {
         is_normal: bool,
         config: &LapceConfig,
         doc: &Doc,
-    ) {
+    ) -> Result<()> {
         if !is_normal {
-            return;
+            return Ok(());
         }
 
         let changes = doc.head_changes().get_untracked();
         let line_height = config.editor.line_height() as f64;
         let gutter_padding_right = self.gutter_padding_right.get_untracked() as f64;
 
-        let changes = changes_colors_screen(config, &e_data.editor, changes);
+        let changes = changes_colors_screen(config, &e_data.editor, changes)?;
         for (y, height, removed, color) in changes {
             let height = if removed {
                 10.0
@@ -79,6 +79,7 @@ impl EditorGutterView {
                 0.0,
             )
         }
+        Ok(())
     }
 
     fn paint_sticky_headers(
@@ -212,14 +213,16 @@ impl View for EditorGutterView {
             }
         });
 
-        self.paint_head_changes(
+        if let Err(err) = self.paint_head_changes(
             cx,
             &self.editor,
             viewport,
             kind_is_normal,
             &config,
             &doc,
-        );
+        ) {
+            error!("{err:?}");
+        }
         self.paint_sticky_headers(cx, kind_is_normal, &config);
     }
 

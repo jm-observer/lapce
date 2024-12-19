@@ -2661,17 +2661,14 @@ pub fn changes_colors_screen(
     config: &LapceConfig,
     editor: &Editor,
     changes: im::Vector<DiffLines>,
-) -> Vec<(f64, usize, bool, Color)> {
+) -> Result<Vec<(f64, usize, bool, Color)>> {
     let screen_lines = editor
         .doc()
         .lines
         .with_untracked(|x| x.screen_lines().clone());
 
-    let Some((min, max)) = screen_lines.rvline_range() else {
-        return Vec::new();
-    };
+    let (min, max) = screen_lines.line_interval()?;
 
-    let _line_height = config.editor.line_height();
     let mut line = 0;
     let mut colors = Vec::new();
 
@@ -2679,7 +2676,7 @@ pub fn changes_colors_screen(
         let _pre_line = line;
 
         line += len;
-        if line < min.line {
+        if line < min {
             continue;
         }
 
@@ -2702,12 +2699,12 @@ pub fn changes_colors_screen(
             // colors.push((y, height, removed, color));
         }
 
-        if line > max.line {
+        if line > max {
             break;
         }
     }
 
-    colors
+    Ok(colors)
 }
 
 // TODO: limit the visual line that changes are considered past to some reasonable number
