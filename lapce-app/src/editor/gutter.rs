@@ -199,7 +199,7 @@ impl View for EditorGutterView {
                         attrs_list.clone(),
                     )
                 };
-                let y = visual_line_info.y;
+                let y = visual_line_info.visual_line_y;
                 let size = text_layout.size();
                 let height = size.height;
 

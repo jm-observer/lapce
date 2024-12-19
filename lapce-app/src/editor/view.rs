@@ -475,7 +475,7 @@ impl EditorView {
         // TODO: check if this is correct
         if let Some(info) = screen_lines.visual_line_info_of_origin_line(breakline) {
             let rect = Rect::from_origin_size(
-                (viewport.x0, info.vline_y),
+                (viewport.x0, info.visual_line_y),
                 (viewport.width(), line_height),
             );
 
@@ -523,7 +523,7 @@ impl EditorView {
                         .visual_line_info_of_visual_line(&origin_folded_line)
                     {
                         let rect = Rect::from_origin_size(
-                            (viewport.x0, info.vline_y),
+                            (viewport.x0, info.visual_line_y),
                             (viewport.width(), line_height),
                         );
 
@@ -1679,7 +1679,7 @@ fn editor_gutter_breakpoints(
                             .get_untracked();
                         let line_y = screen_lines
                             .visual_line_info_of_origin_line(line)
-                            .map(|l| l.y)
+                            .map(|l| l.folded_line_y)
                             .unwrap_or_default();
                         s.absolute()
                             .width(config.ui.icon_size() as f32 + icon_padding * 2.0)
@@ -1741,7 +1741,7 @@ fn editor_gutter_code_lens_view(
     container(view).style(move |s| {
         let line_y = screen_lines.with(|s| {
             s.visual_line_info_of_origin_line(line)
-                .map(|x| x.y)
+                .map(|x| x.folded_line_y)
                 .unwrap_or(-100.0)
         });
         // let line_y = line_info.clone().map(|l| l.y).unwrap_or(-100.0);
