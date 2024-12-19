@@ -1943,11 +1943,11 @@ pub fn paint_text(
 
     let indent_text = TextLayout::new(&format!("{indent_unit}a"), attrs_list);
     let indent_text_width = indent_text.hit_position(indent_unit.len()).point.x;
-
+    let base = screen_lines.base.y0;
     if show_indent_guide.0 {
         for line_info in &screen_lines.visual_lines {
             let line = line_info.visual_line.origin_line;
-            let y = line_info.folded_line_y;
+            let y = line_info.visual_line_y + base;
             let text_layout = ed.text_layout_of_visual_line(line);
             let line_height = f64::from(ed.line_height(line));
             let mut x = 0.0;
@@ -1966,7 +1966,7 @@ pub fn paint_text(
 
     for line_info in &screen_lines.visual_lines {
         let line = line_info.visual_line.origin_line;
-        let y = line_info.visual_line_y;
+        let y = line_info.visual_line_y + base;
         let text_layout = ed.text_layout_of_visual_line(line);
 
         paint_extra_style(cx, &text_layout.extra_style, y, viewport);
