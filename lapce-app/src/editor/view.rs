@@ -1026,7 +1026,7 @@ impl EditorView {
 
     /// Paint enclosing bracket highlights and scope lines if the corresponding settings are
     /// enabled.
-    fn paint_bracket_highlights_scope_lines(&self, cx: &mut PaintCx) -> Option<()> {
+    fn paint_bracket_highlights_scope_lines(&self, cx: &mut PaintCx) -> Result<()> {
         let config = self.editor.common.config.get_untracked();
 
         if config.editor.highlight_matching_brackets
@@ -1036,10 +1036,12 @@ impl EditorView {
             let ed = &e_data.editor;
             let offset = ed.cursor.with_untracked(|cursor| cursor.mode().offset());
 
-            let (bracket_offsets_start, bracket_offsets_end) =
-                e_data
-                    .doc_signal()
-                    .with_untracked(|doc| doc.find_enclosing_brackets(offset))?;
+            let Some((bracket_offsets_start, bracket_offsets_end)) = e_data
+                .doc_signal()
+                .with_untracked(|doc| doc.find_enclosing_brackets(offset))
+            else {
+                return Ok(());
+            };
 
             let bracket_offsets_start = ed.doc().lines.with_untracked(|x| {
                 x.char_rect_in_viewport(bracket_offsets_start)
@@ -1050,14 +1052,12 @@ impl EditorView {
                 .with_untracked(|x| x.char_rect_in_viewport(bracket_offsets_end))?;
 
             if config.editor.highlight_matching_brackets {
-                let rect = Rect::from_points(
-                    bracket_offsets_start.0,
-                    bracket_offsets_start.1,
-                );
-                cx.fill(&rect, config.color(LapceColor::EDITOR_DIM), 0.0);
-                let rect =
-                    Rect::from_points(bracket_offsets_end.0, bracket_offsets_end.1);
-                cx.fill(&rect, config.color(LapceColor::EDITOR_DIM), 0.0);
+                for bracket in bracket_offsets_start {
+                    cx.fill(&bracket, config.color(LapceColor::EDITOR_DIM), 0.0);
+                }
+                for bracket in bracket_offsets_end {
+                    cx.fill(&bracket, config.color(LapceColor::EDITOR_DIM), 0.0);
+                }
             }
             // todo
             // if config.editor.highlight_scope_lines {
@@ -1070,7 +1070,7 @@ impl EditorView {
             //     );
             // }
         }
-        None
+        Ok(())
     }
 }
 
