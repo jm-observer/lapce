@@ -67,7 +67,7 @@ use floem_editor_core::mode::{MotionMode, VisualMode};
 use floem_editor_core::selection::SelRegion;
 use log::{error, info, warn};
 
-pub(crate) const CHAR_WIDTH: f64 = 7.5;
+// pub(crate) const CHAR_WIDTH: f64 = 7.5;
 
 /// The main structure for the editor view itself.  
 /// This can be considered to be the data part of the `View`.
@@ -1710,7 +1710,7 @@ pub trait CommonAction {
     ) -> bool;
 }
 
-pub fn paint_selection(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines) {
+pub fn paint_selection(cx: &mut PaintCx, ed: &Editor, _screen_lines: &ScreenLines) {
     let cursor = ed.cursor;
 
     let selection_color = ed.doc().lines.with_untracked(|es| es.selection_color());
@@ -1737,39 +1737,41 @@ pub fn paint_selection(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines
             }
         }
         CursorMode::Visual {
-            start,
-            end,
+            start: _start,
+            end: _end,
             mode: VisualMode::Linewise,
         } => {
-            if let Err(err) = paint_linewise_selection(
-                cx,
-                ed,
-                selection_color,
-                screen_lines,
-                *start.min(end),
-                *start.max(end),
-                cursor.affinity,
-            ) {
-                error!("{err:?}");
-            }
+            error!("todo implement paint_linewise_selection");
+            // if let Err(err) = paint_linewise_selection(
+            //     cx,
+            //     ed,
+            //     selection_color,
+            //     screen_lines,
+            //     *start.min(end),
+            //     *start.max(end),
+            //     cursor.affinity,
+            // ) {
+            //     error!("{err:?}");
+            // }
         }
         CursorMode::Visual {
-            start,
-            end,
+            start: _start,
+            end: _end,
             mode: VisualMode::Blockwise,
         } => {
-            if let Err(err) = paint_blockwise_selection(
-                cx,
-                ed,
-                selection_color,
-                screen_lines,
-                *start.min(end),
-                *start.max(end),
-                cursor.affinity,
-                cursor.horiz,
-            ) {
-                error!("{err:?}");
-            }
+            error!("todo implement paint_blockwise_selection");
+            // if let Err(err) = paint_blockwise_selection(
+            //     cx,
+            //     ed,
+            //     selection_color,
+            //     screen_lines,
+            //     *start.min(end),
+            //     *start.max(end),
+            //     cursor.affinity,
+            //     cursor.horiz,
+            // ) {
+            //     error!("{err:?}");
+            // }
         }
         CursorMode::Insert(_) => {
             for (start, end) in
@@ -1789,69 +1791,69 @@ pub fn paint_selection(cx: &mut PaintCx, ed: &Editor, screen_lines: &ScreenLines
         }
     });
 }
-
-#[allow(clippy::too_many_arguments)]
-pub fn paint_blockwise_selection(
-    cx: &mut PaintCx,
-    ed: &Editor,
-    color: Color,
-    screen_lines: &ScreenLines,
-    start_offset: usize,
-    end_offset: usize,
-    affinity: CursorAffinity,
-    horiz: Option<ColPosition>,
-) -> Result<()> {
-    error!("todo replace paint_blockwise_selection start_offset={start_offset} end_offset={end_offset}");
-    let (start_rvline, start_col, _) =
-        ed.visual_line_of_offset(start_offset, affinity)?;
-    let (end_rvline, end_col, _) = ed.visual_line_of_offset(end_offset, affinity)?;
-    let start_rvline = start_rvline.rvline;
-    let end_rvline = end_rvline.rvline;
-    let left_col = start_col.min(end_col);
-    let right_col = start_col.max(end_col) + 1;
-
-    let lines = screen_lines
-        .iter_line_info_r(start_rvline..=end_rvline)
-        .filter_map(|line_info| {
-            let max_col = ed.last_col(line_info.vline_info, true);
-            (max_col > left_col).then_some((line_info, max_col))
-        });
-
-    for (line_info, max_col) in lines {
-        let line = line_info.vline_info.origin_line;
-        let right_col = if let Some(ColPosition::End) = horiz {
-            max_col
-        } else {
-            right_col.min(max_col)
-        };
-
-        // TODO: what affinity to use?
-        let x0 = ed
-            .line_point_of_visual_line_col(
-                line,
-                left_col,
-                CursorAffinity::Forward,
-                true,
-            )
-            .x;
-        let x1 = ed
-            .line_point_of_visual_line_col(
-                line,
-                right_col,
-                CursorAffinity::Backward,
-                true,
-            )
-            .x;
-
-        let line_height = ed.line_height(line);
-        let rect = Rect::from_origin_size(
-            (x0, line_info.vline_y),
-            (x1 - x0, f64::from(line_height)),
-        );
-        cx.fill(&rect, color, 0.0);
-    }
-    Ok(())
-}
+//
+// #[allow(clippy::too_many_arguments)]
+// pub fn paint_blockwise_selection(
+//     cx: &mut PaintCx,
+//     ed: &Editor,
+//     color: Color,
+//     screen_lines: &ScreenLines,
+//     start_offset: usize,
+//     end_offset: usize,
+//     affinity: CursorAffinity,
+//     horiz: Option<ColPosition>,
+// ) -> Result<()> {
+//     error!("todo replace paint_blockwise_selection start_offset={start_offset} end_offset={end_offset}");
+//     let (start_rvline, start_col, _) =
+//         ed.visual_line_of_offset(start_offset, affinity)?;
+//     let (end_rvline, end_col, _) = ed.visual_line_of_offset(end_offset, affinity)?;
+//     let start_rvline = start_rvline.rvline;
+//     let end_rvline = end_rvline.rvline;
+//     let left_col = start_col.min(end_col);
+//     let right_col = start_col.max(end_col) + 1;
+//
+//     let lines = screen_lines
+//         .iter_line_info_r(start_rvline..=end_rvline)
+//         .filter_map(|line_info| {
+//             let max_col = ed.last_col(line_info.vline_info, true);
+//             (max_col > left_col).then_some((line_info, max_col))
+//         });
+//
+//     for (line_info, max_col) in lines {
+//         let line = line_info.vline_info.origin_line;
+//         let right_col = if let Some(ColPosition::End) = horiz {
+//             max_col
+//         } else {
+//             right_col.min(max_col)
+//         };
+//
+//         // TODO: what affinity to use?
+//         let x0 = ed
+//             .line_point_of_visual_line_col(
+//                 line,
+//                 left_col,
+//                 CursorAffinity::Forward,
+//                 true,
+//             )
+//             .x;
+//         let x1 = ed
+//             .line_point_of_visual_line_col(
+//                 line,
+//                 right_col,
+//                 CursorAffinity::Backward,
+//                 true,
+//             )
+//             .x;
+//
+//         let line_height = ed.line_height(line);
+//         let rect = Rect::from_origin_size(
+//             (x0, line_info.vline_y),
+//             (x1 - x0, f64::from(line_height)),
+//         );
+//         cx.fill(&rect, color, 0.0);
+//     }
+//     Ok(())
+// }
 
 // fn paint_cursor(
 //     cx: &mut PaintCx,
@@ -2080,58 +2082,58 @@ fn paint_cursor_caret(
         }
     });
 }
-
-#[allow(clippy::too_many_arguments)]
-pub fn paint_linewise_selection(
-    cx: &mut PaintCx,
-    ed: &Editor,
-    color: Color,
-    screen_lines: &ScreenLines,
-    start_offset: usize,
-    end_offset: usize,
-    affinity: CursorAffinity,
-) -> Result<()> {
-    let viewport = ed.viewport();
-    error!("todo replace paint_linewise_selection start_offset={start_offset} end_offset={end_offset} affinity={affinity:?}");
-    let (start_rvline, _, _) = ed.visual_line_of_offset(start_offset, affinity)?;
-    let (end_rvline, _, _) = ed.visual_line_of_offset(end_offset, affinity)?;
-    let start_rvline = start_rvline.rvline;
-    let end_rvline = end_rvline.rvline;
-    // Linewise selection is by *line* so we move to the start/end rvlines of the line
-    let start_rvline = screen_lines
-        .first_rvline_for_line(start_rvline.line)
-        .unwrap_or(start_rvline);
-    let end_rvline = screen_lines
-        .last_rvline_for_line(end_rvline.line)
-        .unwrap_or(end_rvline);
-
-    for LineInfo {
-        vline_info: info,
-        vline_y,
-        ..
-    } in screen_lines.iter_line_info_r(start_rvline..=end_rvline)
-    {
-        let line = info.origin_line;
-
-        // The left column is always 0 for linewise selections.
-        let right_col = ed.last_col(info, true);
-
-        // TODO: what affinity to use?
-        let x1 =
-            ed.line_point_of_visual_line_col(
-                line,
-                right_col,
-                CursorAffinity::Backward,
-                true,
-            )
-            .x + CHAR_WIDTH;
-
-        let line_height = ed.line_height(line);
-        let rect = Rect::from_origin_size(
-            (viewport.x0, vline_y),
-            (x1 - viewport.x0, f64::from(line_height)),
-        );
-        cx.fill(&rect, color, 0.0);
-    }
-    Ok(())
-}
+//
+// #[allow(clippy::too_many_arguments)]
+// pub fn paint_linewise_selection(
+//     cx: &mut PaintCx,
+//     ed: &Editor,
+//     color: Color,
+//     screen_lines: &ScreenLines,
+//     start_offset: usize,
+//     end_offset: usize,
+//     affinity: CursorAffinity,
+// ) -> Result<()> {
+//     let viewport = ed.viewport();
+//     error!("todo replace paint_linewise_selection start_offset={start_offset} end_offset={end_offset} affinity={affinity:?}");
+//     let (start_rvline, _, _) = ed.visual_line_of_offset(start_offset, affinity)?;
+//     let (end_rvline, _, _) = ed.visual_line_of_offset(end_offset, affinity)?;
+//     let start_rvline = start_rvline.rvline;
+//     let end_rvline = end_rvline.rvline;
+//     // Linewise selection is by *line* so we move to the start/end rvlines of the line
+//     let start_rvline = screen_lines
+//         .first_rvline_for_line(start_rvline.line)
+//         .unwrap_or(start_rvline);
+//     let end_rvline = screen_lines
+//         .last_rvline_for_line(end_rvline.line)
+//         .unwrap_or(end_rvline);
+//
+//     for LineInfo {
+//         vline_info: info,
+//         vline_y,
+//         ..
+//     } in screen_lines.iter_line_info_r(start_rvline..=end_rvline)
+//     {
+//         let line = info.origin_line;
+//
+//         // The left column is always 0 for linewise selections.
+//         let right_col = ed.last_col(info, true);
+//
+//         // TODO: what affinity to use?
+//         let x1 =
+//             ed.line_point_of_visual_line_col(
+//                 line,
+//                 right_col,
+//                 CursorAffinity::Backward,
+//                 true,
+//             )
+//             .x + CHAR_WIDTH;
+//
+//         let line_height = ed.line_height(line);
+//         let rect = Rect::from_origin_size(
+//             (viewport.x0, vline_y),
+//             (x1 - viewport.x0, f64::from(line_height)),
+//         );
+//         cx.fill(&rect, color, 0.0);
+//     }
+//     Ok(())
+// }

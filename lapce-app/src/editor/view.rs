@@ -1231,7 +1231,9 @@ impl View for EditorView {
         // let screen_lines = ed.screen_lines.get_untracked();
         self.paint_find(cx, &screen_lines);
         // let screen_lines = ed.screen_lines.get_untracked();
-        self.paint_bracket_highlights_scope_lines(cx);
+        if let Err(err) = self.paint_bracket_highlights_scope_lines(cx) {
+            error!("{err:?}");
+        }
         // let screen_lines = ed.screen_lines.get_untracked();
 
         paint_text(
