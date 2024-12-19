@@ -535,19 +535,25 @@ impl EditorView {
         None
     }
 
-    fn paint_find(&self, cx: &mut PaintCx, screen_lines: &ScreenLines) {
+    fn paint_find(
+        &self,
+        cx: &mut PaintCx,
+        screen_lines: &ScreenLines,
+    ) -> Result<()> {
         let find_visual = self.editor.common.find.visual.get_untracked();
         if !find_visual && self.editor.on_screen_find.with_untracked(|f| !f.active) {
-            return;
+            return Ok(());
         }
         if screen_lines.lines.is_empty() {
-            return;
+            return Ok(());
         }
 
-        let min_vline = *screen_lines.lines.first().unwrap();
-        let max_vline = *screen_lines.lines.last().unwrap();
-        let min_line = screen_lines.info(min_vline).unwrap().vline_info.rvline.line;
-        let max_line = screen_lines.info(max_vline).unwrap().vline_info.rvline.line;
+        // let min_vline = *screen_lines.lines.first().unwrap();
+        // let max_vline = *screen_lines.lines.last().unwrap();
+        // let min_line = screen_lines.info(min_vline).unwrap().vline_info.rvline.line;
+        // let max_line = screen_lines.info(max_vline).unwrap().vline_info.rvline.line;
+
+        let (start, end) = screen_lines.offset_interval()?;
 
         let e_data = &self.editor;
         let ed = &e_data.editor;
@@ -560,8 +566,8 @@ impl EditorView {
         let line_height = config.editor.line_height() as f64;
         let color = config.color(LapceColor::EDITOR_FOREGROUND);
 
-        let start = ed.offset_of_line(min_line);
-        let end = ed.offset_of_line(max_line + 1);
+        // let start = ed.offset_of_line(min_line);
+        // let end = ed.offset_of_line(max_line + 1);
 
         // TODO: The selection rect creation logic for find is quite similar to the version
         // within insert cursor. It would be good to deduplicate it.
@@ -570,14 +576,7 @@ impl EditorView {
             for region in occurrences.with_untracked(|selection| {
                 selection.regions_in_range(start, end).to_vec()
             }) {
-                if let Err(err) = self.paint_find_region(
-                    cx,
-                    ed,
-                    &region,
-                    color,
-                    screen_lines,
-                    line_height,
-                ) {
+                if let Err(err) = self.paint_find_region(cx, ed, &region, color) {
                     error!("{err:?}");
                 }
             }
@@ -586,19 +585,13 @@ impl EditorView {
         self.editor.on_screen_find.with_untracked(|find| {
             if find.active {
                 for region in &find.regions {
-                    if let Err(err) = self.paint_find_region(
-                        cx,
-                        ed,
-                        region,
-                        color,
-                        screen_lines,
-                        line_height,
-                    ) {
+                    if let Err(err) = self.paint_find_region(cx, ed, region, color) {
                         error!("{err:?}");
                     }
                 }
             }
         });
+        Ok(())
     }
 
     fn paint_find_region(
@@ -607,8 +600,6 @@ impl EditorView {
         ed: &Editor,
         region: &SelRegion,
         color: Color,
-        screen_lines: &ScreenLines,
-        line_height: f64,
     ) -> Result<()> {
         let start = region.min();
         let end = region.max();
@@ -1238,7 +1229,9 @@ impl View for EditorView {
         // let screen_lines = ed.screen_lines.get_untracked();
         self.paint_diff_sections(cx, viewport, &screen_lines, &config);
         // let screen_lines = ed.screen_lines.get_untracked();
-        self.paint_find(cx, &screen_lines);
+        if let Err(err) = self.paint_find(cx, &screen_lines) {
+            error!("{err:?}");
+        }
         // let screen_lines = ed.screen_lines.get_untracked();
         if let Err(err) = self.paint_bracket_highlights_scope_lines(cx) {
             error!("{err:?}");
@@ -1271,15 +1264,15 @@ fn get_sticky_header_info(
     // TODO(minor): should this be a `get`
     let line_height = config.editor.line_height() as f64;
     // let start_line = (viewport.y0 / line_height).floor() as usize;
-    let Some(start) = screen_lines.lines.first() else {
+    let Some(start) = screen_lines.visual_lines.first() else {
         return StickyHeaderInfo {
             sticky_lines: Vec::new(),
             last_sticky_should_scroll: false,
             y_diff: 0.0,
         };
     };
-    let start_info = screen_lines.info(*start).unwrap();
-    let start_line = start_info.vline_info.rvline.line;
+    // let start_info = screen_lines.info(*start).unwrap();
+    let start_line = start.visual_line.origin_line;
 
     // let y_diff = viewport.y0 - start_info.vline_y;
     let y_diff = 0.0;
