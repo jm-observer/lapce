@@ -56,7 +56,7 @@ use itertools::Itertools;
 use lapce_core::directory::Directory;
 use lapce_core::{
     char_buffer::CharBuffer, command::EditCommand, editor::Action,
-    indent::IndentStyle, mode::MotionMode, register::Register, style::line_styles,
+    indent::IndentStyle, mode::MotionMode, register::Register,
 };
 
 use lapce_rpc::{

@@ -19,6 +19,7 @@ use lapce_rpc::{
     RpcError,
 };
 use lapce_xi_rope::{Rope, RopeDelta};
+use log::error;
 use lsp_types::request::SemanticTokensFullDeltaRequest;
 use lsp_types::{
     notification::{
@@ -1385,9 +1386,14 @@ fn get_document_content_change(
     // TODO: Handle more trivial cases like typing when there's a selection or transpose
     if let Some(node) = delta.as_simple_insert() {
         let (start, end) = interval.start_end();
-        let start = text.offset_to_position(start);
-
-        let end = text.offset_to_position(end);
+        let Ok(start) = text.offset_to_position(start) else {
+            error!("{start}");
+            return None;
+        };
+        let Ok(end) = text.offset_to_position(end) else {
+            error!("{end}");
+            return None;
+        };
 
         let text = String::from(node);
         let text_document_content_change_event = TextDocumentContentChangeEvent {
@@ -1400,10 +1406,14 @@ fn get_document_content_change(
     }
     // Or a simple delete
     else if delta.is_simple_delete() {
-        let end_position = text.offset_to_position(end);
-
-        let start = text.offset_to_position(start);
-
+        let Ok(end_position) = text.offset_to_position(end) else {
+            error!("{end}");
+            return None;
+        };
+        let Ok(start) = text.offset_to_position(start) else {
+            error!("{start}");
+            return None;
+        };
         let text_document_content_change_event = TextDocumentContentChangeEvent {
             range: Some(Range {
                 start,
@@ -1435,7 +1445,11 @@ fn format_semantic_styles(
     for semantic_token in &tokens.data {
         if semantic_token.delta_line > 0 {
             line += semantic_token.delta_line as usize;
-            start = text.offset_of_line(line);
+            let Ok(line) = text.offset_of_line(line) else {
+                error!("{line}");
+                return continue;
+            };
+            start = line;
         }
 
         let sub_text = text.char_indices_iter(start..);

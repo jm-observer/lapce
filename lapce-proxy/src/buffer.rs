@@ -111,27 +111,27 @@ impl Buffer {
         &mut self,
         delta: &RopeDelta,
         rev: u64,
-    ) -> Option<TextDocumentContentChangeEvent> {
+    ) -> Result<Option<TextDocumentContentChangeEvent>> {
         if self.rev + 1 != rev {
-            return None;
+            return Ok(None);
         }
         self.rev += 1;
-        let content_change = get_document_content_changes(delta, self);
+        let content_change = get_document_content_changes(delta, self)?;
         self.rope = delta.apply(&self.rope);
-        Some(
-            content_change.unwrap_or_else(|| TextDocumentContentChangeEvent {
+        Ok(Some(content_change.unwrap_or_else(|| {
+            TextDocumentContentChangeEvent {
                 range: None,
                 range_length: None,
                 text: self.get_document(),
-            }),
-        )
+            }
+        })))
     }
 
     pub fn get_document(&self) -> String {
         self.rope.to_string()
     }
 
-    pub fn offset_of_line(&self, line: usize) -> usize {
+    pub fn offset_of_line(&self, line: usize) -> Result<usize> {
         self.rope.offset_of_line(line)
     }
 
@@ -139,33 +139,34 @@ impl Buffer {
         self.rope.line_of_offset(offset)
     }
 
-    pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
+    pub fn offset_to_line_col(&self, offset: usize) -> Result<(usize, usize)> {
         let line = self.line_of_offset(offset);
-        (line, offset - self.offset_of_line(line))
+        Ok((line, offset - self.offset_of_line(line)?))
     }
 
     /// Converts a UTF8 offset to a UTF16 LSP position  
-    pub fn offset_to_position(&self, offset: usize) -> Position {
-        let (line, col) = self.offset_to_line_col(offset);
+    pub fn offset_to_position(&self, offset: usize) -> Result<Position> {
+        let (line, col) = self.offset_to_line_col(offset)?;
         // Get the offset of line to make the conversion cheaper, rather than working
         // from the very start of the document to `offset`
-        let line_offset = self.offset_of_line(line);
+        let line_offset = self.offset_of_line(line)?;
         let utf16_col =
             offset_utf8_to_utf16(self.char_indices_iter(line_offset..), col);
 
-        Position {
+        Ok(Position {
             line: line as u32,
             character: utf16_col as u32,
-        }
+        })
     }
 
     pub fn slice_to_cow<T: IntervalBounds>(&self, range: T) -> Cow<str> {
         self.rope.slice_to_cow(range)
     }
 
-    pub fn line_to_cow(&self, line: usize) -> Cow<str> {
-        self.rope
-            .slice_to_cow(self.offset_of_line(line)..self.offset_of_line(line + 1))
+    pub fn line_to_cow(&self, line: usize) -> Result<Cow<str>> {
+        Ok(self.rope.slice_to_cow(
+            self.offset_of_line(line)?..self.offset_of_line(line + 1)?,
+        ))
     }
 
     /// Iterate over (utf8_offset, char) values in the given range  
@@ -297,16 +298,16 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
 fn get_document_content_changes(
     delta: &RopeDelta,
     buffer: &Buffer,
-) -> Option<TextDocumentContentChangeEvent> {
+) -> Result<Option<TextDocumentContentChangeEvent>> {
     let (interval, _) = delta.summary();
     let (start, end) = interval.start_end();
 
     // TODO: Handle more trivial cases like typing when there's a selection or transpose
-    if let Some(node) = delta.as_simple_insert() {
+    Ok(if let Some(node) = delta.as_simple_insert() {
         let (start, end) = interval.start_end();
-        let start = buffer.offset_to_position(start);
+        let start = buffer.offset_to_position(start)?;
 
-        let end = buffer.offset_to_position(end);
+        let end = buffer.offset_to_position(end)?;
 
         Some(TextDocumentContentChangeEvent {
             range: Some(Range { start, end }),
@@ -316,9 +317,9 @@ fn get_document_content_changes(
     }
     // Or a simple delete
     else if delta.is_simple_delete() {
-        let end_position = buffer.offset_to_position(end);
+        let end_position = buffer.offset_to_position(end)?;
 
-        let start = buffer.offset_to_position(start);
+        let start = buffer.offset_to_position(start)?;
 
         Some(TextDocumentContentChangeEvent {
             range: Some(Range {
@@ -330,7 +331,7 @@ fn get_document_content_changes(
         })
     } else {
         None
-    }
+    })
 }
 
 /// Returns the modification timestamp for the file at a given path,

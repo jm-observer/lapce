@@ -34,7 +34,7 @@ use lapce_rpc::{
     RequestId, RpcError,
 };
 use lapce_xi_rope::Rope;
-use log::debug;
+use log::{debug, error};
 use lsp_types::{
     notification::{Cancel, Notification},
     CancelParams, MessageType, NumberOrString, Position, Range, ShowMessageParams,
@@ -553,9 +553,16 @@ impl ProxyHandler for Dispatcher {
             GetInlayHints { path } => {
                 let proxy_rpc = self.proxy_rpc.clone();
                 let buffer = self.buffers.get(&path).unwrap();
+                let end = match buffer.offset_to_position(buffer.len()) {
+                    Ok(rs) => rs,
+                    Err(err) => {
+                        error!("{err:?}");
+                        return;
+                    }
+                };
                 let range = Range {
                     start: Position::new(0, 0),
-                    end: buffer.offset_to_position(buffer.len()),
+                    end: end,
                 };
                 self.catalog_rpc.get_inlay_hints(
                     &path,
@@ -1224,7 +1231,11 @@ impl ProxyHandler for Dispatcher {
                         };
                         let buffer = self.get_buffer_or_insert(path.clone());
                         let line_num = location.range.start.line as usize;
-                        let content = buffer.line_to_cow(line_num).to_string();
+                        let Ok(content) = buffer.line_to_cow(line_num) else {
+                            log::error!("line_to_cow: {line_num}");
+                            return None;
+                        };
+                        let content = content.to_string();
                         Some(FileLine {
                             path,
                             position: location.range.start,
