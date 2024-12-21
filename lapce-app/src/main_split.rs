@@ -2369,8 +2369,16 @@ impl MainSplitData {
                 let offset = cursor.with_untracked(|c| c.offset());
                 let (path, position) = (
                     doc.content.get_untracked().path().cloned(),
-                    doc.lines
-                        .with_untracked(|b| b.buffer().offset_to_position(offset)),
+                    match doc
+                        .lines
+                        .with_untracked(|b| b.buffer().offset_to_position(offset))
+                    {
+                        Ok(rs) => rs,
+                        Err(err) => {
+                            error!("{err:?}");
+                            return None;
+                        }
+                    },
                 );
                 path.map(|path| (path, offset, position))
             });
@@ -2561,7 +2569,9 @@ impl MainSplitData {
                                 read_only: false,
                             });
                             doc.lines.update(|lines| {
-                                lines.set_pristine(rev);
+                                if let Err(err) = lines.set_pristine(rev) {
+                                    error!("{:?}", err);
+                                }
                             });
                             doc.set_syntax(syntax);
                             doc.trigger_syntax_change(None);
@@ -2612,7 +2622,9 @@ impl MainSplitData {
                                 read_only: false,
                             });
                             doc.lines.update(|lines| {
-                                lines.set_pristine(rev);
+                                if let Err(err) = lines.set_pristine(rev) {
+                                    error!("{:?}", err);
+                                }
                             });
                             // doc.set_syntax(syntax);
                             doc.trigger_syntax_change(None);

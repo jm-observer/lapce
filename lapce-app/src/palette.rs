@@ -1398,7 +1398,9 @@ impl PaletteData {
                     let doc = editor.doc();
 
                     doc.lines.update(|lines| {
-                        lines.set_line_ending(*kind);
+                        if let Err(err) = lines.set_line_ending(*kind) {
+                            error!("{:?}", err);
+                        }
                     });
                 }
                 PaletteItemContent::SCMReference { name } => {

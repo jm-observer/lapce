@@ -1,3 +1,4 @@
+use anyhow::Result;
 use doc::lines::buffer::diff::DiffLines;
 use doc::lines::buffer::rope_text::{RopeText, RopeTextVal};
 use doc::lines::buffer::InvalLines;
@@ -437,7 +438,7 @@ impl EditorData {
         self.editor.rope_text()
     }
 
-    fn run_edit_command(&self, cmd: &EditCommand) -> CommandExecuted {
+    fn run_edit_command(&self, cmd: &EditCommand) -> Result<CommandExecuted> {
         log::debug!("{:?}", cmd);
         let doc = self.doc();
         let text = self.editor.rope_text();
@@ -463,7 +464,7 @@ impl EditorData {
 
         if !deltas.is_empty() {
             if let Some(data) = yank_data {
-                register.add_delete(data);
+                register.add_delete(data?);
             }
         }
         self.editor.cursor.set(cursor);
@@ -478,10 +479,10 @@ impl EditorData {
         if *cmd == EditCommand::InsertNewLine {
             // Cancel so that there's no flickering
             self.cancel_inline_completion();
-            self.update_inline_completion(InlineCompletionTriggerKind::Automatic);
+            self.update_inline_completion(InlineCompletionTriggerKind::Automatic)?;
             self.quit_on_screen_find();
         } else if show_inline_completion(cmd) {
-            self.update_inline_completion(InlineCompletionTriggerKind::Automatic);
+            self.update_inline_completion(InlineCompletionTriggerKind::Automatic)?;
         } else {
             self.cancel_inline_completion();
         }
@@ -492,7 +493,7 @@ impl EditorData {
             self.quit_on_screen_find();
         }
         self.check_auto_save();
-        CommandExecuted::Yes
+        Ok(CommandExecuted::Yes)
     }
 
     fn run_motion_mode_command(
@@ -1047,7 +1048,9 @@ impl EditorData {
                 });
             }
             FocusCommand::GotoDefinition => {
-                self.go_to_definition();
+                if let Err(err) = self.go_to_definition() {
+                    error!("{:?}", err);
+                }
             }
             FocusCommand::ShowCodeActions => {
                 self.show_code_actions(false);
@@ -1085,11 +1088,15 @@ impl EditorData {
             }
             FocusCommand::RepeatLastInlineFind => {
                 if let Some((direction, c)) = self.last_inline_find.get_untracked() {
-                    self.inline_find(direction, &c);
+                    if let Err(err) = self.inline_find(direction, &c) {
+                        error!("{:?}", err);
+                    }
                 }
             }
             FocusCommand::Rename => {
-                self.rename();
+                if let Err(err) = self.rename() {
+                    error!("{err:?}");
+                }
             }
             FocusCommand::ClearSearch => {
                 self.clear_search();
@@ -1120,7 +1127,11 @@ impl EditorData {
                 self.cancel_inline_completion();
             }
             FocusCommand::InlineCompletionInvoke => {
-                self.update_inline_completion(InlineCompletionTriggerKind::Invoked);
+                if let Err(err) = self
+                    .update_inline_completion(InlineCompletionTriggerKind::Invoked)
+                {
+                    error!("{err:?}");
+                }
             }
             FocusCommand::ShowHover => {
                 let start_offset = self.doc().lines.with_untracked(|b| {
@@ -1148,15 +1159,18 @@ impl EditorData {
     }
 
     /// Jump to the next/previous column on the line which matches the given text
-    fn inline_find(&self, direction: InlineFindDirection, c: &str) {
+    fn inline_find(&self, direction: InlineFindDirection, c: &str) -> Result<()> {
         let offset = self.cursor().with_untracked(|c| c.offset());
         let doc = self.doc();
         let (line_content, line_start_offset) = doc.lines.with_untracked(|b| {
             let line = b.buffer().line_of_offset(offset);
-            let line_content = b.buffer().line_content(line);
-            let line_start_offset = b.buffer().offset_of_line(line);
-            (line_content.to_string(), line_start_offset)
-        });
+            let line_content = b.buffer().line_content(line)?;
+            let line_start_offset = b.buffer().offset_of_line(line)?;
+            Ok::<(String, usize), anyhow::Error>((
+                line_content.to_string(),
+                line_start_offset,
+            ))
+        })?;
         let index = offset - line_start_offset;
         if let Some(new_index) = match direction {
             InlineFindDirection::Left => line_content[..index].rfind(c),
@@ -1166,12 +1180,14 @@ impl EditorData {
                 } else {
                     let index = index
                         + doc.lines.with_untracked(|b| {
-                            b.buffer().next_grapheme_offset(
-                                offset,
-                                1,
-                                b.buffer().offset_line_end(offset, false),
+                            Ok::<usize, anyhow::Error>(
+                                b.buffer().next_grapheme_offset(
+                                    offset,
+                                    1,
+                                    b.buffer().offset_line_end(offset, false)?,
+                                ),
                             )
-                        })
+                        })?
                         - offset;
                     line_content[index..].find(c).map(|i| i + index)
                 }
@@ -1185,6 +1201,7 @@ impl EditorData {
                 Modifiers::empty(),
             );
         }
+        Ok(())
     }
 
     fn quit_on_screen_find(&self) {
@@ -1225,9 +1242,9 @@ impl EditorData {
             filter_text_buf.clear();
             indices.clear();
 
-            buffer.with_untracked(|buffer| {
-                let start = buffer.offset_of_line(line);
-                let end = buffer.offset_of_line(line + 1);
+            if let Err(err) = buffer.with_untracked(|buffer| {
+                let start = buffer.offset_of_line(line)?;
+                let end = buffer.offset_of_line(line + 1)?;
                 let text = buffer.text().slice_to_cow(start..end);
                 let filter_text = Utf32Str::new(&text, &mut filter_text_buf);
 
@@ -1242,7 +1259,10 @@ impl EditorData {
                     let right = if right == left { left + 1 } else { right };
                     items.push((score, left, right));
                 }
-            });
+                Ok::<(), anyhow::Error>(())
+            }) {
+                error!("{err:?}");
+            }
         }
 
         items.sort_by_key(|(score, _, _)| -(*score as i64));
@@ -1260,7 +1280,7 @@ impl EditorData {
             .collect()
     }
 
-    fn go_to_definition(&self) {
+    fn go_to_definition(&self) -> Result<()> {
         let doc = self.doc();
         let path = match if doc.loaded() {
             doc.content.with_untracked(|c| c.path().cloned())
@@ -1268,7 +1288,7 @@ impl EditorData {
             None
         } {
             Some(path) => path,
-            None => return,
+            None => return Ok(()),
         };
 
         let offset = self.cursor().with_untracked(|c| c.offset());
@@ -1278,6 +1298,7 @@ impl EditorData {
             let position = b.buffer().offset_to_position(offset);
             (start_position, position)
         });
+        let (start_position, position) = (start_position?, position?);
 
         enum DefinitionOrReferece {
             Location(EditorLocation),
@@ -1397,9 +1418,10 @@ impl EditorData {
                 }
             },
         );
+        Ok(())
     }
 
-    pub fn call_hierarchy(&self, window_tab_data: WindowTabData) {
+    pub fn call_hierarchy(&self, window_tab_data: WindowTabData) -> Result<()> {
         let doc = self.doc();
         let path = match if doc.loaded() {
             doc.content.with_untracked(|c| c.path().cloned())
@@ -1407,7 +1429,7 @@ impl EditorData {
             None
         } {
             Some(path) => path,
-            None => return,
+            None => return Ok(()),
         };
 
         let offset = self.cursor().with_untracked(|c| c.offset());
@@ -1417,6 +1439,8 @@ impl EditorData {
             let position = b.buffer().offset_to_position(offset);
             (start_position, position)
         });
+        let (_start_position, position) = (_start_position?, position?);
+
         let scope = window_tab_data.scope;
         let range = Range {
             start: _start_position,
@@ -1469,9 +1493,10 @@ impl EditorData {
                 }
             }),
         );
+        Ok(())
     }
 
-    pub fn find_refenrence(&self, window_tab_data: WindowTabData) {
+    pub fn find_refenrence(&self, window_tab_data: WindowTabData) -> Result<()> {
         let doc = self.doc();
         let path = match if doc.loaded() {
             doc.content.with_untracked(|c| c.path().cloned())
@@ -1479,7 +1504,7 @@ impl EditorData {
             None
         } {
             Some(path) => path,
-            None => return,
+            None => return Ok(()),
         };
 
         let offset = self.cursor().with_untracked(|c| c.offset());
@@ -1494,6 +1519,7 @@ impl EditorData {
                 .to_string();
             (start_position, position, symbol)
         });
+        let position = position?;
         let scope = window_tab_data.scope;
         let update_implementation = create_ext_action(self.scope, {
             let window_tab_data = window_tab_data.clone();
@@ -1530,9 +1556,13 @@ impl EditorData {
                 }
             }),
         );
+        Ok(())
     }
 
-    pub fn go_to_implementation(&self, window_tab_data: WindowTabData) {
+    pub fn go_to_implementation(
+        &self,
+        window_tab_data: WindowTabData,
+    ) -> Result<()> {
         let doc = self.doc();
         let path = match if doc.loaded() {
             doc.content.with_untracked(|c| c.path().cloned())
@@ -1540,7 +1570,7 @@ impl EditorData {
             None
         } {
             Some(path) => path,
-            None => return,
+            None => return Ok(()),
         };
 
         let offset = self.cursor().with_untracked(|c| c.offset());
@@ -1555,6 +1585,7 @@ impl EditorData {
                 .to_string();
             (start_position, position, symbol)
         });
+        let position = position?;
         let scope = window_tab_data.scope;
         let update_implementation = create_ext_action(self.scope, {
             let window_tab_data = window_tab_data.clone();
@@ -1594,6 +1625,7 @@ impl EditorData {
                 }
             }),
         );
+        Ok(())
     }
 
     fn scroll(&self, down: bool, count: usize, mods: Modifiers) {
@@ -1675,10 +1707,13 @@ impl EditorData {
     }
 
     /// Update the current inline completion
-    fn update_inline_completion(&self, trigger_kind: InlineCompletionTriggerKind) {
+    fn update_inline_completion(
+        &self,
+        trigger_kind: InlineCompletionTriggerKind,
+    ) -> Result<()> {
         if self.get_mode() != Mode::Insert {
             self.cancel_inline_completion();
-            return;
+            return Ok(());
         }
 
         let doc = self.doc();
@@ -1688,7 +1723,7 @@ impl EditorData {
             None
         } {
             Some(path) => path,
-            None => return,
+            None => return Ok(()),
         };
 
         let offset = self.cursor().with_untracked(|c| c.offset());
@@ -1698,6 +1733,7 @@ impl EditorData {
                 b.buffer().offset_to_position(offset),
             )
         });
+        let position = position?;
         // let position = doc
         //     .buffer
         //     .with_untracked(|buffer| buffer.offset_to_position(offset));
@@ -1760,6 +1796,7 @@ impl EditorData {
                 }
             },
         );
+        Ok(())
     }
 
     /// Check if there are inline completions that are being rendered
@@ -1883,9 +1920,15 @@ impl EditorData {
                 completion.update_input(input.clone());
 
                 if !completion.input_items.contains_key("") {
-                    let start_pos = doc.lines.with_untracked(|x| {
+                    let start_pos = match doc.lines.with_untracked(|x| {
                         x.buffer().offset_to_position(start_offset)
-                    });
+                    }) {
+                        Ok(rs) => rs,
+                        Err(err) => {
+                            error!("{err:?}");
+                            return;
+                        }
+                    };
                     completion.request(
                         self.id(),
                         &self.common.proxy,
@@ -1896,9 +1939,16 @@ impl EditorData {
                 }
 
                 if !completion.input_items.contains_key(&input) {
-                    let position = doc
+                    let position = match doc
                         .lines
-                        .with_untracked(|x| x.buffer().offset_to_position(offset));
+                        .with_untracked(|x| x.buffer().offset_to_position(offset))
+                    {
+                        Ok(rs) => rs,
+                        Err(err) => {
+                            error!("{err:?}");
+                            return;
+                        }
+                    };
                     completion.request(
                         self.id(),
                         &self.common.proxy,
@@ -1925,9 +1975,16 @@ impl EditorData {
             completion.status = CompletionStatus::Started;
             completion.input_items.clear();
             completion.request_id += 1;
-            let start_pos = doc
+            let start_pos = match doc
                 .lines
-                .with_untracked(|x| x.buffer().offset_to_position(start_offset));
+                .with_untracked(|x| x.buffer().offset_to_position(start_offset))
+            {
+                Ok(rs) => rs,
+                Err(err) => {
+                    error!("{err:?}");
+                    return;
+                }
+            };
             completion.request(
                 self.id(),
                 &self.common.proxy,
@@ -1937,9 +1994,16 @@ impl EditorData {
             );
 
             if !input.is_empty() {
-                let position = doc
+                let position = match doc
                     .lines
-                    .with_untracked(|x| x.buffer().offset_to_position(offset));
+                    .with_untracked(|x| x.buffer().offset_to_position(offset))
+                {
+                    Ok(rs) => rs,
+                    Err(err) => {
+                        error!("{err:?}");
+                        return;
+                    }
+                };
                 completion.request(
                     self.id(),
                     &self.common.proxy,
@@ -1972,10 +2036,17 @@ impl EditorData {
             .flatten()
             .map(|edit| {
                 let selection = Selection::region(
-                    buffer.offset_of_position(&edit.range.start),
-                    buffer.offset_of_position(&edit.range.end),
+                    buffer.offset_of_position(&edit.range.start)?,
+                    buffer.offset_of_position(&edit.range.end)?,
                 );
-                (selection, edit.new_text.as_str())
+                Ok((selection, edit.new_text.as_str()))
+            })
+            .filter_map(|x: Result<(Selection, &str)>| match x {
+                Ok(rs) => Some(rs),
+                Err(err) => {
+                    error!("{err:?}");
+                    None
+                }
             })
             .collect::<Vec<(Selection, &str)>>();
 
@@ -1988,8 +2059,8 @@ impl EditorData {
                     let offset = cursor.offset();
                     let start_offset = buffer.prev_code_boundary(offset);
                     let end_offset = buffer.next_code_boundary(offset);
-                    let edit_start = buffer.offset_of_position(&edit.range.start);
-                    let edit_end = buffer.offset_of_position(&edit.range.end);
+                    let edit_start = buffer.offset_of_position(&edit.range.start)?;
+                    let edit_end = buffer.offset_of_position(&edit.range.end)?;
 
                     let selection = Selection::region(
                         start_offset.min(edit_start),
@@ -2212,15 +2283,29 @@ impl EditorData {
                 .iter()
                 .map(|edit| {
                     let selection = Selection::region(
-                        x.buffer().offset_of_position(&edit.range.start),
-                        x.buffer().offset_of_position(&edit.range.end),
+                        x.buffer().offset_of_position(&edit.range.start)?,
+                        x.buffer().offset_of_position(&edit.range.end)?,
                     );
                     // log::debug!("{edit:?} {selection:?}");
-                    (selection, edit.new_text.as_str())
+                    Ok((selection, edit.new_text.as_str()))
+                })
+                .filter_map(|x: Result<(Selection, &str)>| match x {
+                    Ok(rs) => Some(rs),
+                    Err(err) => {
+                        error!("{err:?}");
+                        None
+                    }
                 })
                 .collect::<Vec<_>>();
             (selection, edits)
         });
+        let selection = match selection {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return;
+            }
+        };
 
         self.do_edit(&selection, &edits, format_before_save);
     }
@@ -2314,10 +2399,17 @@ impl EditorData {
         scroll_offset: Option<Vec2>,
         edits: Option<Vec<TextEdit>>,
     ) {
-        let offset = self
+        let offset = match self
             .doc()
             .lines
-            .with_untracked(|x| position.to_offset(x.buffer()));
+            .with_untracked(|x| position.to_offset(x.buffer()))
+        {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return;
+            }
+        };
         let config = self.common.config.get_untracked();
         self.cursor().set(if config.core.modal {
             Cursor::new(CursorMode::Normal(offset), None, None)
@@ -2376,6 +2468,13 @@ impl EditorData {
 
             (position, rev, diagnostics)
         });
+        let position = match position {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return;
+            }
+        };
 
         let send = create_ext_action(
             self.scope,
@@ -2457,7 +2556,11 @@ impl EditorData {
         // then we skip normalizing line endings as a common reason for that is large files.
         // (but if the save is typical, even if config format_on_save is false, we normalize)
         if allow_formatting && config.editor.normalize_line_endings {
-            self.run_edit_command(&EditCommand::NormalizeLineEndings);
+            if let Err(err) =
+                self.run_edit_command(&EditCommand::NormalizeLineEndings)
+            {
+                error!("{:?}", err);
+            }
         }
 
         let rev = doc.rev();
@@ -2636,7 +2739,7 @@ impl EditorData {
         );
     }
 
-    fn rename(&self) {
+    fn rename(&self) -> Result<()> {
         let doc = self.doc();
         let path = match if doc.loaded() {
             doc.content.with_untracked(|c| c.path().cloned())
@@ -2644,14 +2747,14 @@ impl EditorData {
             None
         } {
             Some(path) => path,
-            None => return,
+            None => return Ok(()),
         };
 
         let offset = self.cursor().with_untracked(|c| c.offset());
         let (position, rev) = doc.lines.with_untracked(|buffer| {
             (buffer.buffer().offset_to_position(offset), doc.rev())
         });
-
+        let position = position?;
         let cursor = self.cursor();
         let buffer = doc.lines.with_untracked(|x| x.signal_buffer());
         let internal_command = self.common.internal_command;
@@ -2666,36 +2769,52 @@ impl EditorData {
                     return;
                 }
 
-                let (start, _end, position, placeholder) =
-                    buffer.with_untracked(|buffer| match resp {
-                        lsp_types::PrepareRenameResponse::Range(range) => (
-                            buffer.offset_of_position(&range.start),
-                            buffer.offset_of_position(&range.end),
-                            range.start,
-                            None,
-                        ),
+                let (start, _end, position, placeholder) = match buffer
+                    .with_untracked(|buffer| match resp {
+                        lsp_types::PrepareRenameResponse::Range(range) => {
+                            Ok::<
+                                (
+                                    usize,
+                                    usize,
+                                    lsp_types::Position,
+                                    std::option::Option<std::string::String>,
+                                ),
+                                anyhow::Error,
+                            >((
+                                buffer.offset_of_position(&range.start)?,
+                                buffer.offset_of_position(&range.end)?,
+                                range.start,
+                                None,
+                            ))
+                        }
                         lsp_types::PrepareRenameResponse::RangeWithPlaceholder {
                             range,
                             placeholder,
-                        } => (
-                            buffer.offset_of_position(&range.start),
-                            buffer.offset_of_position(&range.end),
+                        } => Ok((
+                            buffer.offset_of_position(&range.start)?,
+                            buffer.offset_of_position(&range.end)?,
                             range.start,
                             Some(placeholder),
-                        ),
+                        )),
                         lsp_types::PrepareRenameResponse::DefaultBehavior {
                             ..
                         } => {
                             let start = buffer.prev_code_boundary(offset);
-                            let position = buffer.offset_to_position(start);
-                            (
+                            let position = buffer.offset_to_position(start)?;
+                            Ok((
                                 start,
                                 buffer.next_code_boundary(offset),
                                 position,
                                 None,
-                            )
+                            ))
                         }
-                    });
+                    }) {
+                    Ok(rs) => rs,
+                    Err(err) => {
+                        error!("{err:?}");
+                        return;
+                    }
+                };
                 let placeholder = placeholder.unwrap_or_else(|| {
                     buffer.with_untracked(|buffer| {
                         let (start, end) = buffer.select_word(offset);
@@ -2715,6 +2834,7 @@ impl EditorData {
             .prepare_rename(path, position, move |(_, result)| {
                 send(result);
             });
+        Ok(())
     }
 
     pub fn word_at_cursor(&self) -> String {
@@ -2871,7 +2991,15 @@ impl EditorData {
     }
 
     fn result_of_left_click(&self, pos: Point) -> Option<ClickResult> {
-        self.doc().lines.try_update(|x| x.result_of_left_click(pos))
+        self.doc()
+            .lines
+            .try_update(|x| match x.result_of_left_click(pos) {
+                Ok(rs) => rs,
+                Err(err) => {
+                    error!("{err:?}");
+                    ClickResult::NoHint
+                }
+            })
     }
 
     fn left_click(&self, pointer_event: &PointerInputEvent) {
@@ -2904,7 +3032,13 @@ impl EditorData {
     pub fn pointer_move(&self, pointer_event: &PointerMoveEvent) {
         let mode = self.cursor().with_untracked(|c| c.mode().clone());
         let (offset, is_inside) =
-            self.editor.offset_of_point(&mode, pointer_event.pos);
+            match self.editor.offset_of_point(&mode, pointer_event.pos) {
+                Ok(rs) => rs,
+                Err(err) => {
+                    error!("{err:?}");
+                    return;
+                }
+            };
         if self.active().get_untracked()
             && self.cursor().with_untracked(|c| c.offset()) != offset
         {
@@ -2960,11 +3094,25 @@ impl EditorData {
 
     fn right_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor().with_untracked(|c| c.mode().clone());
-        let (offset, _) = self.editor.offset_of_point(&mode, pointer_event.pos);
+        let (offset, _) = match self.editor.offset_of_point(&mode, pointer_event.pos)
+        {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return;
+            }
+        };
         let doc = self.doc();
         let pointer_inside_selection = doc.lines.with_untracked(|buffer| {
             self.cursor().with_untracked(|c| {
-                c.edit_selection(buffer.buffer()).contains(offset)
+                match c.edit_selection(buffer.buffer()) {
+                    Ok(rs) => rs,
+                    Err(err) => {
+                        error!("{err:?}");
+                        return false;
+                    }
+                }
+                .contains(offset)
             })
         });
         if !pointer_inside_selection {
@@ -3091,9 +3239,16 @@ impl EditorData {
         let path = doc
             .content
             .with_untracked(|content| content.path().cloned());
-        let position = doc
+        let position = match doc
             .lines
-            .with_untracked(|buffer| buffer.buffer().offset_to_position(offset));
+            .with_untracked(|buffer| buffer.buffer().offset_to_position(offset))
+        {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return;
+            }
+        };
         let path = match path {
             Some(path) => path,
             None => return,
@@ -3408,7 +3563,15 @@ impl KeyPressFocus for EditorData {
 
         match &command.kind {
             crate::command::CommandKind::Workbench(_) => CommandExecuted::No,
-            crate::command::CommandKind::Edit(cmd) => self.run_edit_command(cmd),
+            crate::command::CommandKind::Edit(cmd) => {
+                match self.run_edit_command(cmd) {
+                    Ok(rs) => rs,
+                    Err(err) => {
+                        error!("{err:?}");
+                        CommandExecuted::No
+                    }
+                }
+            }
             crate::command::CommandKind::Move(cmd) => {
                 let movement = cmd.to_movement(count);
                 self.run_move_command(&movement, count, mods)
@@ -3482,14 +3645,18 @@ impl KeyPressFocus for EditorData {
                     self.cancel_completion();
                 }
 
-                self.update_inline_completion(
-                    InlineCompletionTriggerKind::Automatic,
-                );
+                if let Err(err) = self
+                    .update_inline_completion(InlineCompletionTriggerKind::Automatic)
+                {
+                    error!("{:?}", err);
+                }
 
                 self.apply_deltas(&deltas);
                 self.check_auto_save();
             } else if let Some(direction) = self.inline_find.get_untracked() {
-                self.inline_find(direction.clone(), c);
+                if let Err(err) = self.inline_find(direction.clone(), c) {
+                    error!("{:?}", err);
+                }
                 self.last_inline_find.set(Some((direction, c.to_string())));
                 self.inline_find.set(None);
             } else if self.on_screen_find.with_untracked(|f| f.active) {

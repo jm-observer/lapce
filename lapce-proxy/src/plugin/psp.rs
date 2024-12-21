@@ -1447,7 +1447,7 @@ fn format_semantic_styles(
             line += semantic_token.delta_line as usize;
             let Ok(line) = text.offset_of_line(line) else {
                 error!("{line}");
-                return continue;
+                continue;
             };
             start = line;
         }

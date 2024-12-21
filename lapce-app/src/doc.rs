@@ -76,6 +76,7 @@ use lsp_types::{
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
+use crate::debug::LapceBreakpoint;
 use crate::editor::editor::{CommonAction, CursorInfo, Editor};
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand},
@@ -94,7 +95,7 @@ use crate::{
     window_tab::{CommonData, Focus, SignalManager},
     workspace::LapceWorkspace,
 };
-
+use anyhow::Result;
 // #[derive(Clone, Debug)]
 // pub struct DiagnosticData {
 //     pub expanded: RwSignal<bool>,
@@ -257,12 +258,15 @@ impl Doc {
             rw_config,
             buffer,
             kind,
-        );
+        )
+        .unwrap();
         let config = common.config;
         cx.create_effect(move |_| {
             let editor_config = config.get().get_doc_editor_config();
             lines.update(|x| {
-                x.update_config(editor_config);
+                if let Err(err) = x.update_config(editor_config) {
+                    error!("{err:?}");
+                }
             });
         });
 
@@ -311,7 +315,7 @@ impl Doc {
         editors: Editors,
         common: Rc<CommonData>,
         name: Option<String>,
-    ) -> Doc {
+    ) -> Self {
         let editor_id = EditorId::next();
         let cx = cx.create_child();
         let config = common.config.get_untracked();
@@ -343,12 +347,15 @@ impl Doc {
             rw_config,
             buffer,
             kind,
-        );
+        )
+        .unwrap();
         let config = common.config;
         cx.create_effect(move |_| {
             let editor_config = config.get().get_doc_editor_config();
             lines.update(|x| {
-                x.update_config(editor_config);
+                if let Err(err) = x.update_config(editor_config) {
+                    error!("{:?}", err);
+                }
             });
         });
         Self {
@@ -379,7 +386,7 @@ impl Doc {
         content: DocContent,
         editors: Editors,
         common: Rc<CommonData>,
-    ) -> Doc {
+    ) -> Self {
         let editor_id = EditorId::next();
         let config = common.config.get_untracked();
         let rw_config = config.get_doc_editor_config();
@@ -416,12 +423,15 @@ impl Doc {
             rw_config,
             buffer,
             kind,
-        );
+        )
+        .unwrap();
         let config = common.config;
         cx.create_effect(move |_| {
             let editor_config = config.get().get_doc_editor_config();
             lines.update(|x| {
-                x.update_config(editor_config);
+                if let Err(err) = x.update_config(editor_config) {
+                    error!("{:?}", err);
+                }
             });
         });
 
@@ -461,13 +471,13 @@ impl Doc {
         }
     }
 
-    /// Create a styling instance for this doc
-    pub fn styling(self: &Rc<Doc>) -> Rc<DocStyling> {
-        Rc::new(DocStyling {
-            config: self.common.config,
-            doc: self.clone(),
-        })
-    }
+    // /// Create a styling instance for this doc
+    // pub fn styling(self: &Rc<Doc>) -> Rc<DocStyling> {
+    //     Rc::new(DocStyling {
+    //         config: self.common.config,
+    //         doc: self.clone(),
+    //     })
+    // }
 
     /// Create an [`Editor`] instance from this [`Doc`]. Note that this needs to be registered
     /// appropriately to create the [`EditorData`] and such.
@@ -507,7 +517,9 @@ impl Doc {
     pub fn set_syntax(&self, syntax: Syntax) {
         batch(|| {
             self.lines.update(|x| {
-                x.set_syntax(syntax);
+                if let Err(err) = x.set_syntax(syntax) {
+                    error!("{:?}", err);
+                }
             });
             // {
             //
@@ -522,11 +534,13 @@ impl Doc {
         let queries_directory = Directory::queries_directory().unwrap();
         let grammars_directory = Directory::grammars_directory().unwrap();
         self.lines.update(|x| {
-            x.set_syntax(Syntax::from_language(
+            if let Err(err) = x.set_syntax(Syntax::from_language(
                 language,
                 &grammars_directory,
                 &queries_directory,
-            ));
+            )) {
+                error!("{:?}", err);
+            }
         });
     }
 
@@ -543,7 +557,9 @@ impl Doc {
     pub fn init_content(&self, content: Rope) {
         batch(|| {
             self.lines.update(|lines| {
-                lines.init_buffer(content);
+                if let Err(err) = lines.init_buffer(content) {
+                    error!("{:?}", err);
+                }
             });
             self.loaded.set(true);
             log::error!("init_content");
@@ -576,10 +592,17 @@ impl Doc {
     pub fn reload(&self, content: Rope, set_pristine: bool) {
         // self.code_actions.clear();
         // self.inlay_hints = None;
-        let delta = self
+        let delta = match self
             .lines
             .try_update(|buffer| buffer.reload_buffer(content, set_pristine))
-            .unwrap();
+            .unwrap()
+        {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return;
+            }
+        };
         self.apply_deltas(&[delta]);
     }
 
@@ -597,10 +620,17 @@ impl Doc {
         if self.content.with_untracked(|c| c.read_only()) {
             return Vec::new();
         }
-        let deltas = self
+        let deltas = match self
             .lines
             .try_update(|lines| lines.do_insert_buffer(cursor, s))
-            .unwrap();
+            .unwrap()
+        {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return vec![];
+            }
+        };
         self.apply_deltas(&deltas);
         deltas
     }
@@ -614,10 +644,17 @@ impl Doc {
             return None;
         }
 
-        let (text, delta, inval_lines) = self
+        let (text, delta, inval_lines) = match self
             .lines
             .try_update(|buffer| buffer.edit_buffer(edits, edit_type))
-            .unwrap();
+            .unwrap()
+        {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return None;
+            }
+        };
         self.apply_deltas(&[(text.clone(), delta.clone(), inval_lines.clone())]);
         Some((text, delta, inval_lines))
     }
@@ -635,12 +672,19 @@ impl Doc {
         {
             return Vec::new();
         }
-        let deltas = self
-            .lines
-            .try_update(|lines| {
-                lines.do_edit_buffer(cursor, cmd, modal, register, smart_tab)
-            })
-            .unwrap();
+        let deltas = match self.lines.try_update(|lines| {
+            lines.do_edit_buffer(cursor, cmd, modal, register, smart_tab)
+        }) {
+            None => {
+                error!("None");
+                return vec![];
+            }
+            Some(Ok(rs)) => rs,
+            Some(Err(err)) => {
+                error!("{err:?}");
+                return vec![];
+            }
+        };
         if !deltas.is_empty() {
             self.apply_deltas(&deltas);
         }
@@ -669,8 +713,14 @@ impl Doc {
         // We use a smallvec because there is unlikely to be more than a couple of deltas
         let edits: SmallVec<[SyntaxEdit; 3]> = deltas
             .iter()
-            .map(|(before_text, delta, _)| {
-                SyntaxEdit::from_delta(before_text, delta.clone())
+            .filter_map(|(before_text, delta, _)| {
+                match SyntaxEdit::from_delta(before_text, delta.clone()) {
+                    Ok(rs) => Some(rs),
+                    Err(err) => {
+                        error!("{err:?}");
+                        None
+                    }
+                }
             })
             .collect();
         self.on_update(Some(edits));
@@ -751,17 +801,28 @@ impl Doc {
 
         let doc = self.clone();
         let send = create_ext_action(self.scope, move |syntax| {
-            if let Some(true) =
-                doc.lines.try_update(|x| x.set_syntax_with_rev(syntax, rev))
-            {
-                // doc.do_bracket_colorization();
-                doc.clear_sticky_headers_cache();
-                doc.clear_text_cache();
-            }
+            match doc.lines.try_update(|x| x.set_syntax_with_rev(syntax, rev)) {
+                Some(Ok(rs)) => {
+                    if rs {
+                        // doc.do_bracket_colorization();
+                        doc.clear_sticky_headers_cache();
+                        doc.clear_text_cache();
+                    }
+                }
+                Some(Err(err)) => {
+                    error!("{err:?}");
+                }
+                None => {
+                    error!("None");
+                }
+            };
         });
 
-        self.lines
-            .update(|x| x.trigger_syntax_change(edits.clone()));
+        self.lines.update(|x| {
+            if let Err(err) = x.trigger_syntax_change(edits.clone()) {
+                error!("{err:?}");
+            }
+        });
         let mut syntax = self.syntax();
         rayon::spawn(move || {
             let queries_directory = Directory::queries_directory().unwrap();
@@ -838,10 +899,16 @@ impl Doc {
         let send = create_ext_action(self.scope, move |(styles, result_id)| {
             if let Some(styles) = styles {
                 // error!("{:?}", styles);
-                if let Some(true) = doc.lines.try_update(|x| {
+                match doc.lines.try_update(|x| {
                     x.update_semantic_styles_from_lsp((result_id, styles), rev)
                 }) {
-                    doc.clear_style_cache();
+                    Some(Ok(true)) => {
+                        doc.clear_style_cache();
+                    }
+                    Some(Err(err)) => {
+                        error!("{err:?}");
+                    }
+                    _ => {}
                 }
             }
         });
@@ -976,18 +1043,21 @@ impl Doc {
                             if codelens.command.is_none() {
                                 continue;
                             }
+                            let rs = match doc.lines.with_untracked(|b| {
+                                b.buffer().offset_of_line(
+                                    codelens.range.start.line as usize,
+                                )
+                            }) {
+                                Ok(rs) => rs,
+                                Err(err) => {
+                                    error!("{err:?}");
+                                    continue;
+                                }
+                            };
                             let entry = code_lens
                                 .entry(codelens.range.start.line as usize)
                                 .or_insert_with(|| {
-                                    (
-                                        plugin_id,
-                                        doc.lines.with_untracked(|b| {
-                                            b.buffer().offset_of_line(
-                                                codelens.range.start.line as usize,
-                                            )
-                                        }),
-                                        im::Vector::new(),
-                                    )
+                                    (plugin_id, rs, im::Vector::new())
                                 });
                             entry.2.push_back(codelens);
                         }
@@ -1063,7 +1133,9 @@ impl Doc {
         let send = create_ext_action(self.scope, move |hints| {
             if let Some(true) = doc.lines.try_update(|x| {
                 if x.buffer().rev() == rev {
-                    x.set_inlay_hints(hints);
+                    if let Err(err) = x.set_inlay_hints(hints) {
+                        error!("{err:?}");
+                    }
                     true
                 } else {
                     false
@@ -1082,7 +1154,14 @@ impl Doc {
 
                 let mut hints_span = SpansBuilder::new(len);
                 for hint in hints {
-                    let offset = buffer.offset_of_position(&hint.position).min(len);
+                    let offset = match buffer.offset_of_position(&hint.position) {
+                        Ok(rs) => rs,
+                        Err(err) => {
+                            error!("{err:?}");
+                            continue;
+                        }
+                    }
+                    .min(len);
                     hints_span.add_span(
                         Interval::new(offset, (offset + 1).min(len)),
                         hint,
@@ -1109,7 +1188,9 @@ impl Doc {
             self.clear_text_cache();
             self.clear_code_actions();
             self.lines.update(|x| {
-                x.init_diagnostics();
+                if let Err(err) = x.init_diagnostics() {
+                    error!("{err:?}");
+                }
             });
         });
     }
@@ -1135,7 +1216,11 @@ impl Doc {
                             .sorted_by(|x, y| x.start.line.cmp(&y.start.line))
                             .collect();
                         doc.lines.update(|symbol| {
-                            symbol.update_folding_ranges(folding.into());
+                            if let Err(err) =
+                                symbol.update_folding_ranges(folding.into())
+                            {
+                                error!("{err:?}");
+                            }
                         });
                         doc.clear_text_cache();
                     }
@@ -1161,8 +1246,11 @@ impl Doc {
         line: usize,
         col: usize,
     ) {
-        self.lines
-            .update(|x| x.set_completion_lens(completion_lens, line, col));
+        self.lines.update(|x| {
+            if let Err(err) = x.set_completion_lens(completion_lens, line, col) {
+                error!("{err:?}");
+            }
+        });
     }
 
     pub fn clear_completion_lens(&self) {
@@ -1184,13 +1272,22 @@ impl Doc {
                             .clone()
                             .into_values()
                             .map(|mut b| {
-                                let offset = old_text.offset_of_line(b.line);
+                                let offset = old_text.offset_of_line(b.line)?;
                                 let offset = transformer.transform(offset, false);
                                 let line = buffer.line_of_offset(offset);
                                 b.line = line;
                                 b.offset = offset;
-                                (b.line, b)
+                                Ok((b.line, b))
                             })
+                            .filter_map(
+                                |x: Result<(usize, LapceBreakpoint)>| match x {
+                                    Ok(rs) => Some(rs),
+                                    Err(err) => {
+                                        error!("{err:?}");
+                                        None
+                                    }
+                                },
+                            )
                             .collect();
                     });
                 }
@@ -1302,7 +1399,13 @@ impl Doc {
         }
         let lines = self.lines.with_untracked(|buffer| {
             let buffer = buffer.buffer();
-            let offset = buffer.offset_of_line(line + 1);
+            let offset = match buffer.offset_of_line(line + 1) {
+                Ok(rs) => rs,
+                Err(err) => {
+                    error!("{err:?}");
+                    return None;
+                }
+            };
             self.syntax().sticky_headers(offset).map(|offsets| {
                 offsets
                     .iter()
@@ -1416,8 +1519,14 @@ impl Doc {
 
             let send = create_ext_action(self.scope, move |result| {
                 if let Ok(ProxyResponse::SaveResponse {}) = result {
-                    if let Some(true) = lines.try_update(|x| x.set_pristine(rev)) {
-                        after_action();
+                    match lines.try_update(|x| x.set_pristine(rev)) {
+                        Some(Ok(true)) => {
+                            after_action();
+                        }
+                        Some(Err(err)) => {
+                            error!("{err:?}");
+                        }
+                        _ => {}
                     }
                 }
             });
@@ -1436,22 +1545,33 @@ impl Doc {
     ) {
         // TODO: more granular invalidation
         batch(|| {
-            self.lines
-                .update(|x| x.set_inline_completion(inline_completion, line, col));
+            self.lines.update(|x| {
+                if let Err(err) =
+                    x.set_inline_completion(inline_completion, line, col)
+                {
+                    error!("{err:?}");
+                }
+            });
             self.clear_text_cache();
         });
     }
 
     pub fn clear_inline_completion(&self) {
         batch(|| {
-            self.lines.update(|x| x.clear_inline_completion());
+            self.lines.update(|x| {
+                if let Err(err) = x.clear_inline_completion() {
+                    error!("{err:?}");
+                }
+            });
             self.clear_text_cache();
         });
     }
 
     pub fn update_inline_completion(&self, delta: &RopeDelta) {
         self.lines.update(|x| {
-            x.update_inline_completion(delta);
+            if let Err(err) = x.update_inline_completion(delta) {
+                error!("{err:?}");
+            }
         })
     }
 
@@ -1607,6 +1727,35 @@ impl Doc {
         self.editor_id
     }
 
+    pub fn font_size(&self, _line: usize) -> usize {
+        self.lines.with_untracked(|x| x.config.font_size)
+    }
+
+    // pub fn font_family(&self, _line: usize) -> String {
+    //     self.lines.with_untracked(|x| x.config.font_family.clone())
+    // }
+    pub fn font_family(
+        &self,
+        _line: usize,
+    ) -> std::borrow::Cow<[floem::text::FamilyOwned]> {
+        // TODO: cache this
+        Cow::Owned(self.common.config.with_untracked(|config| {
+            FamilyOwned::parse_list(&config.editor.font_family).collect()
+        }))
+    }
+
+    pub(crate) fn tab_width(&self, _: EditorId, _line: usize) -> usize {
+        self.common
+            .config
+            .with_untracked(|config| config.editor.tab_width)
+    }
+
+    pub(crate) fn atomic_soft_tabs(&self, _: EditorId, _line: usize) -> bool {
+        self.common
+            .config
+            .with_untracked(|config| config.editor.atomic_soft_tabs)
+    }
+
     // pub fn viewport(&self) -> RwSignal<Rect> {
     //     self.viewport
     // }
@@ -1626,18 +1775,25 @@ impl CommonAction for Doc {
         is_vertical: bool,
         register: &mut Register,
     ) {
-        let deltas = self
-            .lines
-            .try_update(move |lines| {
-                lines.execute_motion_mode(
-                    cursor,
-                    motion_mode,
-                    range,
-                    is_vertical,
-                    register,
-                )
-            })
-            .unwrap();
+        let deltas = match self.lines.try_update(move |lines| {
+            lines.execute_motion_mode(
+                cursor,
+                motion_mode,
+                range,
+                is_vertical,
+                register,
+            )
+        }) {
+            None => {
+                error!("None");
+                return;
+            }
+            Some(Ok(rs)) => rs,
+            Some(Err(err)) => {
+                error!("{err:?}");
+                return;
+            }
+        };
         self.apply_deltas(&deltas);
     }
 
@@ -1655,281 +1811,19 @@ impl CommonAction for Doc {
     }
 }
 
-#[derive(Clone)]
-pub struct DocStyling {
-    config: ReadSignal<Arc<LapceConfig>>,
-    doc: Rc<Doc>,
-}
-impl DocStyling {
-    // fn apply_colorization(
-    //     &self,
-    //     line: usize,
-    //     attrs: &Attrs,
-    //     attrs_list: &mut AttrsList,
-    //     phantom_text: &PhantomTextLine,
-    // ) {
-    //     let config = self.config.get_untracked();
-    //     // todo it always empty??
-    //     if let Some(bracket_styles) = self.doc.parser.borrow().bracket_pos.get(&line)
-    //     {
-    //         log::error!("bracket_styles.len={}", bracket_styles.len());
-    //         for bracket_style in bracket_styles.iter() {
-    //             // log::info!("{line} {:?}", bracket_style);
-    //             if let Some(fg_color) = bracket_style.style.fg_color.as_ref() {
-    //                 if let Some(fg_color) = config.style_color(fg_color) {
-    //                     let (Some(start), Some(end)) = (
-    //                         phantom_text.col_at(bracket_style.start),
-    //                         phantom_text.col_at(bracket_style.end),
-    //                     ) else {
-    //                         continue;
-    //                     };
-    //                     log::info!("{line} {:?} {start} {end}", bracket_style);
-    //                     attrs_list.add_span(start..end, attrs.color(fg_color));
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-}
-
-impl Styling for Doc {
-    fn id(&self) -> u64 {
-        self.common.config.with_untracked(|config| config.id)
-    }
-
-    fn font_size(&self, _line: usize) -> usize {
-        self.common
-            .config
-            .with_untracked(|config| config.editor.font_size())
-    }
-
-    fn line_height(&self, _line: usize) -> f32 {
-        self.common
-            .config
-            .with_untracked(|config| config.editor.line_height()) as f32
-    }
-
-    fn font_family(
-        &self,
-        _line: usize,
-    ) -> std::borrow::Cow<[floem::text::FamilyOwned]> {
-        // TODO: cache this
-        Cow::Owned(self.common.config.with_untracked(|config| {
-            FamilyOwned::parse_list(&config.editor.font_family).collect()
-        }))
-    }
-
-    fn weight(&self, _: EditorId, _line: usize) -> floem::text::Weight {
-        floem::text::Weight::NORMAL
-    }
-
-    fn italic_style(&self, _: EditorId, _line: usize) -> floem::text::Style {
-        floem::text::Style::Normal
-    }
-
-    fn stretch(&self, _: EditorId, _line: usize) -> floem::text::Stretch {
-        floem::text::Stretch::Normal
-    }
-
-    fn indent_line(&self, line: usize, line_content: &str) -> usize {
-        if line_content.trim().is_empty() {
-            let text = self.rope_text();
-            let offset = text.offset_of_line(line);
-            if let Some(offset) = self.syntax().parent_offset(offset) {
-                return text.line_of_offset(offset);
-            }
-        }
-
-        line
-    }
-
-    fn tab_width(&self, _: EditorId, _line: usize) -> usize {
-        self.common
-            .config
-            .with_untracked(|config| config.editor.tab_width)
-    }
-
-    fn atomic_soft_tabs(&self, _: EditorId, _line: usize) -> bool {
-        self.common
-            .config
-            .with_untracked(|config| config.editor.atomic_soft_tabs)
-    }
-
-    fn line_styles(&self, _line: usize) -> Vec<(usize, usize, Color)> {
-        // let config = self.common.config.get_untracked();
-        // let mut styles: Vec<(usize, usize, Color)> = self
-        //     .line_style(line)
-        //     .iter()
-        //     .filter_map(|line_style| {
-        //         if let Some(fg_color) = line_style.style.fg_color.as_ref() {
-        //             if let Some(fg_color) = config.style_color(fg_color) {
-        //                 return Some((line_style.start, line_style.end, fg_color));
-        //             }
-        //         }
-        //         None
-        //     })
-        //     .collect();
-        //
-        // if let Some(bracket_styles) =
-        //     self.lines.with_untracked(|x| x.line_styles(line))
-        // {
-        //     log::error!("bracket_styles.len={}", bracket_styles.len());
-        //     styles.append(
-        //         &mut bracket_styles
-        //             .iter()
-        //             .filter_map(|bracket_style| {
-        //                 if let Some(fg_color) = bracket_style.style.fg_color.as_ref()
-        //                 {
-        //                     if let Some(fg_color) = config.style_color(fg_color) {
-        //                         return Some((
-        //                             bracket_style.start,
-        //                             bracket_style.end,
-        //                             fg_color,
-        //                         ));
-        //                     }
-        //                 }
-        //                 None
-        //             })
-        //             .collect(),
-        //     );
-        // }
-        // styles
-        vec![]
-    }
-
-    // fn apply_attr_styles(
-    //     &self,
-    //     line: usize,
-    //     default: Attrs,
-    //     attrs_list: &mut AttrsList,
-    //     phantom_text: &PhantomTextLine,
-    //     collapsed_line_col: usize,
-    // ) {
-    //     let config = self.doc.common.config.get_untracked();
-    //
-    //     // todo
-    //     self.apply_colorization(line, &default, attrs_list, phantom_text);
-    //
-    //     // calculate style of origin text, for example: `self`
-    //     for line_style in self.doc.line_style(line).iter() {
-    //         if let Some(fg_color) = line_style.style.fg_color.as_ref() {
-    //             if let Some(fg_color) = config.style_color(fg_color) {
-    //                 let (Some(start), Some(end)) = (
-    //                     phantom_text.col_at(line_style.start),
-    //                     phantom_text.col_at(line_style.end),
-    //                 ) else {
-    //                     continue;
-    //                 };
-    //                 attrs_list.add_span(
-    //                     start + collapsed_line_col..end + collapsed_line_col,
-    //                     default.color(fg_color),
-    //                 );
-    //             }
-    //         }
-    //     }
-    // }
-
-    fn paint_caret(&self, edid: EditorId, _line: usize) -> bool {
-        let Some(e_data) = self.editor_data(edid) else {
-            return true;
-        };
-
-        // If the find is active, then we don't want to paint the caret
-        !e_data.find_focus.get_untracked()
-    }
-}
-
-impl Styling for DocStyling {
-    fn id(&self) -> u64 {
-        self.config.with_untracked(|config| config.id)
-    }
-
-    fn font_size(&self, _line: usize) -> usize {
-        self.config
-            .with_untracked(|config| config.editor.font_size())
-    }
-
-    fn line_height(&self, _line: usize) -> f32 {
-        self.config
-            .with_untracked(|config| config.editor.line_height()) as f32
-    }
-
-    fn font_family(
-        &self,
-        _line: usize,
-    ) -> std::borrow::Cow<[floem::text::FamilyOwned]> {
-        // TODO: cache this
-        Cow::Owned(self.config.with_untracked(|config| {
-            FamilyOwned::parse_list(&config.editor.font_family).collect()
-        }))
-    }
-
-    fn weight(&self, _: EditorId, _line: usize) -> floem::text::Weight {
-        floem::text::Weight::NORMAL
-    }
-
-    fn italic_style(&self, _: EditorId, _line: usize) -> floem::text::Style {
-        floem::text::Style::Normal
-    }
-
-    fn stretch(&self, _: EditorId, _line: usize) -> floem::text::Stretch {
-        floem::text::Stretch::Normal
-    }
-
-    fn indent_line(&self, line: usize, line_content: &str) -> usize {
-        if line_content.trim().is_empty() {
-            let text = self.doc.rope_text();
-            let offset = text.offset_of_line(line);
-            if let Some(offset) = self.doc.syntax().parent_offset(offset) {
-                return text.line_of_offset(offset);
-            }
-        }
-
-        line
-    }
-
-    fn tab_width(&self, _: EditorId, _line: usize) -> usize {
-        self.config.with_untracked(|config| config.editor.tab_width)
-    }
-
-    fn atomic_soft_tabs(&self, _: EditorId, _line: usize) -> bool {
-        self.config
-            .with_untracked(|config| config.editor.atomic_soft_tabs)
-    }
-
-    fn line_styles(&self, line: usize) -> Vec<(usize, usize, Color)> {
-        self.doc.line_styles(line)
-    }
-
-    fn paint_caret(&self, edid: EditorId, _line: usize) -> bool {
-        let Some(e_data) = self.doc.editor_data(edid) else {
-            return true;
-        };
-
-        // If the find is active, then we don't want to paint the caret
-        !e_data.find_focus.get_untracked()
-    }
-}
+// #[derive(Clone)]
+// pub struct DocStyling {
+//     config: ReadSignal<Arc<LapceConfig>>,
+//     doc: Rc<Doc>,
+// }
+// impl DocStyling {
+// }
 
 impl std::fmt::Debug for Doc {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!("Document {:?}", self.buffer_id))
     }
 }
-
-// /// Get the previous unmatched character `c` from the `offset` using `syntax` if applicable
-// fn syntax_prev_unmatched(
-//     buffer: &Buffer,
-//     syntax: &Syntax,
-//     c: char,
-//     offset: usize,
-// ) -> Option<usize> {
-//     if syntax.layers.is_some() {
-//         syntax.find_tag(offset, true, &CharBuffer::new(c))
-//     } else {
-//         WordCursor::new(buffer.text(), offset).previous_unmatched(c)
-//     }
-// }
 
 fn should_blink(
     _focus: SignalManager<Focus>,

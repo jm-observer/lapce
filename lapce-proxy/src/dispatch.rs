@@ -107,7 +107,9 @@ impl ProxyHandler for Dispatcher {
             Update { path, delta, rev } => {
                 let buffer = self.buffers.get_mut(&path).unwrap();
                 let old_text = buffer.rope.clone();
-                buffer.update(&delta, rev);
+                if let Err(err) = buffer.update(&delta, rev) {
+                    error!("{err:?}");
+                }
                 self.catalog_rpc.did_change_text_document(
                     &path,
                     rev,
@@ -562,7 +564,7 @@ impl ProxyHandler for Dispatcher {
                 };
                 let range = Range {
                     start: Position::new(0, 0),
-                    end: end,
+                    end,
                 };
                 self.catalog_rpc.get_inlay_hints(
                     &path,

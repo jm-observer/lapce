@@ -106,7 +106,7 @@ pub fn move_offset(
 ) -> Result<(usize, Option<ColPosition>)> {
     let (new_offset, horiz) = match movement {
         Movement::Left => {
-            let new_offset = move_left(view, offset, affinity, mode, count);
+            let new_offset = move_left(view, offset, affinity, mode, count)?;
 
             (new_offset, None)
         }
@@ -133,7 +133,8 @@ pub fn move_offset(
             (0, Some(ColPosition::Start))
         }
         Movement::DocumentEnd => {
-            let (new_offset, horiz) = document_end(view.rope_text(), affinity, mode);
+            let (new_offset, horiz) =
+                document_end(view.rope_text(), affinity, mode)?;
 
             (new_offset, Some(horiz))
         }
@@ -251,9 +252,9 @@ fn move_left(
     affinity: &mut CursorAffinity,
     mode: Mode,
     count: usize,
-) -> usize {
+) -> Result<usize> {
     let rope_text = ed.rope_text();
-    let mut new_offset = rope_text.move_left(offset, mode, count);
+    let mut new_offset = rope_text.move_left(offset, mode, count)?;
 
     if let Some(soft_tab_width) = atomic_soft_tab_width_for_offset(ed, offset) {
         if soft_tab_width > 1 {
@@ -262,13 +263,13 @@ fn move_left(
                 new_offset,
                 SnapDirection::Left,
                 soft_tab_width,
-            );
+            )?;
         }
     }
 
     *affinity = CursorAffinity::Forward;
 
-    new_offset
+    Ok(new_offset)
 }
 
 pub fn snap_to_soft_tab(
@@ -276,22 +277,22 @@ pub fn snap_to_soft_tab(
     offset: usize,
     direction: SnapDirection,
     tab_width: usize,
-) -> usize {
+) -> Result<usize> {
     // Fine which line we're on.
     let line = text.line_of_offset(offset);
     // Get the offset to the start of the line.
-    let start_line_offset = text.offset_of_line(line);
+    let start_line_offset = text.offset_of_line(line)?;
     // And the offset within the lint.
     let offset_within_line = offset - start_line_offset;
 
-    start_line_offset
+    Ok(start_line_offset
         + snap_to_soft_tab_logic(
             text,
             offset_within_line,
             start_line_offset,
             direction,
             tab_width,
-        )
+        ))
 }
 
 fn snap_to_soft_tab_logic(
@@ -344,7 +345,7 @@ fn move_right(
 ) -> Result<usize> {
     // error!("_offset={offset} _affinity={affinity:?} _mode={mode:?} _count={count}");
     let rope_text = view.rope_text();
-    let mut new_offset = rope_text.move_right(offset, mode, count);
+    let mut new_offset = rope_text.move_right(offset, mode, count)?;
 
     if let Some(soft_tab_width) = atomic_soft_tab_width_for_offset(view, offset) {
         if soft_tab_width > 1 {
@@ -353,7 +354,7 @@ fn move_right(
                 new_offset,
                 SnapDirection::Right,
                 soft_tab_width,
-            );
+            )?;
         }
     }
 
@@ -424,20 +425,27 @@ fn move_down_last_rvline(
     affinity: &mut CursorAffinity,
     horiz: Option<ColPosition>,
     mode: Mode,
-) -> (usize, ColPosition) {
+) -> Result<(usize, ColPosition)> {
     let rope_text = view.rope_text();
 
     let last_line = rope_text.last_line();
-    let new_offset = rope_text.line_end_offset(last_line, mode != Mode::Normal);
+    let new_offset = rope_text.line_end_offset(last_line, mode != Mode::Normal)?;
 
     // We should appear after any phantom text at the very end of the line.
     *affinity = CursorAffinity::Forward;
 
+    // let horiz = horiz.unwrap_or_else(|| {
+    //     ColPosition::Col(view.line_point_of_offset(offset, *affinity).x)
+    // });
     let horiz = horiz.unwrap_or_else(|| {
-        ColPosition::Col(view.line_point_of_offset(offset, *affinity).x)
+        ColPosition::Col(
+            view.line_point_of_offset(offset, CursorAffinity::Backward)
+                .map(|x| x.x)
+                .unwrap_or_default(),
+        )
     });
 
-    (new_offset, horiz)
+    Ok((new_offset, horiz))
 }
 
 // fn find_next_rvline_info(
@@ -503,14 +511,14 @@ fn document_end(
     rope_text: impl RopeText,
     affinity: &mut CursorAffinity,
     mode: Mode,
-) -> (usize, ColPosition) {
+) -> Result<(usize, ColPosition)> {
     let last_offset =
-        rope_text.offset_line_end(rope_text.len(), mode != Mode::Normal);
+        rope_text.offset_line_end(rope_text.len(), mode != Mode::Normal)?;
 
     // Put it past any inlay hints directly at the end
     *affinity = CursorAffinity::Forward;
 
-    (last_offset, ColPosition::End)
+    Ok((last_offset, ColPosition::End))
 }
 
 fn first_non_blank(
@@ -564,7 +572,8 @@ fn to_line(
     let horiz = horiz.unwrap_or_else(|| {
         ColPosition::Col(
             view.line_point_of_offset(offset, CursorAffinity::Backward)
-                .x,
+                .map(|x| x.x)
+                .unwrap_or_default(),
         )
     });
     todo!()
@@ -739,15 +748,16 @@ pub fn do_multi_selection(
             if let CursorMode::Insert(selection) = cursor.mode().clone() {
                 let mut new_selection = Selection::new();
                 for region in selection.regions() {
-                    let (start_line, _) = rope_text.offset_to_line_col(region.min());
+                    let (start_line, _) =
+                        rope_text.offset_to_line_col(region.min())?;
                     let (end_line, end_col) =
-                        rope_text.offset_to_line_col(region.max());
+                        rope_text.offset_to_line_col(region.max())?;
                     for line in start_line..end_line + 1 {
                         let offset = if line == end_line {
                             rope_text.offset_of_line_col(line, end_col)
                         } else {
                             rope_text.line_end_offset(line, true)
-                        };
+                        }?;
                         new_selection
                             .add_region(SelRegion::new(offset, offset, None));
                     }
@@ -760,9 +770,9 @@ pub fn do_multi_selection(
                 let mut new_selection = Selection::new();
                 for region in selection.regions() {
                     let start_line = rope_text.line_of_offset(region.min());
-                    let start = rope_text.offset_of_line(start_line);
+                    let start = rope_text.offset_of_line(start_line)?;
                     let end_line = rope_text.line_of_offset(region.max());
-                    let end = rope_text.offset_of_line(end_line + 1);
+                    let end = rope_text.offset_of_line(end_line + 1)?;
                     new_selection.add_region(SelRegion::new(start, end, None));
                 }
                 cursor.set_insert(new_selection);

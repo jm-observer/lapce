@@ -2,6 +2,7 @@ use doc::lines::buffer::rope_text::RopeText;
 use doc::lines::RopeTextPosition;
 use std::path::PathBuf;
 
+use anyhow::Result;
 use floem::peniko::kurbo::Vec2;
 use lsp_types::Position;
 
@@ -25,11 +26,13 @@ pub enum EditorPosition {
 }
 
 impl EditorPosition {
-    pub fn to_offset(&self, text: &impl RopeText) -> usize {
-        match self {
-            EditorPosition::Line(n) => text.first_non_blank_character_on_line(*n),
-            EditorPosition::Position(position) => text.offset_of_position(position),
+    pub fn to_offset(&self, text: &impl RopeText) -> Result<usize> {
+        Ok(match self {
+            EditorPosition::Line(n) => text.first_non_blank_character_on_line(*n)?,
+            EditorPosition::Position(position) => {
+                text.offset_of_position(position)?
+            }
             EditorPosition::Offset(offset) => (*offset).min(text.len()),
-        }
+        })
     }
 }

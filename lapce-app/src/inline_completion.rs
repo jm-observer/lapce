@@ -7,6 +7,7 @@ use doc::lines::buffer::{
 use doc::lines::selection::Selection;
 use doc::lines::RopeTextPosition;
 use floem::reactive::{batch, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith};
+use log::error;
 use lsp_types::InsertTextFormat;
 
 use crate::{config::LapceConfig, doc::Doc, editor::EditorData, snippet::Snippet};
@@ -27,10 +28,22 @@ pub struct InlineCompletionItem {
 }
 impl InlineCompletionItem {
     pub fn from_lsp(buffer: &Buffer, item: lsp_types::InlineCompletionItem) -> Self {
-        let range = item.range.map(|r| {
-            let start = buffer.offset_of_position(&r.start);
-            let end = buffer.offset_of_position(&r.end);
-            start..end
+        let range = item.range.and_then(|r| {
+            let start = match buffer.offset_of_position(&r.start) {
+                Ok(rs) => rs,
+                Err(err) => {
+                    error!("{err:?}");
+                    return None;
+                }
+            };
+            let end = match buffer.offset_of_position(&r.end) {
+                Ok(rs) => rs,
+                Err(err) => {
+                    error!("{err:?}");
+                    return None;
+                }
+            };
+            Some(start..end)
         });
         Self {
             insert_text: item.insert_text,
@@ -186,9 +199,16 @@ impl InlineCompletionData {
 
         // TODO: is range really meant to be used for this?
         let offset = item.range.as_ref().map(|r| r.start).unwrap_or(offset);
-        let (line, col) = doc
+        let (line, col) = match doc
             .lines
-            .with_untracked(|x| x.buffer().offset_to_line_col(offset));
+            .with_untracked(|x| x.buffer().offset_to_line_col(offset))
+        {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return;
+            }
+        };
         doc.set_inline_completion(text, line, col);
     }
 
@@ -222,7 +242,13 @@ impl InlineCompletionData {
             ICompletionRes::Unchanged => {}
             ICompletionRes::Set(new, shift) => {
                 let offset = self.start_offset + shift;
-                let (line, col) = text.offset_to_line_col(offset);
+                let (line, col) = match text.offset_to_line_col(offset) {
+                    Ok(rs) => rs,
+                    Err(err) => {
+                        error!("{err:?}");
+                        return;
+                    }
+                };
                 doc.set_inline_completion(new, line, col);
             }
         }
@@ -275,7 +301,13 @@ fn inline_completion_text(
         }
     };
 
-    let range = start_offset..rope_text.offset_line_end(start_offset, true);
+    let range = start_offset..match rope_text.offset_line_end(start_offset, true) {
+        Ok(rs) => rs,
+        Err(err) => {
+            error!("{err:?}");
+            return ICompletionRes::Unchanged;
+        }
+    };
     let prefix = rope_text.slice_to_cow(range);
     // We strip the prefix of the current input from the label.
     // So that, for example `p` with a completion of `println` will show `rintln`.

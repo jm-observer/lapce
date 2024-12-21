@@ -296,7 +296,9 @@ impl KeyPressFocus for WindowTabData {
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(cmd) => {
-                self.run_workbench_command(cmd.clone(), None);
+                if let Err(err) = self.run_workbench_command(cmd.clone(), None) {
+                    error!("{err:?}");
+                }
             }
             CommandKind::Focus(cmd) => {
                 if self.common.focus.get_untracked() == Focus::Workbench {
@@ -664,7 +666,9 @@ impl WindowTabData {
         {
             let window_tab_data = window_tab_data.clone();
             window_tab_data.common.workbench_command.listen(move |cmd| {
-                window_tab_data.run_workbench_command(cmd, None);
+                if let Err(err) = window_tab_data.run_workbench_command(cmd, None) {
+                    error!("{err:?}");
+                }
             });
         }
 
@@ -754,7 +758,9 @@ impl WindowTabData {
     pub fn run_lapce_command(&self, cmd: LapceCommand) {
         match cmd.kind {
             CommandKind::Workbench(command) => {
-                self.run_workbench_command(command, cmd.data);
+                if let Err(err) = self.run_workbench_command(command, cmd.data) {
+                    error!("{err:?}");
+                }
             }
             CommandKind::Scroll(_)
             | CommandKind::Focus(_)
@@ -779,7 +785,7 @@ impl WindowTabData {
         &self,
         cmd: LapceWorkbenchCommand,
         data: Option<Value>,
-    ) {
+    ) -> Result<()> {
         use LapceWorkbenchCommand::*;
         match cmd {
             // ==== Modal ====
@@ -865,7 +871,7 @@ impl WindowTabData {
                     } else {
                         None
                     };
-                    let Some(path) = path else { return };
+                    let Some(path) = path else { return Ok(())};
                     let path = path.parent().unwrap_or(&path);
 
                     open_uri(path);
@@ -1517,10 +1523,15 @@ impl WindowTabData {
                     self.show_panel(PanelKind::DocumentSymbol);
                     let offset = editor_data.cursor().with_untracked(|c| c.offset());
                     let doc = editor_data.doc();
-                    let line = doc.lines.with_untracked(|x| {
-                        let (line, _) = x.buffer().offset_to_line_col(offset);
-                        line
-                    });
+                    let line = match doc.lines.with_untracked(|x| {
+                        x.buffer().offset_to_line_col(offset).map(|x| x.0)
+                    }) {
+                    Ok(rs) => {rs}
+                    Err(err) => {
+                        error!("{err:?}");
+                        return Ok(());
+                    }
+                };
                     let rs = doc.document_symbol_data.virtual_list.with_untracked(|x| {
                         x.match_line_with_children(line as u32)
                     });
@@ -1564,7 +1575,7 @@ impl WindowTabData {
                     if let DocContent::File {path, ..} = editor_data.doc().content.get_untracked() {
                         let path = path.parent().unwrap_or(&path);
                         if !path.exists() {
-                            return;
+                            return Ok(());
                         }
                         if let Err(err) = open::that(path) {
                             error!(
@@ -1579,21 +1590,21 @@ impl WindowTabData {
                 if let Some(editor_data) =
                     self.main_split.active_editor.get_untracked()
                 {
-                    editor_data.call_hierarchy(self.clone());
+                    editor_data.call_hierarchy(self.clone())?;
                 }
             }
             FindReferences => {
                 if let Some(editor_data) =
                     self.main_split.active_editor.get_untracked()
                 {
-                    editor_data.find_refenrence(self.clone());
+                    editor_data.find_refenrence(self.clone())?;
                 }
             }
             GoToImplementation => {
                 if let Some(editor_data) =
                     self.main_split.active_editor.get_untracked()
                 {
-                    editor_data.go_to_implementation(self.clone());
+                    editor_data.go_to_implementation(self.clone())?;
                 }
             }
             RunInTerminal => {
@@ -1641,7 +1652,7 @@ impl WindowTabData {
                         None
                     } {
                         Some(path) => path,
-                        None => return,
+                        None => return Ok(()),
                     };
                     let offset = editor_data.cursor().with_untracked(|c| c.offset());
                     let internal_command = self.common.internal_command;
@@ -1665,6 +1676,7 @@ impl WindowTabData {
             }
 
         }
+        Ok(())
     }
 
     pub fn run_internal_command(&self, cmd: InternalCommand) {

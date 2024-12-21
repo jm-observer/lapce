@@ -1,4 +1,4 @@
-use crate::encoding::{offset_utf16_to_utf8, offset_utf8_to_utf16};
+use crate::encoding::offset_utf8_to_utf16;
 use anyhow::Result;
 use doc::lines::buffer::rope_text::RopeText;
 use lsp_types::Position;

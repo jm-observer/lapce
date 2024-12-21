@@ -228,11 +228,11 @@ impl Editor {
         self.doc
     }
 
-    pub fn config_id(&self) -> ConfigId {
-        let style_id = self.doc.with(|s| s.id());
-        let floem_style_id = self.floem_style_id;
-        ConfigId::new(style_id, floem_style_id.get_untracked())
-    }
+    // pub fn config_id(&self) -> ConfigId {
+    //     let style_id = self.doc.with(|s| s.id());
+    //     let floem_style_id = self.floem_style_id;
+    //     ConfigId::new(style_id, floem_style_id.get_untracked())
+    // }
 
     pub fn recreate_view_effects(&self) {
         batch(|| {
@@ -430,7 +430,13 @@ impl Editor {
 
     pub fn single_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.mode().clone());
-        let (new_offset, _) = self.offset_of_point(&mode, pointer_event.pos);
+        let (new_offset, _) = match self.offset_of_point(&mode, pointer_event.pos) {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return;
+            }
+        };
         self.cursor.update(|cursor| {
             cursor.set_offset(
                 new_offset,
@@ -443,7 +449,14 @@ impl Editor {
     pub fn double_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.mode().clone());
 
-        let (mouse_offset, _) = self.offset_of_point(&mode, pointer_event.pos);
+        let (mouse_offset, _) = match self.offset_of_point(&mode, pointer_event.pos)
+        {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return;
+            }
+        };
         let (start, end) = self.select_word(mouse_offset);
         info!("double_click {:?} {:?} mouse_offset={mouse_offset},  start={start} end={end}", pointer_event.pos, mode);
         self.cursor.update(|cursor| {
@@ -458,7 +471,14 @@ impl Editor {
 
     pub fn triple_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.mode().clone());
-        let (mouse_offset, _) = self.offset_of_point(&mode, pointer_event.pos);
+        let (mouse_offset, _) = match self.offset_of_point(&mode, pointer_event.pos)
+        {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return;
+            }
+        };
         let lines = match self.doc().lines.lines_of_origin_offset(mouse_offset) {
             Ok(lines) => lines,
             Err(err) => {
@@ -482,7 +502,14 @@ impl Editor {
 
     pub fn pointer_move(&self, pointer_event: &PointerMoveEvent) {
         let mode = self.cursor.with_untracked(|c| c.mode().clone());
-        let (offset, _is_inside) = self.offset_of_point(&mode, pointer_event.pos);
+        let (offset, _is_inside) =
+            match self.offset_of_point(&mode, pointer_event.pos) {
+                Ok(rs) => rs,
+                Err(err) => {
+                    error!("{err:?}");
+                    return;
+                }
+            };
         if self.active.get_untracked()
             && self.cursor.with_untracked(|c| c.offset()) != offset
         {
@@ -498,11 +525,24 @@ impl Editor {
 
     fn right_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.mode().clone());
-        let (offset, _) = self.offset_of_point(&mode, pointer_event.pos);
+        let (offset, _) = match self.offset_of_point(&mode, pointer_event.pos) {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return;
+            }
+        };
         let doc = self.doc();
-        let pointer_inside_selection = self
-            .cursor
-            .with_untracked(|c| c.edit_selection(&doc.rope_text()).contains(offset));
+        let pointer_inside_selection = self.cursor.with_untracked(|c| {
+            match c.edit_selection(&doc.rope_text()) {
+                Ok(rs) => rs,
+                Err(err) => {
+                    error!("{err:?}");
+                    return false;
+                }
+            }
+            .contains(offset)
+        });
         if !pointer_inside_selection {
             // move cursor to pointer position if outside current selection
             self.single_click(pointer_event);
@@ -513,7 +553,7 @@ impl Editor {
     pub fn page_move(&self, down: bool, mods: Modifiers) {
         let viewport = self.viewport();
         // TODO: don't assume line height is constant
-        let line_height = f64::from(self.line_height(0));
+        let line_height = self.line_height(0) as f64;
         let lines = (viewport.height() / line_height / 2.0).round() as usize;
         let distance = (lines as f64) * line_height;
         self.scroll_delta
@@ -530,9 +570,15 @@ impl Editor {
     pub fn center_window(&self) {
         let viewport = self.viewport();
         // TODO: don't assume line height is constant
-        let line_height = f64::from(self.line_height(0));
+        let line_height = self.line_height(0) as f64;
         let offset = self.cursor.with_untracked(|cursor| cursor.offset());
-        let (line, _col) = self.offset_to_line_col(offset);
+        let (line, _col) = match self.offset_to_line_col(offset) {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return;
+            }
+        };
 
         let viewport_center = viewport.height() / 2.0;
 
@@ -549,9 +595,15 @@ impl Editor {
     pub fn top_of_window(&self, scroll_off: usize) {
         let viewport = self.viewport();
         // TODO: don't assume line height is constant
-        let line_height = f64::from(self.line_height(0));
+        let line_height = self.line_height(0) as f64;
         let offset = self.cursor.with_untracked(|cursor| cursor.offset());
-        let (line, _col) = self.offset_to_line_col(offset);
+        let (line, _col) = match self.offset_to_line_col(offset) {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return;
+            }
+        };
 
         let desired_top = (line.saturating_sub(scroll_off)) as f64 * line_height;
 
@@ -563,9 +615,15 @@ impl Editor {
     pub fn bottom_of_window(&self, scroll_off: usize) {
         let viewport = self.viewport();
         // TODO: don't assume line height is constant
-        let line_height = f64::from(self.line_height(0));
+        let line_height = self.line_height(0) as f64;
         let offset = self.cursor.with_untracked(|cursor| cursor.offset());
-        let (line, _col) = self.offset_to_line_col(offset);
+        let (line, _col) = match self.offset_to_line_col(offset) {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return;
+            }
+        };
 
         let desired_bottom =
             (line + scroll_off + 1) as f64 * line_height - viewport.height();
@@ -578,12 +636,18 @@ impl Editor {
     pub fn scroll(&self, top_shift: f64, down: bool, count: usize, mods: Modifiers) {
         let viewport = self.viewport();
         // TODO: don't assume line height is constant
-        let line_height = f64::from(self.line_height(0));
+        let line_height = self.line_height(0) as f64;
         let diff = line_height * count as f64;
         let diff = if down { diff } else { -diff };
 
         let offset = self.cursor.with_untracked(|cursor| cursor.offset());
-        let (line, _col) = self.offset_to_line_col(offset);
+        let (line, _col) = match self.offset_to_line_col(offset) {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return;
+            }
+        };
         let top = viewport.y0 + diff + top_shift;
         let bottom = viewport.y0 + diff + viewport.height();
 
@@ -622,9 +686,9 @@ impl Editor {
     //         .phantom_text(self.id(), &self.es.get_untracked(), line)
     // }
 
-    pub fn line_height(&self, line: usize) -> f32 {
-        self.doc().line_height(line)
-    }
+    // pub fn line_height(&self, line: usize) -> f32 {
+    //     self.doc().line_height(line)
+    // }
 
     // === Line Information ===
 
@@ -710,15 +774,15 @@ impl Editor {
     // ==== Line/Column Positioning ====
 
     /// Convert an offset into the buffer into a line and idx.  
-    pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
+    pub fn offset_to_line_col(&self, offset: usize) -> Result<(usize, usize)> {
         self.rope_text().offset_to_line_col(offset)
     }
 
-    pub fn offset_of_line(&self, line: usize) -> usize {
+    pub fn offset_of_line(&self, line: usize) -> Result<usize> {
         self.rope_text().offset_of_line(line)
     }
 
-    pub fn offset_of_line_col(&self, line: usize, col: usize) -> usize {
+    pub fn offset_of_line_col(&self, line: usize, col: usize) -> Result<usize> {
         self.rope_text().offset_of_line_col(line, col)
     }
 
@@ -728,11 +792,11 @@ impl Editor {
     // }
 
     /// Returns the offset into the buffer of the first non blank character on the given line.
-    pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {
+    pub fn first_non_blank_character_on_line(&self, line: usize) -> Result<usize> {
         self.rope_text().first_non_blank_character_on_line(line)
     }
 
-    pub fn line_end_col(&self, line: usize, caret: bool) -> usize {
+    pub fn line_end_col(&self, line: usize, caret: bool) -> Result<usize> {
         self.rope_text().line_end_col(line, caret)
     }
 
@@ -891,10 +955,13 @@ impl Editor {
     // }
 
     /// Get the first column of the overall line of the visual line
-    pub fn first_col<T: std::fmt::Debug>(&self, info: VLineInfo<T>) -> usize {
+    pub fn first_col<T: std::fmt::Debug>(
+        &self,
+        info: VLineInfo<T>,
+    ) -> Result<usize> {
         let line_start = info.interval.start;
-        let start_offset = self.text().offset_of_line(info.origin_line);
-        line_start - start_offset
+        let start_offset = self.text().offset_of_line(info.origin_line)?;
+        Ok(line_start - start_offset)
     }
 
     /// Get the last column in the overall line of the visual line
@@ -902,18 +969,18 @@ impl Editor {
         &self,
         info: VLineInfo<T>,
         caret: bool,
-    ) -> usize {
+    ) -> Result<usize> {
         let vline_end = info.interval.end;
-        let start_offset = self.text().offset_of_line(info.origin_line);
+        let start_offset = self.text().offset_of_line(info.origin_line)?;
         // If these subtractions crash, then it is likely due to a bad vline being kept around
         // somewhere
-        if !caret && !info.is_empty() {
+        Ok(if !caret && !info.is_empty() {
             let vline_pre_end =
                 self.rope_text().prev_grapheme_offset(vline_end, 1, 0);
             vline_pre_end - start_offset
         } else {
             vline_end - start_offset
-        }
+        })
     }
 
     // ==== Points of locations ====
@@ -928,9 +995,9 @@ impl Editor {
         &self,
         offset: usize,
         affinity: CursorAffinity,
-    ) -> Point {
-        let (line, col) = self.offset_to_line_col(offset);
-        self.line_point_of_visual_line_col(line, col, affinity, false)
+    ) -> Result<Point> {
+        let (line, col) = self.offset_to_line_col(offset)?;
+        Ok(self.line_point_of_visual_line_col(line, col, affinity, false))
     }
 
     /// Returns the point into the text layout of the line at the given line and col.
@@ -994,16 +1061,15 @@ impl Editor {
     /// The boolean indicates whether the point is inside the text or not
     /// Points outside of vertical bounds will return the last line.
     /// Points outside of horizontal bounds will return the last column on the line.
-    pub fn offset_of_point(&self, mode: &CursorMode, point: Point) -> (usize, bool) {
+    pub fn offset_of_point(
+        &self,
+        mode: &CursorMode,
+        point: Point,
+    ) -> Result<(usize, bool)> {
         self.doc
             .get_untracked()
             .lines
             .with_untracked(|x| x.buffer_offset_of_click(mode, point))
-        // let ((line, col), is_inside) = self.line_col_of_point(mode, point, tracing);
-        // if tracing {
-        //     warn!("offset_of_point line_col_of_point mode={mode:?} point={point:?} line={line} col={col} is_inside={is_inside}");
-        // }
-        // (self.offset_of_line_col(line, col), is_inside)
     }
 
     // /// 获取该坐标所在的视觉行和行偏离
@@ -1140,13 +1206,23 @@ impl Editor {
 
     /// Advance to the right in the manner of the given mode.  
     /// This is not the same as the [`Movement::Right`] command.
-    pub fn move_right(&self, offset: usize, mode: Mode, count: usize) -> usize {
+    pub fn move_right(
+        &self,
+        offset: usize,
+        mode: Mode,
+        count: usize,
+    ) -> Result<usize> {
         self.rope_text().move_right(offset, mode, count)
     }
 
     /// Advance to the left in the manner of the given mode.
     /// This is not the same as the [`Movement::Left`] command.
-    pub fn move_left(&self, offset: usize, mode: Mode, count: usize) -> usize {
+    pub fn move_left(
+        &self,
+        offset: usize,
+        mode: Mode,
+        count: usize,
+    ) -> Result<usize> {
         self.rope_text().move_left(offset, mode, count)
     }
 
@@ -1163,6 +1239,19 @@ impl Editor {
 
     pub fn viewport(&self) -> Rect {
         self.doc().lines.with_untracked(|x| x.viewport())
+    }
+
+    pub fn line_height(&self, _line: usize) -> usize {
+        self.doc().lines.with_untracked(|x| x.config.line_height)
+    }
+    pub fn font_size(&self, _line: usize) -> usize {
+        self.doc().lines.with_untracked(|x| x.config.font_size)
+    }
+
+    pub fn font_family(&self) -> String {
+        self.doc()
+            .lines
+            .with_untracked(|x| x.config.font_family.clone())
     }
 
     // pub fn text_layout_trigger(&self, line: usize, trigger: bool) -> Arc<TextLayoutLine> {
@@ -1723,7 +1812,13 @@ pub fn paint_selection(cx: &mut PaintCx, ed: &Editor, _screen_lines: &ScreenLine
             mode: VisualMode::Normal,
         } => {
             let start_offset = start.min(end);
-            let end_offset = ed.move_right(*start.max(end), Mode::Insert, 1);
+            let end_offset = match ed.move_right(*start.max(end), Mode::Insert, 1) {
+                Ok(rs) => rs,
+                Err(err) => {
+                    error!("{err:?}");
+                    return;
+                }
+            };
 
             if let Err(err) = paint_normal_selection(
                 cx,
@@ -1924,44 +2019,45 @@ pub fn paint_text(
     viewport: Rect,
     is_active: bool,
     screen_lines: &ScreenLines,
-    show_indent_guide: (bool, Color),
+    _show_indent_guide: (bool, Color),
 ) {
     let style = ed.doc();
 
+    // todo???
     // TODO: cache indent text layout width
-    let indent_unit = ed
-        .doc()
-        .lines
-        .with_untracked(|es| es.indent_style())
-        .as_str();
-    // TODO: don't assume font family is the same for all lines?
-    let family = style.font_family(0);
-    let attrs = Attrs::new()
-        .family(&family)
-        .font_size(style.font_size(0) as f32);
-    let attrs_list = AttrsList::new(attrs);
-
-    let indent_text = TextLayout::new(&format!("{indent_unit}a"), attrs_list);
-    let indent_text_width = indent_text.hit_position(indent_unit.len()).point.x;
+    // let indent_unit = ed
+    //     .doc()
+    //     .lines
+    //     .with_untracked(|es| es.indent_style())
+    //     .as_str();
+    // // TODO: don't assume font family is the same for all lines?
+    // let family = style.font_family(0);
+    // let attrs = Attrs::new()
+    //     .family(&family)
+    //     .font_size(style.font_size(0) as f32);
+    // let attrs_list = AttrsList::new(attrs);
+    //
+    // let indent_text = TextLayout::new(&format!("{indent_unit}a"), attrs_list);
+    // let indent_text_width = indent_text.hit_position(indent_unit.len()).point.x;
+    // let base = screen_lines.base.y0;
+    // if show_indent_guide.0 {
+    //     for line_info in &screen_lines.visual_lines {
+    //         let line = line_info.visual_line.origin_line;
+    //         let y = line_info.visual_line_y + base;
+    //         let text_layout = ed.text_layout_of_visual_line(line);
+    //         let line_height = f64::from(ed.line_height(line));
+    //         let mut x = 0.0;
+    //         while x + 1.0 < text_layout.indent {
+    //             cx.stroke(
+    //                 &Line::new(Point::new(x, y), Point::new(x, y + line_height)),
+    //                 show_indent_guide.1,
+    //                 1.0,
+    //             );
+    //             x += indent_text_width;
+    //         }
+    //     }
+    // }
     let base = screen_lines.base.y0;
-    if show_indent_guide.0 {
-        for line_info in &screen_lines.visual_lines {
-            let line = line_info.visual_line.origin_line;
-            let y = line_info.visual_line_y + base;
-            let text_layout = ed.text_layout_of_visual_line(line);
-            let line_height = f64::from(ed.line_height(line));
-            let mut x = 0.0;
-            while x + 1.0 < text_layout.indent {
-                cx.stroke(
-                    &Line::new(Point::new(x, y), Point::new(x, y + line_height)),
-                    show_indent_guide.1,
-                    1.0,
-                );
-                x += indent_text_width;
-            }
-        }
-    }
-
     paint_cursor_caret(cx, ed, is_active, screen_lines);
 
     for line_info in &screen_lines.visual_lines {

@@ -9,6 +9,7 @@ use floem::{
 };
 use lapce_core::movement::Movement;
 use lapce_rpc::{plugin::PluginId, proxy::ProxyRpcHandler};
+use log::error;
 use lsp_types::{
     CompletionItem, CompletionResponse, CompletionTextEdit, InsertTextFormat,
     Position,
@@ -326,7 +327,14 @@ impl CompletionData {
                 let offset = self.offset + self.input.len();
                 // TODO: will need to be adjusted to use visual line.
                 //   Could just store the offset in doc.
-                let (line, col) = editor_data.editor.offset_to_line_col(offset);
+                let (line, col) = match editor_data.editor.offset_to_line_col(offset)
+                {
+                    Ok(rs) => rs,
+                    Err(err) => {
+                        error!("{err:?}");
+                        return;
+                    }
+                };
 
                 doc.set_completion_lens(lens, line, col);
             }
@@ -366,7 +374,13 @@ fn completion_lens_text(
         let completion_offset = completion.offset;
 
         let start_offset = rope_text.prev_code_boundary(cursor_offset);
-        let edit_start = rope_text.offset_of_position(&edit.range.start);
+        let edit_start = match rope_text.offset_of_position(&edit.range.start) {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return None;
+            }
+        };
 
         // If the start of the edit isn't where the cursor currently is,
         // and it is not at the start of the completion, then we ignore it.

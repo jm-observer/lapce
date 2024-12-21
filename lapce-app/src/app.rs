@@ -3955,11 +3955,15 @@ pub fn launch() {
                     for (_, tab) in window.window_tabs.get_untracked() {
                         for (_, doc) in tab.main_split.docs.get_untracked() {
                             doc.lines.update(|lines| {
-                                lines.set_syntax(Syntax::from_language(
-                                    lines.syntax.language,
-                                    &grammars_directory,
-                                    &queries_directory,
-                                ));
+                                if let Err(err) =
+                                    lines.set_syntax(Syntax::from_language(
+                                        lines.syntax.language,
+                                        &grammars_directory,
+                                        &queries_directory,
+                                    ))
+                                {
+                                    error!("{:?}", err);
+                                }
                             });
                             doc.trigger_syntax_change(None);
                         }

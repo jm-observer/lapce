@@ -1080,12 +1080,18 @@ impl View for EditorView {
 
     fn style_pass(&mut self, cx: &mut StyleCx<'_>) {
         let editor = &self.editor.editor;
-        if editor
+        if match editor
             .doc()
             .lines
             .try_update(|s| s.update_editor_style(cx))
             .unwrap()
         {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return;
+            }
+        } {
             editor.floem_style_id.update(|val| *val += 1);
             cx.app_state_mut().request_paint(self.id());
         }
@@ -1189,10 +1195,11 @@ impl View for EditorView {
         // if self.name == "editor" {
         //     info!("compute_layout {} {:?}", self.name, viewport);
         // }
-        self.editor
-            .doc()
-            .lines
-            .update(|x| x.update_viewport_size(viewport));
+        self.editor.doc().lines.update(|x| {
+            if let Err(err) = x.update_viewport_size(viewport) {
+                error!("{err:?}");
+            }
+        });
 
         None
     }
@@ -1497,9 +1504,16 @@ fn editor_gutter_breakpoint_view(
         //     .floor() as usize
         //     + i;
         let doc = doc.get_untracked();
-        let offset = doc
+        let offset = match doc
             .lines
-            .with_untracked(|x| x.buffer().offset_of_line(line));
+            .with_untracked(|x| x.buffer().offset_of_line(line))
+        {
+            Ok(rs) => rs,
+            Err(err) => {
+                error!("{err:?}");
+                return;
+            }
+        };
         // let offset = doc.buffer.with_untracked(|b| b.offset_of_line(line));
         log::info!("click breakpoint line={line}");
         if let Some(path) = doc.content.get_untracked().path() {
@@ -1861,7 +1875,9 @@ fn editor_gutter_folding_range(
                     let lines = doc.get_untracked().lines;
                     move |_| {
                         lines.update(|x| {
-                            x.update_folding_ranges(item.into());
+                            if let Err(err) = x.update_folding_ranges(item.into()) {
+                                error!("{:?}", err);
+                            }
                         });
                     }
                 },

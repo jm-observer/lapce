@@ -14,6 +14,7 @@ use floem::{
 };
 use indexmap::IndexMap;
 use lapce_core::mode::{Mode, VisualMode};
+use log::error;
 use lsp_types::{DiagnosticSeverity, ProgressToken};
 
 use crate::{
@@ -324,11 +325,16 @@ pub fn status(
                 if let Some(editor) = editor.get() {
                     let mut status = String::new();
                     let cursor = editor.cursor().get();
-                    if let Some((line, column, character)) = editor
-                        .doc_signal()
-                        .get()
-                        .lines
-                        .with_untracked(|x| cursor.get_line_col_char(x.buffer()))
+                    if let Some((line, column, character)) =
+                        editor.doc_signal().get().lines.with_untracked(|x| {
+                            match cursor.get_line_col_char(x.buffer()) {
+                                Ok(rs) => rs,
+                                Err(err) => {
+                                    error!("{err:?}");
+                                    None
+                                }
+                            }
+                        })
                     {
                         status = format!(
                             "Ln {}, Col {}, Char {}",
