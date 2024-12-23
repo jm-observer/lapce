@@ -50,6 +50,7 @@ use floem::views::editor::EditorStyle;
 use floem::{
     action::{exec_after, TimerToken},
     keyboard::Modifiers,
+    kurbo,
     kurbo::{Point, Rect, Vec2},
     peniko::Color,
     pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
@@ -2081,17 +2082,17 @@ pub fn paint_text(
             for (c, (x0, _x1)) in whitespaces.iter() {
                 match *c {
                     '\t' => {
-                        cx.draw_text(&tab_text, Point::new(*x0, y));
+                        cx.draw_text(tab_text.layout_runs(), Point::new(*x0, y));
                     }
                     ' ' => {
-                        cx.draw_text(&space_text, Point::new(*x0, y));
+                        cx.draw_text(space_text.layout_runs(), Point::new(*x0, y));
                     }
                     _ => {}
                 }
             }
         }
 
-        cx.draw_text(&text_layout.text, Point::new(0.0, y));
+        cx.draw_text(text_layout.text.layout_runs(), Point::new(0.0, y));
     }
 }
 

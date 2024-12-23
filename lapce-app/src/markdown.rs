@@ -5,7 +5,7 @@ use floem::text::{
 };
 use lapce_core::directory::Directory;
 use lapce_xi_rope::Rope;
-use log::warn;
+use log::{info, warn};
 use lsp_types::MarkedString;
 use pulldown_cmark::{CodeBlockKind, CowStr, Event, Options, Parser, Tag};
 use smallvec::SmallVec;

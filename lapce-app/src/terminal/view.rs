@@ -481,7 +481,7 @@ impl TerminalView {
         for (char, attr, x, y) in &line_content.chars {
             let text_layout =
                 TextLayout::new(&char.to_string(), AttrsList::new(*attr));
-            cx.draw_text(&text_layout, Point::new(*x, *y));
+            cx.draw_text(text_layout.layout_runs(), Point::new(*x, *y));
         }
     }
 }
@@ -642,7 +642,7 @@ impl View for TerminalView {
                 ),
             );
             cx.draw_text(
-                &text_layout,
+                text_layout.layout_runs(),
                 Point::new(6.0, 0.0 + (line_height - char_size.height) / 2.0),
             );
             return;

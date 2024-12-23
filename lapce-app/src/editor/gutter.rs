@@ -209,7 +209,7 @@ impl View for EditorGutterView {
                     .max(0.0);
                 let y = y + (line_height - height) / 2.0;
 
-                cx.draw_text(&text_layout, Point::new(x, y));
+                cx.draw_text(text_layout.layout_runs(), Point::new(x, y));
             }
         });
 

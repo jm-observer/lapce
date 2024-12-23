@@ -562,7 +562,6 @@ impl Doc {
                 }
             });
             self.loaded.set(true);
-            log::error!("init_content");
             self.on_update(None);
             self.retrieve_head();
         });

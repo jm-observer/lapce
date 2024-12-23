@@ -275,9 +275,9 @@ impl View for FocusText {
         let location = self.id.taffy_layout(text_node).unwrap_or_default().location;
         let point = Point::new(location.x as f64, location.y as f64);
         if let Some(text_layout) = self.available_text_layout.as_ref() {
-            cx.draw_text(text_layout, point);
+            cx.draw_text(text_layout.layout_runs(), point);
         } else {
-            cx.draw_text(self.text_layout.as_ref().unwrap(), point);
+            cx.draw_text(self.text_layout.as_ref().unwrap().layout_runs(), point);
         }
     }
 }

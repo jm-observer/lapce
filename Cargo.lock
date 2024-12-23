@@ -1477,6 +1477,7 @@ dependencies = [
  "ahash",
  "anyhow",
  "arc-swap",
+ "cosmic-text",
  "directories",
  "floem",
  "floem-editor-core",
@@ -1497,6 +1498,7 @@ dependencies = [
  "strum_macros",
  "thiserror",
  "tree-sitter",
+ "unicode-segmentation",
 ]
 
 [[package]]

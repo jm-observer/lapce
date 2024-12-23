@@ -735,9 +735,12 @@ impl View for TextInput {
             }
 
             if !self.content.is_empty() {
-                cx.draw_text(text_layout, point);
+                cx.draw_text(text_layout.layout_runs(), point);
             } else if !self.placeholder.is_empty() {
-                cx.draw_text(self.placeholder_text_layout.as_ref().unwrap(), point);
+                cx.draw_text(
+                    self.placeholder_text_layout.as_ref().unwrap().layout_runs(),
+                    point,
+                );
             }
 
             if let Some((start, end)) = self.preedit_range {

@@ -768,7 +768,7 @@ impl EditorView {
             cx.clip(&line_area_rect);
 
             let y = viewport.y0 - y_diff + y_accum;
-            cx.draw_text(&text_layout.text, Point::new(viewport.x0, y));
+            cx.draw_text(text_layout.text.layout_runs(), Point::new(viewport.x0, y));
 
             y_accum += text_height;
 
