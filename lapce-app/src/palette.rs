@@ -18,6 +18,9 @@ use doc::lines::buffer::rope_text::RopeText;
 use doc::lines::line_ending::LineEnding;
 use doc::lines::selection::Selection;
 use doc::syntax::Syntax;
+use floem::views::editor::core::{
+    command::FocusCommand, mode::Mode, movement::Movement,
+};
 use floem::{
     ext_event::{create_ext_action, create_signal_from_channel},
     keyboard::Modifiers,
@@ -29,7 +32,6 @@ use floem::{
 use im::Vector;
 use itertools::Itertools;
 use lapce_core::directory::Directory;
-use lapce_core::{command::FocusCommand, mode::Mode, movement::Movement};
 use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;
 use log::{error, info};
@@ -1748,7 +1750,7 @@ impl PaletteData {
 }
 
 impl KeyPressFocus for PaletteData {
-    fn get_mode(&self) -> lapce_core::mode::Mode {
+    fn get_mode(&self) -> Mode {
         Mode::Insert
     }
 

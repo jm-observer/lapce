@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
+use floem::views::editor::core::mode::Modes;
 use indexmap::IndexMap;
-use lapce_core::mode::Modes;
 use log::{debug, error};
 
 use super::keymap::{KeyMap, KeyMapPress};

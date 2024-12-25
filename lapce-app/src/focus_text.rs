@@ -111,7 +111,7 @@ impl FocusText {
                 attrs.color(self.focus_color).weight(Weight::BOLD),
             );
         }
-        let text_layout = TextLayout::new(&self.text, attrs_list);
+        let text_layout = TextLayout::new_with_text(&self.text, attrs_list);
         self.text_layout = Some(text_layout);
 
         if let Some(new_text) = self.available_text.as_ref() {
@@ -152,7 +152,7 @@ impl FocusText {
                     attrs.color(self.focus_color).weight(Weight::BOLD),
                 );
             }
-            let text_layout = TextLayout::new(new_text, attrs_list);
+            let text_layout = TextLayout::new_with_text(new_text, attrs_list);
             self.available_text_layout = Some(text_layout);
         }
     }
@@ -244,7 +244,8 @@ impl View for FocusText {
                 if let Some(font_family) = font_family.as_ref() {
                     attrs = attrs.family(font_family);
                 }
-                let dots_text = TextLayout::new("...", AttrsList::new(attrs));
+                let dots_text =
+                    TextLayout::new_with_text("...", AttrsList::new(attrs));
 
                 let dots_width = dots_text.size().width as f32;
                 let width_left = layout.size.width - dots_width;
@@ -275,9 +276,12 @@ impl View for FocusText {
         let location = self.id.taffy_layout(text_node).unwrap_or_default().location;
         let point = Point::new(location.x as f64, location.y as f64);
         if let Some(text_layout) = self.available_text_layout.as_ref() {
-            cx.draw_text(text_layout.layout_runs(), point);
+            cx.draw_text_with_layout(text_layout.layout_runs(), point);
         } else {
-            cx.draw_text(self.text_layout.as_ref().unwrap().layout_runs(), point);
+            cx.draw_text_with_layout(
+                self.text_layout.as_ref().unwrap().layout_runs(),
+                point,
+            );
         }
     }
 }

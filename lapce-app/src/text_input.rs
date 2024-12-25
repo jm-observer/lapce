@@ -5,6 +5,7 @@ use doc::lines::{
     buffer::rope_text::RopeText,
     cursor::{Cursor, CursorMode},
 };
+use floem::kurbo::{Affine, Stroke};
 use floem::views::editor::text::Document;
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
@@ -392,7 +393,7 @@ impl TextInput {
         if let Some(line_height) = self.style.line_height() {
             attrs = attrs.line_height(line_height);
         }
-        let text_layout = TextLayout::new(
+        let text_layout = TextLayout::new_with_text(
             if self.content.is_empty() {
                 " "
             } else {
@@ -406,10 +407,10 @@ impl TextInput {
             self.style
                 .color()
                 .unwrap_or(Color::BLACK)
-                .with_alpha_factor(0.5),
+                .multiply_alpha(0.5),
         );
         let placeholder_text_layout =
-            TextLayout::new(&self.placeholder, AttrsList::new(attrs));
+            TextLayout::new_with_text(&self.placeholder, AttrsList::new(attrs));
         self.placeholder_text_layout = Some(placeholder_text_layout);
     }
 
@@ -657,7 +658,9 @@ impl View for TextInput {
         event: &floem::event::Event,
     ) -> EventPropagation {
         let text_offset = self.text_viewport.origin();
-        let event = event.clone().offset((-text_offset.x, -text_offset.y));
+        let event = event
+            .clone()
+            .transform(Affine::translate((-text_offset.x, -text_offset.y)));
         match event {
             Event::PointerDown(pointer) => {
                 let offset = self.hit_index(cx, pointer.pos);
@@ -735,9 +738,9 @@ impl View for TextInput {
             }
 
             if !self.content.is_empty() {
-                cx.draw_text(text_layout.layout_runs(), point);
+                cx.draw_text_with_layout(text_layout.layout_runs(), point);
             } else if !self.placeholder.is_empty() {
-                cx.draw_text(
+                cx.draw_text_with_layout(
                     self.placeholder_text_layout.as_ref().unwrap().layout_runs(),
                     point,
                 );
@@ -763,7 +766,11 @@ impl View for TextInput {
                         end_point.y + end_position.glyph_descent,
                     ),
                 );
-                cx.stroke(&line, config.color(LapceColor::EDITOR_FOREGROUND), 1.0);
+                cx.stroke(
+                    &line,
+                    config.color(LapceColor::EDITOR_FOREGROUND),
+                    &Stroke::new(1.0),
+                );
             }
 
             if !self.hide_cursor.get_untracked()
@@ -790,7 +797,7 @@ impl View for TextInput {
                 cx.stroke(
                     &line,
                     self.config.get_untracked().color(LapceColor::EDITOR_CARET),
-                    2.0,
+                    &Stroke::new(2.0),
                 );
             }
 

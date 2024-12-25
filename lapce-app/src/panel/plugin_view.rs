@@ -8,8 +8,8 @@ use floem::{
     },
     style::CursorStyle,
     views::{
-        container, dyn_container, img, label, scroll::scroll, stack, svg,
-        virtual_stack, Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
+        container, dyn_container, img, label, scroll::scroll, stack, virtual_stack,
+        Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
     },
     IntoView, View,
 };
@@ -21,6 +21,7 @@ use lapce_rpc::{
 
 use super::{data::PanelSection, kind::PanelKind, view::PanelBuilder};
 use crate::panel::position::PanelContainerPosition;
+use crate::svg;
 use crate::{
     app::not_clickable_icon,
     command::InternalCommand,
@@ -29,7 +30,6 @@ use crate::{
     text_input::TextInputBuilder,
     window_tab::{Focus, WindowTabData},
 };
-
 pub const VOLT_DEFAULT_PNG: &[u8] = include_bytes!("../../../extra/images/volt.png");
 
 struct IndexMapItems<K, V>(IndexMap<K, V>);
@@ -253,14 +253,14 @@ fn available_view(plugin: PluginData, core_rpc: CoreRpcHandler) -> impl View {
                         s.cursor(CursorStyle::Pointer).background(
                             config
                                 .color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
-                                .with_alpha_factor(0.8),
+                                .multiply_alpha(0.8),
                         )
                     })
                     .active(|s| {
                         s.background(
                             config
                                 .color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
-                                .with_alpha_factor(0.6),
+                                .multiply_alpha(0.6),
                         )
                     })
                     .disabled(|s| s.background(config.color(LapceColor::EDITOR_DIM)))

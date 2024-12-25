@@ -5,7 +5,7 @@ use floem::{
     reactive::{ReadSignal, SignalGet, SignalUpdate},
     style::{CursorStyle, Style},
     views::{
-        container, label, scroll, stack, svg, virtual_stack, Decorators,
+        container, label, scroll, stack, virtual_stack, Decorators,
         VirtualDirection, VirtualItemSize,
     },
     View,
@@ -14,6 +14,7 @@ use lapce_xi_rope::find::CaseMatching;
 
 use super::kind::PanelKind;
 use crate::panel::position::PanelContainerPosition;
+use crate::svg;
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
@@ -26,7 +27,6 @@ use crate::{
     window_tab::{Focus, WindowTabData},
     workspace::LapceWorkspace,
 };
-
 pub fn global_search_panel(
     window_tab_data: Rc<WindowTabData>,
     _position: PanelContainerPosition,

@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, rc::Rc, sync::Arc, time::Duration};
 
+use floem::views::editor::core::mode::Mode;
 use floem::{
     action::{add_overlay, exec_after, remove_overlay, TimerToken},
     event::EventListener,
@@ -14,14 +15,13 @@ use floem::{
     views::{
         container, dyn_stack, empty, label,
         scroll::{scroll, PropagatePointerWheel},
-        stack, svg, text, virtual_stack, Decorators, VirtualDirection,
-        VirtualItemSize, VirtualVector,
+        stack, text, virtual_stack, Decorators, VirtualDirection, VirtualItemSize,
+        VirtualVector,
     },
     IntoView, View,
 };
 use indexmap::IndexMap;
 use inflector::Inflector;
-use lapce_core::mode::Mode;
 use lapce_rpc::plugin::VoltID;
 use lapce_xi_rope::Rope;
 use serde::Serialize;
@@ -36,6 +36,7 @@ use crate::{
     keypress::KeyPressFocus,
     main_split::Editors,
     plugin::InstalledVoltData,
+    svg,
     text_input::TextInputBuilder,
     window_tab::CommonData,
 };
@@ -94,7 +95,7 @@ struct SettingsData {
 }
 
 impl KeyPressFocus for SettingsData {
-    fn get_mode(&self) -> lapce_core::mode::Mode {
+    fn get_mode(&self) -> Mode {
         Mode::Insert
     }
 
@@ -493,7 +494,7 @@ pub fn settings_view(
                 TextInputBuilder::new()
                     .build_editor(search_editor)
                     .placeholder(|| "Search Settings".to_string())
-                    .keyboard_navigatable()
+                    .keyboard_navigable()
                     .style(move |s| {
                         s.width_pct(100.0)
                             .border_radius(6.0)
@@ -645,7 +646,7 @@ fn settings_item_view(
                 });
 
                 text_input_view
-                    .keyboard_navigatable()
+                    .keyboard_navigable()
                     .style(move |s| {
                         s.width(300.0).border(1.0).border_radius(6.0).border_color(
                             config.get().color(LapceColor::LAPCE_BORDER),
@@ -952,7 +953,7 @@ fn color_section_list(
                     text(&key).style(move |s| {
                         s.width(max_width.get()).margin_left(20).margin_right(10)
                     }),
-                    text_input_view.keyboard_navigatable().style(move |s| {
+                    text_input_view.keyboard_navigable().style(move |s| {
                         s.width(150.0)
                             .margin_vert(6)
                             .border(1)
@@ -1054,7 +1055,7 @@ pub fn theme_color_settings_view(
             .family(&family)
             .font_size(config.ui.font_size() as f32);
         let attrs_list = AttrsList::new(attrs);
-        let text_layout = TextLayout::new("W", attrs_list);
+        let text_layout = TextLayout::new_with_text("W", attrs_list);
         text_layout.size().height
     });
 
@@ -1069,13 +1070,17 @@ pub fn theme_color_settings_view(
 
         let mut max_width = 0.0;
         for key in config.color_theme.ui.keys() {
-            let width = TextLayout::new(key, attrs_list.clone()).size().width;
+            let width = TextLayout::new_with_text(key, attrs_list.clone())
+                .size()
+                .width;
             if width > max_width {
                 max_width = width;
             }
         }
         for key in config.color_theme.syntax.keys() {
-            let width = TextLayout::new(key, attrs_list.clone()).size().width;
+            let width = TextLayout::new_with_text(key, attrs_list.clone())
+                .size()
+                .width;
             if width > max_width {
                 max_width = width;
             }
@@ -1097,7 +1102,7 @@ pub fn theme_color_settings_view(
                 TextInputBuilder::new()
                     .build_editor(search_editor)
                     .placeholder(|| "Search Settings".to_string())
-                    .keyboard_navigatable()
+                    .keyboard_navigable()
                     .style(move |s| {
                         s.width_pct(100.0)
                             .border_radius(6.0)
@@ -1279,7 +1284,7 @@ fn dropdown_view(
             .width(250.0)
             .line_height(1.8)
     })
-    .keyboard_navigatable()
+    .keyboard_navigable()
     .on_event_stop(EventListener::FocusGained, move |_| {
         dropdown_input_focus.set(true);
     })
@@ -1350,7 +1355,7 @@ fn dropdown_scroll(
             .max_height(200.0)
             .set(PropagatePointerWheel, false)
     })
-    .keyboard_navigatable()
+    .keyboard_navigable()
     .request_focus(|| {})
     .on_event_stop(EventListener::FocusGained, move |_| {
         dropdown_scroll_focus.set(true);

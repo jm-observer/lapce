@@ -17,7 +17,7 @@ use doc::lines::{
     buffer::rope_text::{RopeText, RopeTextVal},
     cursor::{ColPosition, Cursor, CursorAffinity, CursorMode},
 };
-use floem_editor_core::{
+use floem::views::editor::core::{
     command::MoveCommand, mode::Mode, movement::Movement, register::Register,
 };
 
@@ -30,10 +30,18 @@ use doc::lines::{
     word::{get_char_property, CharClassification, WordCursor},
 };
 use floem::context::PaintCx;
-use floem::kurbo::{Line, Size};
+use floem::kurbo::{Line, Size, Stroke};
 use floem::reactive::{SignalGet, SignalTrack, SignalUpdate, SignalWith, Trigger};
 use floem::text::FONT_SYSTEM;
 use floem::views::editor::command::Command;
+use floem::views::editor::core::command::MultiSelectionCommand::{
+    InsertCursorAbove, InsertCursorBelow, InsertCursorEndOfLine, SelectAll,
+    SelectAllCurrent, SelectCurrentLine, SelectNextCurrent, SelectSkipCurrent,
+    SelectUndo,
+};
+use floem::views::editor::core::command::{EditCommand, MultiSelectionCommand};
+use floem::views::editor::core::mode::{MotionMode, VisualMode};
+use floem::views::editor::core::selection::SelRegion;
 use floem::views::editor::id::EditorId;
 use floem::views::editor::movement::{move_offset, move_selection};
 use floem::views::editor::text::{
@@ -58,14 +66,6 @@ use floem::{
     text::{Attrs, AttrsList, LineHeightValue, TextLayout, Wrap},
     Renderer, ViewId,
 };
-use floem_editor_core::command::MultiSelectionCommand::{
-    InsertCursorAbove, InsertCursorBelow, InsertCursorEndOfLine, SelectAll,
-    SelectAllCurrent, SelectCurrentLine, SelectNextCurrent, SelectSkipCurrent,
-    SelectUndo,
-};
-use floem_editor_core::command::{EditCommand, MultiSelectionCommand};
-use floem_editor_core::mode::{MotionMode, VisualMode};
-use floem_editor_core::selection::SelRegion;
 use log::{error, info, warn};
 
 // pub(crate) const CHAR_WIDTH: f64 = 7.5;
@@ -955,34 +955,34 @@ impl Editor {
     //     self.visual_line_of_offset(offset, affinity).map(|x| x.0)
     // }
 
-    /// Get the first column of the overall line of the visual line
-    pub fn first_col<T: std::fmt::Debug>(
-        &self,
-        info: VLineInfo<T>,
-    ) -> Result<usize> {
-        let line_start = info.interval.start;
-        let start_offset = self.text().offset_of_line(info.origin_line)?;
-        Ok(line_start - start_offset)
-    }
+    // /// Get the first column of the overall line of the visual line
+    // pub fn first_col<T: std::fmt::Debug>(
+    //     &self,
+    //     info: VLineInfo<T>,
+    // ) -> Result<usize> {
+    //     let line_start = info.interval.start;
+    //     let start_offset = self.text().offset_of_line(info.origin_line)?;
+    //     Ok(line_start - start_offset)
+    // }
 
-    /// Get the last column in the overall line of the visual line
-    pub fn last_col<T: std::fmt::Debug>(
-        &self,
-        info: VLineInfo<T>,
-        caret: bool,
-    ) -> Result<usize> {
-        let vline_end = info.interval.end;
-        let start_offset = self.text().offset_of_line(info.origin_line)?;
-        // If these subtractions crash, then it is likely due to a bad vline being kept around
-        // somewhere
-        Ok(if !caret && !info.is_empty() {
-            let vline_pre_end =
-                self.rope_text().prev_grapheme_offset(vline_end, 1, 0);
-            vline_pre_end - start_offset
-        } else {
-            vline_end - start_offset
-        })
-    }
+    // /// Get the last column in the overall line of the visual line
+    // pub fn last_col<T: std::fmt::Debug>(
+    //     &self,
+    //     info: VLineInfo<T>,
+    //     caret: bool,
+    // ) -> Result<usize> {
+    //     let vline_end = info.interval.end;
+    //     let start_offset = self.text().offset_of_line(info.origin_line)?;
+    //     // If these subtractions crash, then it is likely due to a bad vline being kept around
+    //     // somewhere
+    //     Ok(if !caret && !info.is_empty() {
+    //         let vline_pre_end =
+    //             self.rope_text().prev_grapheme_offset(vline_end, 1, 0);
+    //         vline_pre_end - start_offset
+    //     } else {
+    //         vline_end - start_offset
+    //     })
+    // }
 
     // ==== Points of locations ====
 
@@ -2038,7 +2038,7 @@ pub fn paint_text(
     //     .font_size(style.font_size(0) as f32);
     // let attrs_list = AttrsList::new(attrs);
     //
-    // let indent_text = TextLayout::new(&format!("{indent_unit}a"), attrs_list);
+    // let indent_text = TextLayout::new_with_text(&format!("{indent_unit}a"), attrs_list);
     // let indent_text_width = indent_text.hit_position(indent_unit.len()).point.x;
     // let base = screen_lines.base.y0;
     // if show_indent_guide.0 {
@@ -2076,23 +2076,29 @@ pub fn paint_text(
                 .family(&family)
                 .font_size(font_size);
             let attrs_list = AttrsList::new(attrs);
-            let space_text = TextLayout::new("·", attrs_list.clone());
-            let tab_text = TextLayout::new("→", attrs_list);
+            let space_text = TextLayout::new_with_text("·", attrs_list.clone());
+            let tab_text = TextLayout::new_with_text("→", attrs_list);
 
             for (c, (x0, _x1)) in whitespaces.iter() {
                 match *c {
                     '\t' => {
-                        cx.draw_text(tab_text.layout_runs(), Point::new(*x0, y));
+                        cx.draw_text_with_layout(
+                            tab_text.layout_runs(),
+                            Point::new(*x0, y),
+                        );
                     }
                     ' ' => {
-                        cx.draw_text(space_text.layout_runs(), Point::new(*x0, y));
+                        cx.draw_text_with_layout(
+                            space_text.layout_runs(),
+                            Point::new(*x0, y),
+                        );
                     }
                     _ => {}
                 }
             }
         }
 
-        cx.draw_text(text_layout.text.layout_runs(), Point::new(0.0, y));
+        cx.draw_text_with_layout(text_layout.text.layout_runs(), Point::new(0.0, y));
     }
 }
 
@@ -2134,7 +2140,7 @@ pub fn paint_extra_style(
             cx.stroke(
                 &Line::new(Point::new(x, y), Point::new(x + width, y)),
                 color,
-                1.0,
+                &Stroke::new(1.0),
             );
         }
 

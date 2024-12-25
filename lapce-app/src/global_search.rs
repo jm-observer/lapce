@@ -1,13 +1,13 @@
 use doc::lines::selection::Selection;
 use std::{ops::Range, path::PathBuf, rc::Rc};
 
+use floem::views::editor::core::mode::Mode;
 use floem::{
     ext_event::create_ext_action,
     keyboard::Modifiers,
     reactive::{Memo, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     views::VirtualVector,
 };
-use floem_editor_core::mode::Mode;
 use indexmap::IndexMap;
 use lapce_rpc::proxy::{ProxyResponse, SearchMatch};
 use lapce_xi_rope::Rope;

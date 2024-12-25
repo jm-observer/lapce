@@ -2,12 +2,12 @@ use doc::lines::buffer::rope_text::RopeText;
 use doc::lines::RopeTextPosition;
 use std::{borrow::Cow, path::PathBuf, str::FromStr, sync::Arc};
 
+use floem::views::editor::core::movement::Movement;
 use floem::{
     peniko::kurbo::Rect,
     reactive::{ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     views::editor::{id::EditorId, text::Document},
 };
-use lapce_core::movement::Movement;
 use lapce_rpc::{plugin::PluginId, proxy::ProxyRpcHandler};
 use log::error;
 use lsp_types::{

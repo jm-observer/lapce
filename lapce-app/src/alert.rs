@@ -8,12 +8,13 @@ use floem::{
     event::EventListener,
     reactive::{ReadSignal, RwSignal, Scope, SignalGet, SignalUpdate},
     style::CursorStyle,
-    views::{container, dyn_stack, label, stack, svg, Decorators},
+    views::{container, dyn_stack, label, stack, Decorators},
     View,
 };
 
 use crate::{
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    svg,
     window_tab::CommonData,
 };
 
@@ -167,7 +168,7 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                 config
                     .get()
                     .color(LapceColor::LAPCE_DROPDOWN_SHADOW)
-                    .with_alpha_factor(0.5),
+                    .multiply_alpha(0.5),
             )
     })
     .debug_name("Alert Box")

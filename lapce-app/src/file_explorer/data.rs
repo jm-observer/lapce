@@ -7,6 +7,11 @@ use std::{
     sync::Arc,
 };
 
+use floem::views::editor::core::{
+    command::{EditCommand, FocusCommand},
+    mode::Mode,
+    register::Clipboard,
+};
 use floem::{
     action::show_context_menu,
     event::EventPropagation,
@@ -17,11 +22,6 @@ use floem::{
     views::editor::text::SystemClipboard,
 };
 use globset::Glob;
-use lapce_core::{
-    command::{EditCommand, FocusCommand},
-    mode::Mode,
-    register::Clipboard,
-};
 use lapce_rpc::{
     file::{
         Duplicating, FileNodeItem, FileNodeViewKind, Naming, NamingState, NewNode,

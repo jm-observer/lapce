@@ -7,6 +7,8 @@ use alacritty_terminal::{
     selection::{Selection, SelectionType},
     term::{cell::Flags, test::TermSize, RenderableContent},
 };
+use floem::kurbo::Stroke;
+use floem::views::editor::core::mode::Mode;
 use floem::{
     context::{EventCx, PaintCx},
     event::{Event, EventPropagation},
@@ -22,7 +24,6 @@ use floem::{
     views::editor::{core::register::Clipboard, text::SystemClipboard},
     Renderer, View, ViewId,
 };
-use lapce_core::mode::Mode;
 use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
 use lsp_types::Position;
 use parking_lot::RwLock;
@@ -158,7 +159,7 @@ impl TerminalView {
             FamilyOwned::parse_list(font_family).collect();
         let attrs = Attrs::new().family(&family).font_size(font_size as f32);
         let attrs_list = AttrsList::new(attrs);
-        let text_layout = TextLayout::new("W", attrs_list);
+        let text_layout = TextLayout::new_with_text("W", attrs_list);
         text_layout.size()
     }
 
@@ -384,7 +385,7 @@ impl TerminalView {
             if cell.flags.contains(Flags::DIM)
                 || cell.flags.contains(Flags::DIM_BOLD)
             {
-                fg = fg.with_alpha_factor(0.66);
+                fg = fg.multiply_alpha(0.66);
             }
 
             if inverse {
@@ -474,14 +475,14 @@ impl TerminalView {
             if self.is_focused {
                 cx.fill(&rect, cursor_color, 0.0);
             } else {
-                cx.stroke(&rect, cursor_color, 1.0);
+                cx.stroke(&rect, cursor_color, &Stroke::new(1.0));
             }
         }
 
         for (char, attr, x, y) in &line_content.chars {
             let text_layout =
-                TextLayout::new(&char.to_string(), AttrsList::new(*attr));
-            cx.draw_text(text_layout.layout_runs(), Point::new(*x, *y));
+                TextLayout::new_with_text(&char.to_string(), AttrsList::new(*attr));
+            cx.draw_text_with_layout(text_layout.layout_runs(), Point::new(*x, *y));
         }
     }
 }
@@ -635,13 +636,13 @@ impl View for TerminalView {
         let attrs = Attrs::new().family(&family).font_size(font_size as f32);
 
         if let Some(error) = self.launch_error.get() {
-            let text_layout = TextLayout::new(
+            let text_layout = TextLayout::new_with_text(
                 &format!("Terminal failed to launch. Error: {error}"),
                 AttrsList::new(
                     attrs.color(config.color(LapceColor::EDITOR_FOREGROUND)),
                 ),
             );
-            cx.draw_text(
+            cx.draw_text_with_layout(
                 text_layout.layout_runs(),
                 Point::new(6.0, 0.0 + (line_height - char_size.height) / 2.0),
             );

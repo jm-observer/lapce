@@ -1,6 +1,7 @@
 use doc::lines::buffer::rope_text::RopeText;
 use std::{path::PathBuf, rc::Rc};
 
+use floem::kurbo::Affine;
 use floem::{
     action::show_context_menu,
     event::{Event, EventListener},
@@ -12,8 +13,8 @@ use floem::{
     },
     style::{CursorStyle, Style},
     views::{
-        container, dyn_stack, editor::view::LineRegion, label, scroll, stack, svg,
-        text, Decorators,
+        container, dyn_stack, editor::view::LineRegion, label, scroll, stack, text,
+        Decorators,
     },
     View,
 };
@@ -23,6 +24,7 @@ use log::error;
 use super::{data::PanelSection, kind::PanelKind, view::foldable_panel_section};
 use crate::editor::editor::cursor_caret_v2;
 use crate::panel::position::PanelContainerPosition;
+use crate::svg;
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand},
     config::{color::LapceColor, icon::LapceIcons},
@@ -31,7 +33,6 @@ use crate::{
     source_control::SourceControlData,
     window_tab::{Focus, WindowTabData},
 };
-
 pub fn source_control_panel(
     window_tab_data: Rc<WindowTabData>,
     _position: PanelContainerPosition,
@@ -90,14 +91,16 @@ pub fn source_control_panel(
                     });
                     let id = view.id();
                     view.on_event_cont(EventListener::PointerDown, move |event| {
-                        let event = event.clone().offset((10.0, 6.0));
+                        let event =
+                            event.clone().transform(Affine::translate((10.0, 6.0)));
                         if let Event::PointerDown(pointer_event) = event {
                             id.request_active();
                             editor.get_untracked().pointer_down(&pointer_event);
                         }
                     })
                     .on_event_stop(EventListener::PointerMove, move |event| {
-                        let event = event.clone().offset((10.0, 6.0));
+                        let event =
+                            event.clone().transform(Affine::translate((10.0, 6.0)));
                         if let Event::PointerMove(pointer_event) = event {
                             editor.get_untracked().pointer_move(&pointer_event);
                         }
@@ -105,7 +108,9 @@ pub fn source_control_panel(
                     .on_event_stop(
                         EventListener::PointerUp,
                         move |event| {
-                            let event = event.clone().offset((10.0, 6.0));
+                            let event = event
+                                .clone()
+                                .transform(Affine::translate((10.0, 6.0)));
                             if let Event::PointerUp(pointer_event) = event {
                                 editor.get_untracked().pointer_up(&pointer_event);
                             }

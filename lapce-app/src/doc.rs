@@ -33,7 +33,6 @@ use doc::lines::{
 };
 use floem::kurbo::Rect;
 use floem::reactive::Trigger;
-use floem::views::editor::lines::Lines;
 use floem::{
     ext_event::create_ext_action,
     keyboard::Modifiers,
@@ -54,10 +53,6 @@ use floem::{
 };
 use itertools::Itertools;
 use lapce_core::directory::Directory;
-use lapce_core::{
-    char_buffer::CharBuffer, command::EditCommand, editor::Action,
-    indent::IndentStyle, mode::MotionMode, register::Register,
-};
 
 use lapce_rpc::{
     buffer::BufferId,
@@ -96,6 +91,11 @@ use crate::{
     workspace::LapceWorkspace,
 };
 use anyhow::Result;
+use floem::views::editor::core::{
+    char_buffer::CharBuffer, command::EditCommand, editor::Action,
+    indent::IndentStyle, mode::MotionMode, register::Register,
+};
+
 // #[derive(Clone, Debug)]
 // pub struct DiagnosticData {
 //     pub expanded: RwSignal<bool>,

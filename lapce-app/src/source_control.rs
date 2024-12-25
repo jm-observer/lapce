@@ -1,11 +1,11 @@
 use std::{path::PathBuf, rc::Rc};
 
+use floem::views::editor::core::mode::Mode;
 use floem::{
     keyboard::Modifiers,
     reactive::{RwSignal, Scope, SignalWith},
 };
 use indexmap::IndexMap;
-use lapce_core::mode::Mode;
 use lapce_rpc::source_control::FileDiff;
 
 use crate::{

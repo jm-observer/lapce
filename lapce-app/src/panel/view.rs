@@ -586,7 +586,7 @@ pub(crate) fn new_panel_picker(
                         .background(
                             config
                                 .color(LapceColor::PANEL_BACKGROUND)
-                                .with_alpha_factor(0.7),
+                                .multiply_alpha(0.7),
                         )
                 })
                 .style(|s| s.padding(1.0)),

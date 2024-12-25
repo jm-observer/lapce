@@ -13,9 +13,10 @@ use doc::lines::{
     cursor::{Cursor, CursorAffinity},
     RopeTextPosition,
 };
+use floem::file_action::save_as;
 use floem::reactive::batch;
+use floem::views::editor::core::command::FocusCommand;
 use floem::{
-    action::save_as,
     ext_event::create_ext_action,
     file::{FileDialogOptions, FileInfo},
     keyboard::Modifiers,
@@ -24,7 +25,6 @@ use floem::{
     views::editor::id::EditorId,
 };
 use itertools::Itertools;
-use lapce_core::command::FocusCommand;
 use lapce_core::directory::Directory;
 use lapce_rpc::{
     buffer::BufferId,

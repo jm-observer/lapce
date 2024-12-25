@@ -1,15 +1,16 @@
 use std::{path::PathBuf, rc::Rc};
 
 pub use floem::views::editor::command::CommandExecuted;
+use floem::views::editor::core::command::FocusCommand;
+use floem::views::editor::core::command::{
+    EditCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
+    ScrollCommand,
+};
 use floem::{
     keyboard::Modifiers, peniko::kurbo::Vec2, views::editor::command::Command,
     ViewId,
 };
 use indexmap::IndexMap;
-use lapce_core::command::{
-    EditCommand, FocusCommand, MotionModeCommand, MoveCommand,
-    MultiSelectionCommand, ScrollCommand,
-};
 use lapce_rpc::{
     dap_types::{DapId, RunDebugConfig},
     plugin::{PluginId, VoltID},
@@ -20,7 +21,7 @@ use log::LevelFilter;
 use lsp_types::{CodeActionOrCommand, Position, WorkspaceEdit};
 use serde_json::Value;
 use strum::{EnumMessage, IntoEnumIterator};
-use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
+use strum_macros::{Display, EnumIter, EnumString, IntoStaticStr};
 
 use crate::id::TerminalTabId;
 use crate::{

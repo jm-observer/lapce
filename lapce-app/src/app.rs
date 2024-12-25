@@ -4,6 +4,7 @@ use crossbeam_channel::Sender;
 use doc::syntax::highlight::reset_highlight_configs;
 use doc::syntax::Syntax;
 use floem::unit::PxPctAuto::Auto;
+use floem::views::editor::core::command::{EditCommand, FocusCommand};
 use floem::{
     action::show_context_menu,
     event::{Event, EventListener, EventPropagation},
@@ -33,17 +34,13 @@ use floem::{
         editor::{core::register::Clipboard, text::SystemClipboard},
         empty, label, rich_text,
         scroll::{scroll, PropagatePointerWheel, VerticalScrollAsHorizontal},
-        stack, svg, tab, text, tooltip, virtual_stack, Decorators, VirtualDirection,
+        stack, tab, text, tooltip, virtual_stack, Decorators, VirtualDirection,
         VirtualItemSize, VirtualVector,
     },
     window::{ResizeDirection, WindowConfig, WindowId},
     IntoView, View,
 };
-use lapce_core::{
-    command::{EditCommand, FocusCommand},
-    directory::Directory,
-    meta,
-};
+use lapce_core::{directory::Directory, meta};
 use lapce_rpc::{
     core::{CoreMessage, CoreNotification},
     file::PathObject,
@@ -107,6 +104,7 @@ use crate::{
     plugin::{plugin_info_view, PluginData},
     settings::{settings_view, theme_color_settings_view},
     status::status,
+    svg,
     text_input::TextInputBuilder,
     title::{title, window_controls_view},
     update::ReleaseInfo,
@@ -583,7 +581,7 @@ impl AppData {
         view_id.request_focus();
 
         view.window_scale(move || window_scale.get())
-            .keyboard_navigatable()
+            .keyboard_navigable()
             .on_event(EventListener::KeyDown, move |event| {
                 if let Event::KeyDown(key_event) = event {
                     if key_down_window_data.key_down(key_event) {
@@ -598,11 +596,12 @@ impl AppData {
                 let window_data = window_data.clone();
                 move |event| {
                     if let Event::PointerDown(pointer_event) = event {
-                        window_data.key_down(pointer_event);
-                        EventPropagation::Stop
-                    } else {
-                        EventPropagation::Continue
+                        if window_data.key_down(pointer_event) {
+                            error!("EventPropagation::Stop");
+                            return EventPropagation::Stop;
+                        }
                     }
+                    EventPropagation::Continue
                 }
             })
             .on_event_stop(EventListener::WindowResized, move |event| {
@@ -932,7 +931,7 @@ fn editor_tab_header(
                         .background(
                             config
                                 .color(LapceColor::PANEL_BACKGROUND)
-                                .with_alpha_factor(0.7),
+                                .multiply_alpha(0.7),
                         )
                         .border_color(config.color(LapceColor::LAPCE_BORDER))
                 })
@@ -980,7 +979,7 @@ fn editor_tab_header(
                             config
                                 .get()
                                 .color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE)
-                                .with_alpha_factor(0.5),
+                                .multiply_alpha(0.5),
                         )
                 })
                 .debug_name("Active Tab Indicator"),
@@ -3102,9 +3101,7 @@ fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
                             .font_weight(Weight::BOLD)
                             .apply_opt(
                                 config.completion_color(item.item.kind),
-                                |s, c| {
-                                    s.color(c).background(c.with_alpha_factor(0.3))
-                                },
+                                |s, c| s.color(c).background(c.multiply_alpha(0.3)),
                             )
                     }),
                     focus_text(
@@ -3572,12 +3569,12 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                     .color(
                         config
                             .color(LapceColor::EDITOR_FOREGROUND)
-                            .with_alpha_factor(0.7),
+                            .multiply_alpha(0.7),
                     )
                     .background(
                         config
                             .color(LapceColor::PANEL_BACKGROUND)
-                            .with_alpha_factor(0.7),
+                            .multiply_alpha(0.7),
                     )
             })
             .on_click_stop(move |_| {

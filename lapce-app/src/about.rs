@@ -1,19 +1,21 @@
 use std::rc::Rc;
 
+use floem::views::editor::core::{command::FocusCommand, mode::Mode};
 use floem::{
     event::EventListener,
     keyboard::Modifiers,
     reactive::{RwSignal, Scope, SignalGet, SignalUpdate},
     style::{CursorStyle, Display, Position},
-    views::{container, label, stack, svg, Decorators},
+    views::{container, label, stack, Decorators},
     View,
 };
-use lapce_core::{command::FocusCommand, meta::VERSION, mode::Mode};
+use lapce_core::meta::VERSION;
 
 use crate::{
     command::{CommandExecuted, CommandKind},
     config::color::LapceColor,
     keypress::KeyPressFocus,
+    svg,
     web_link::web_link,
     window_tab::{Focus, SignalManager, WindowTabData},
 };
@@ -207,7 +209,7 @@ fn exclusive_popup<V: View + 'static>(
             config
                 .get()
                 .color(LapceColor::LAPCE_DROPDOWN_SHADOW)
-                .with_alpha_factor(0.5),
+                .multiply_alpha(0.5),
         )
     })
 }

@@ -1,3 +1,4 @@
+use crate::svg;
 use std::{
     collections::HashSet,
     rc::Rc,
@@ -5,6 +6,7 @@ use std::{
 };
 
 use anyhow::Result;
+use floem::views::editor::core::{command::EditCommand, mode::Mode};
 use floem::{
     action::show_context_menu,
     ext_event::create_ext_action,
@@ -18,12 +20,12 @@ use floem::{
     style::CursorStyle,
     views::{
         container, dyn_container, dyn_stack, empty, img, label, rich_text, scroll,
-        stack, svg, text, Decorators,
+        stack, text, Decorators,
     },
     IntoView, View,
 };
 use indexmap::IndexMap;
-use lapce_core::{command::EditCommand, directory::Directory, mode::Mode};
+use lapce_core::directory::Directory;
 use lapce_proxy::plugin::{download_volt, volt_icon, wasi::find_all_volts};
 use lapce_rpc::{
     core::{CoreNotification, CoreRpcHandler},
@@ -785,7 +787,7 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                                     .color(
                                         LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND,
                                     )
-                                    .with_alpha_factor(0.8),
+                                    .multiply_alpha(0.8),
                             )
                         })
                         .active(|s| {
@@ -794,7 +796,7 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                                     .color(
                                         LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND,
                                     )
-                                    .with_alpha_factor(0.6),
+                                    .multiply_alpha(0.6),
                             )
                         })
                         .disabled(|s| {

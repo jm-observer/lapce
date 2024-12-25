@@ -40,7 +40,7 @@ use floem::{
         },
         empty, label,
         scroll::{scroll, PropagatePointerWheel},
-        stack, svg, Decorators,
+        stack, Decorators,
     },
     Renderer, View, ViewId,
 };
@@ -53,6 +53,7 @@ use doc::lines::{
     buffer::{diff::DiffLines, rope_text::RopeText, Buffer},
     cursor::{CursorAffinity, CursorMode},
 };
+use floem::kurbo::Stroke;
 
 use lapce_rpc::{dap_types::DapId, plugin::PluginId};
 
@@ -66,6 +67,7 @@ use crate::{
     config::{color::LapceColor, editor::WrapStyle, icon::LapceIcons, LapceConfig},
     debug::{DapData, LapceBreakpoint},
     doc::DocContent,
+    svg,
     text_input::TextInputBuilder,
     window_tab::{CommonData, Focus, WindowTabData},
     workspace::LapceWorkspace,
@@ -362,7 +364,7 @@ impl EditorView {
                             )),
                         config
                             .color(LapceColor::SOURCE_CONTROL_ADDED)
-                            .with_alpha_factor(0.2),
+                            .multiply_alpha(0.2),
                         0.0,
                     );
                 }
@@ -380,7 +382,7 @@ impl EditorView {
                             )),
                         config
                             .color(LapceColor::SOURCE_CONTROL_REMOVED)
-                            .with_alpha_factor(0.2),
+                            .multiply_alpha(0.2),
                         0.0,
                     );
                 }
@@ -431,7 +433,7 @@ impl EditorView {
                 cx.stroke(
                     &Line::new(p0, p1),
                     config.color(LapceColor::EDITOR_DIM),
-                    1.0,
+                    &Stroke::new(1.0),
                 );
             }
         }
@@ -608,7 +610,7 @@ impl EditorView {
             .with_untracked(|x| x.normal_selection(start, end))?;
         for rect in rs {
             // cx.fill(&rect, color, 0.0);
-            cx.stroke(&rect, color, 1.0);
+            cx.stroke(&rect, color, &Stroke::new(1.0));
         }
         Ok(())
 
@@ -768,7 +770,10 @@ impl EditorView {
             cx.clip(&line_area_rect);
 
             let y = viewport.y0 - y_diff + y_accum;
-            cx.draw_text(text_layout.text.layout_runs(), Point::new(viewport.x0, y));
+            cx.draw_text_with_layout(
+                text_layout.text.layout_runs(),
+                Point::new(viewport.x0, y),
+            );
 
             y_accum += text_height;
 
@@ -2219,6 +2224,7 @@ fn editor_content(
                 editor2.editor_view_focus_lost.notify();
             })
             .on_event_cont(EventListener::PointerDown, move |event| {
+                error!("editor_content_view");
                 if let Event::PointerDown(pointer_event) = event {
                     id.request_active();
                     e_data.get_untracked().pointer_down(pointer_event);
@@ -2239,6 +2245,7 @@ fn editor_content(
                     e_data.get_untracked().pointer_leave();
                 }
             })
+            .keyboard_navigable()
     })
     .on_move(move |point| {
         window_origin.set(point);
@@ -2314,6 +2321,7 @@ fn editor_content(
         }
     })
     .style(|s| s.size_full().set(PropagatePointerWheel, false))
+        .keyboard_navigable()
     .debug_name("Editor Content")
 }
 

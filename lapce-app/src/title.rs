@@ -8,12 +8,13 @@ use floem::{
         create_memo, Memo, ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith,
     },
     style::{AlignItems, CursorStyle, JustifyContent},
-    views::{container, drag_window_area, empty, label, stack, svg, Decorators},
+    views::{container, drag_window_area, empty, label, stack, Decorators},
     View,
 };
 use lapce_core::meta;
 use lapce_rpc::proxy::ProxyStatus;
 
+use crate::svg;
 use crate::{
     app::{clickable_icon, not_clickable_icon, tooltip_label, window_menu},
     command::{LapceCommand, LapceWorkbenchCommand, WindowCommand},
@@ -24,7 +25,6 @@ use crate::{
     window_tab::WindowTabData,
     workspace::LapceWorkspace,
 };
-
 fn left(
     workspace: Arc<LapceWorkspace>,
     lapce_command: Listener<LapceCommand>,

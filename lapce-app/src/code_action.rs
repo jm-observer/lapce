@@ -1,11 +1,13 @@
 use std::rc::Rc;
 
+use floem::views::editor::core::{
+    command::FocusCommand, mode::Mode, movement::Movement,
+};
 use floem::{
     keyboard::Modifiers,
     peniko::kurbo::Rect,
     reactive::{RwSignal, Scope, SignalGet, SignalUpdate},
 };
-use lapce_core::{command::FocusCommand, mode::Mode, movement::Movement};
 use lapce_rpc::plugin::PluginId;
 use lsp_types::CodeActionOrCommand;
 

@@ -11,7 +11,7 @@ use floem::{
     style::{AlignItems, CursorStyle, Position, Style},
     text::Style as FontStyle,
     views::{
-        container, dyn_stack, label, scroll, stack, svg, virtual_stack, Container,
+        container, dyn_stack, label, scroll, stack, virtual_stack, Container,
         Decorators, VirtualDirection, VirtualItemSize,
     },
     View,
@@ -32,6 +32,7 @@ use crate::{
     panel::{data::PanelSection, kind::PanelKind, view::PanelBuilder},
     plugin::PluginData,
     source_control::SourceControlData,
+    svg,
     text_input::TextInputBuilder,
     window_tab::{Focus, WindowTabData},
 };

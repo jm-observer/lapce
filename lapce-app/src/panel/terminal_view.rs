@@ -9,13 +9,14 @@ use floem::{
     views::{
         container, dyn_stack, empty, label,
         scroll::{scroll, Thickness, VerticalScrollAsHorizontal},
-        stack, svg, tab, Decorators,
+        stack, tab, Decorators,
     },
     View, ViewId,
 };
 
 use super::kind::PanelKind;
 use crate::id::TerminalTabId;
+use crate::svg;
 use crate::{
     app::clickable_icon,
     command::{InternalCommand, LapceWorkbenchCommand},
@@ -27,7 +28,6 @@ use crate::{
     },
     window_tab::{Focus, WindowTabData},
 };
-
 pub fn terminal_panel(window_tab_data: Rc<WindowTabData>) -> impl View {
     let focus = window_tab_data.common.focus;
     stack((

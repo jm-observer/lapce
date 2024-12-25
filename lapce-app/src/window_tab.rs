@@ -4,9 +4,13 @@ use crossbeam_channel::Sender;
 use doc::config::EditorConfig;
 use doc::lines::buffer::rope_text::RopeText;
 use doc::lines::cursor::CursorAffinity;
+use floem::file_action::open_file;
 use floem::reactive::SignalTrack;
+use floem::views::editor::core::{
+    command::FocusCommand, mode::Mode, register::Register,
+};
 use floem::{
-    action::{open_file, remove_overlay, TimerToken},
+    action::{remove_overlay, TimerToken},
     ext_event::{create_ext_action, create_signal_from_channel},
     file::FileDialogOptions,
     keyboard::Modifiers,
@@ -22,10 +26,8 @@ use floem::{
 use im::HashMap;
 use indexmap::IndexMap;
 use itertools::Itertools;
-use lapce_core::{
-    command::FocusCommand, directory::Directory, meta, mode::Mode,
-    register::Register,
-};
+use lapce_core::directory::Directory;
+use lapce_core::meta;
 use lapce_rpc::{
     core::CoreNotification,
     dap_types::{ConfigSource, RunDebugConfig},
@@ -427,7 +429,7 @@ impl WindowTabData {
                 .font_size(config.ui.font_size() as f32)
                 .line_height(LineHeightValue::Normal(1.8));
             let attrs_list = AttrsList::new(attrs);
-            TextLayout::new("W", attrs_list).size().height
+            TextLayout::new_with_text("W", attrs_list).size().height
         });
 
         let common = Rc::new(CommonData {

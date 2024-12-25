@@ -9,8 +9,8 @@ use floem::{
     style::CursorStyle,
     text::Style as FontStyle,
     views::{
-        container, dyn_stack, label, scroll, stack, svg, text, virtual_stack,
-        Decorators, VirtualDirection, VirtualItemSize,
+        container, dyn_stack, label, scroll, stack, text, virtual_stack, Decorators,
+        VirtualDirection, VirtualItemSize,
     },
     View,
 };
@@ -30,6 +30,7 @@ use crate::{
     editor::location::{EditorLocation, EditorPosition},
     listener::Listener,
     settings::checkbox,
+    svg,
     terminal::panel::TerminalPanelData,
     window_tab::WindowTabData,
 };
@@ -322,7 +323,7 @@ fn debug_processes(
                         .hover(|s| {
                             s.cursor(CursorStyle::Pointer).background(
                                 (config.color(LapceColor::PANEL_HOVERED_BACKGROUND))
-                                    .with_alpha_factor(0.3),
+                                    .multiply_alpha(0.3),
                             )
                         })
                 })

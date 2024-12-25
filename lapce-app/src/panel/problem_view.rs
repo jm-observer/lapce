@@ -8,13 +8,14 @@ use floem::{
         SignalWith,
     },
     style::{CursorStyle, Style},
-    views::{container, dyn_stack, label, scroll, stack, svg, Decorators},
+    views::{container, dyn_stack, label, scroll, stack, Decorators},
     View,
 };
 use lsp_types::{DiagnosticRelatedInformation, DiagnosticSeverity};
 
 use super::{data::PanelSection, view::PanelBuilder};
 use crate::panel::position::PanelContainerPosition;
+use crate::svg;
 use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
@@ -25,7 +26,6 @@ use crate::{
     window_tab::WindowTabData,
     workspace::LapceWorkspace,
 };
-
 pub fn problem_panel(
     window_tab_data: Rc<WindowTabData>,
     position: PanelContainerPosition,

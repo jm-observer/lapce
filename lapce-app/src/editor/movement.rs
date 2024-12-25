@@ -1,6 +1,6 @@
 //! Movement logic for the editor.
 
-use floem_editor_core::{
+use floem::views::editor::core::{
     command::MultiSelectionCommand,
     mode::{Mode, MotionMode, VisualMode},
     movement::{LinePosition, Movement},
@@ -17,7 +17,6 @@ use doc::lines::{
 use crate::editor::editor::{CommonAction, Editor};
 use floem::views::editor::text::Styling;
 use floem::views::editor::visual_line::RVLine;
-use floem_editor_core::word::WordCursor;
 use log::{error, info, warn};
 
 use anyhow::Result;

@@ -12,9 +12,6 @@ use log::{debug, error};
 use lsp_types::Position;
 use serde::{Deserialize, Serialize};
 
-use lapce_core::buffer::Buffer;
-use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
-
 use crate::config::{color::LapceColor, LapceConfig};
 use crate::doc::Doc;
 
@@ -189,12 +186,12 @@ impl View for EditorGutterView {
                     .visual_line
                     .line_number(show_relative, current_number);
                 let text_layout = if current_number == line_number {
-                    TextLayout::new(
+                    TextLayout::new_with_text(
                         &line_number.map(|x| x.to_string()).unwrap_or_default(),
                         current_line_attrs_list.clone(),
                     )
                 } else {
-                    TextLayout::new(
+                    TextLayout::new_with_text(
                         &line_number.map(|x| x.to_string()).unwrap_or_default(),
                         attrs_list.clone(),
                     )
@@ -209,7 +206,10 @@ impl View for EditorGutterView {
                     .max(0.0);
                 let y = y + (line_height - height) / 2.0;
 
-                cx.draw_text(text_layout.layout_runs(), Point::new(x, y));
+                cx.draw_text_with_layout(
+                    text_layout.layout_runs(),
+                    Point::new(x, y),
+                );
             }
         });
 

@@ -1,10 +1,10 @@
 use std::{fmt::Display, str::FromStr};
 
+use floem::views::editor::core::mode::Modes;
 use floem::{
     keyboard::{Key, KeyCode, Modifiers, NamedKey, PhysicalKey},
     pointer::PointerButton,
 };
-use lapce_core::mode::Modes;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum KeymapMatch {

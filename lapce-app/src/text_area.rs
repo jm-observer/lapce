@@ -19,7 +19,7 @@
 //     let doc = editor.doc_signal();
 //     let cursor = editor.cursor();
 //     let text_area_rect = create_rw_signal(Rect::ZERO);
-//     let text_layout = create_rw_signal(TextLayout::new());
+//     let text_layout = create_rw_signal(TextLayout::new_with_text());
 //     let line_height = 1.2;
 //
 //     create_effect(move |_| {

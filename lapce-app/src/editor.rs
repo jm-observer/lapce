@@ -18,6 +18,14 @@ use std::{
 };
 
 use doc::lines::phantom_text::PhantomTextKind;
+use floem::views::editor::core::movement::Movement;
+use floem::views::editor::core::{
+    command::{
+        EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand,
+        ScrollCommand,
+    },
+    mode::{Mode, MotionMode},
+};
 use floem::{
     action::{exec_after, show_context_menu, TimerToken},
     ext_event::create_ext_action,
@@ -37,13 +45,6 @@ use floem::{
         visual_line::{ConfigId, VLine},
     },
     ViewId,
-};
-use lapce_core::{
-    command::{
-        EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand,
-        ScrollCommand,
-    },
-    mode::{Mode, MotionMode},
 };
 use lapce_rpc::{buffer::BufferId, plugin::PluginId, proxy::ProxyResponse};
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
@@ -678,7 +679,7 @@ impl EditorData {
 
     fn run_move_command(
         &self,
-        movement: &lapce_core::movement::Movement,
+        movement: &Movement,
         count: Option<usize>,
         mods: Modifiers,
     ) -> CommandExecuted {
@@ -1194,9 +1195,7 @@ impl EditorData {
             }
         } {
             self.run_move_command(
-                &lapce_core::movement::Movement::Offset(
-                    new_index + line_start_offset,
-                ),
+                &Movement::Offset(new_index + line_start_offset),
                 None,
                 Modifiers::empty(),
             );
@@ -1268,7 +1267,7 @@ impl EditorData {
         items.sort_by_key(|(score, _, _)| -(*score as i64));
         if let Some((_, offset, _)) = items.first().copied() {
             self.run_move_command(
-                &lapce_core::movement::Movement::Offset(offset),
+                &Movement::Offset(offset),
                 None,
                 Modifiers::empty(),
             );
@@ -2641,11 +2640,7 @@ impl EditorData {
         let next = self.common.find.next(buffer.text(), offset, false, true);
 
         if let Some((start, _end)) = next {
-            self.run_move_command(
-                &lapce_core::movement::Movement::Offset(start),
-                None,
-                mods,
-            );
+            self.run_move_command(&Movement::Offset(start), None, mods);
         }
     }
 
@@ -2658,11 +2653,7 @@ impl EditorData {
         let next = self.common.find.next(&text, offset, false, true);
 
         if let Some((start, _end)) = next {
-            self.run_move_command(
-                &lapce_core::movement::Movement::Offset(start),
-                None,
-                mods,
-            );
+            self.run_move_command(&Movement::Offset(start), None, mods);
         }
     }
 
@@ -2675,11 +2666,7 @@ impl EditorData {
         let next = self.common.find.next(&text, offset, true, true);
 
         if let Some((start, _end)) = next {
-            self.run_move_command(
-                &lapce_core::movement::Movement::Offset(start),
-                None,
-                mods,
-            );
+            self.run_move_command(&Movement::Offset(start), None, mods);
         }
     }
 

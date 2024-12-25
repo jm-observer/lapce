@@ -6,8 +6,8 @@ use floem::{
     reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     style::CursorStyle,
     views::{
-        container, editor::id::Id, label, scroll, stack, svg, virtual_stack,
-        Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
+        container, editor::id::Id, label, scroll, stack, virtual_stack, Decorators,
+        VirtualDirection, VirtualItemSize, VirtualVector,
     },
     View,
 };
@@ -18,6 +18,7 @@ use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons},
     editor::location::EditorLocation,
+    svg,
     window_tab::WindowTabData,
 };
 

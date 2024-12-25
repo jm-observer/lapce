@@ -1,21 +1,21 @@
-use std::{
-    rc::Rc,
-    sync::{atomic::AtomicU64, Arc},
-};
-
+use crate::svg;
+use floem::views::editor::core::mode::{Mode, VisualMode};
 use floem::{
     event::EventPropagation,
     reactive::{
         create_memo, Memo, ReadSignal, RwSignal, SignalGet, SignalUpdate, SignalWith,
     },
     style::{AlignItems, CursorStyle, Display, FlexWrap},
-    views::{dyn_stack, label, stack, svg, Decorators},
+    views::{dyn_stack, label, stack, Decorators},
     View,
 };
 use indexmap::IndexMap;
-use lapce_core::mode::{Mode, VisualMode};
 use log::error;
 use lsp_types::{DiagnosticSeverity, ProgressToken};
+use std::{
+    rc::Rc,
+    sync::{atomic::AtomicU64, Arc},
+};
 
 use crate::{
     app::clickable_icon,

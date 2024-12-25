@@ -8,16 +8,16 @@ use alacritty_terminal::{
     Term,
 };
 use anyhow::anyhow;
-use floem::{
-    keyboard::{Key, KeyEvent, Modifiers, NamedKey},
-    reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
-    views::editor::text::SystemClipboard,
-};
-use lapce_core::{
+use floem::views::editor::core::{
     command::{EditCommand, FocusCommand, ScrollCommand},
     mode::{Mode, VisualMode},
     movement::{LinePosition, Movement},
     register::Clipboard,
+};
+use floem::{
+    keyboard::{Key, KeyEvent, Modifiers, NamedKey},
+    reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
+    views::editor::text::SystemClipboard,
 };
 use lapce_rpc::{
     dap_types::RunDebugConfig,

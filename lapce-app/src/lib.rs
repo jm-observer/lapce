@@ -51,3 +51,19 @@ pub mod workspace;
 
 #[cfg(windows)]
 extern crate windows_sys as windows;
+
+use floem::prelude::Svg;
+use floem::reactive::create_effect;
+use floem::views::{Decorators, SvgClass};
+use floem::{View, ViewId};
+
+pub fn svg(svg_str: impl Fn() -> String + 'static) -> Svg {
+    let content = svg_str();
+    let svg = floem::views::svg(content);
+    let id = svg.id();
+    create_effect(move |_| {
+        let new_svg_str = svg_str();
+        id.update_state(new_svg_str);
+    });
+    svg
+}

@@ -3,6 +3,7 @@ use crate::config::color::LapceColor;
 use crate::config::icon::LapceIcons;
 use crate::config::ui::{TabCloseButton, TabSeparatorHeight};
 use crate::config::LapceConfig;
+use crate::svg;
 use crate::window_tab::WindowTabData;
 use floem::kurbo::{Rect, Size};
 use floem::reactive::*;
@@ -17,7 +18,6 @@ use floem::views::*;
 use floem::*;
 use std::rc::Rc;
 use std::sync::Arc;
-
 /// The top bar of an Editor tab. Includes the tab forward/back buttons, the tab scroll bar and the new split and tab close all button.
 pub fn common_tab_header<T: Clone + 'static>(
     window_tab_data: Rc<WindowTabData>,
@@ -270,7 +270,7 @@ impl<T: Clone + 'static> Tab<T> {
                         config
                             .get()
                             .color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE)
-                            .with_alpha_factor(0.5),
+                            .multiply_alpha(0.5),
                     )
                 })
                 .debug_name("Tab Boundary"),
@@ -482,7 +482,7 @@ impl<T: Clone + 'static> Tabs<T> {
                         config
                             .get()
                             .color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE)
-                            .with_alpha_factor(0.5),
+                            .multiply_alpha(0.5),
                     )
                 })
                 .debug_name("Tab Boundary"),

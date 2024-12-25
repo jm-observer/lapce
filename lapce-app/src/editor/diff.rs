@@ -12,7 +12,7 @@ use floem::{
     reactive::{RwSignal, Scope, SignalGet, SignalUpdate, SignalWith},
     style::CursorStyle,
     views::{
-        clip, dyn_stack, editor::id::EditorId, empty, label, stack, svg, Decorators,
+        clip, dyn_stack, editor::id::EditorId, empty, label, stack, Decorators,
     },
     View,
 };
@@ -26,6 +26,7 @@ use crate::{
     doc::{Doc, DocContent},
     id::{DiffEditorId, EditorTabId},
     main_split::{Editors, MainSplitData},
+    svg,
     wave::wave_box,
     window_tab::CommonData,
 };
